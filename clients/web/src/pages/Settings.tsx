@@ -20,7 +20,6 @@ import { CodeInput, Field } from "../components/form";
 import { SkeletonRows } from "../components/Skeleton";
 import { Ic, Sym, Tile } from "../components/icons";
 import { lockServer } from "../shell/session";
-import { openBooking } from "../shell/shortcuts";
 import { RulesTab } from "./Rules";
 
 export function SettingsPage() {
@@ -141,8 +140,8 @@ function AccountsTab() {
                                     </button>
                                     <Amt cents={a.balance} />
                                     <span className="cc-acc-actions">
-                                        <button className="mini" aria-label="Buchung erfassen" title="Buchung erfassen" onClick={() => openBooking(a.id)}>
-                                            <Ic icon={Plus} size={15} />
+                                        <button className="mini" aria-label={`Buchungen in „${a.name}“ importieren`} title="Buchungen importieren …" onClick={() => ui.open({ kind: "import", accountId: a.id })}>
+                                            <Ic icon={FileUp} size={15} />
                                         </button>
                                         <button className="mini" aria-label={`„${a.name}“ löschen`} title="Konto löschen …" disabled={action.pending} onClick={() => confirmDeleteAccount(a, action)}>
                                             <Ic icon={Trash2} size={14} />

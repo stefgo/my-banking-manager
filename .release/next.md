@@ -14,5 +14,7 @@ Nothing inside an HTML comment is published.
 
 - **CSV-Import:** Unter Einstellungen → Importe startest du über „CSV importieren“ direkt einen
   neuen Import; das Konto wählst du im Dialog.
+- **Offline-Konten:** Unter Einstellungen → Konten öffnet der Knopf neben einem Offline-Konto jetzt
+  den CSV-Import für dieses Konto (statt „Buchung erfassen“).
 - **CSV-Import:** Die Liste der zu importierenden Umsätze ist nur so hoch, dass der ganze Dialog
   ins Fenster passt; „Importieren“ bleibt ohne Scrollen erreichbar.
