@@ -12,5 +12,7 @@ Nothing inside an HTML comment is published.
 
 ### Verbessert
 
+- **CSV-Import:** Unter Einstellungen → Importe startest du über „CSV importieren“ direkt einen
+  neuen Import; das Konto wählst du im Dialog.
 - **CSV-Import:** Die Liste der zu importierenden Umsätze ist nur so hoch, dass der ganze Dialog
   ins Fenster passt; „Importieren“ bleibt ohne Scrollen erreichbar.
