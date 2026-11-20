@@ -1,0 +1,48 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Server debuggen",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/server",
+      "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
+      // tsconfig.dev.json: see the comment there (sqlite types mapping)
+      // The entry point goes in runtimeArgs, not "program": for a .ts program the debugger looks
+      // for a compiled file via source maps and would start the stale build in server/dist.
+      "runtimeArgs": ["--tsconfig", "tsconfig.dev.json", "--conditions=development", "src/index.ts"],
+      "outFiles": [],
+      "env": { "MBM_HOST": "127.0.0.1", "MBM_FINTS_SOCKET": "../.run/fints.sock" },
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**", "${workspaceFolder}/node_modules/**"]
+    },
+    {
+      "name": "FinTS-Konnektor debuggen",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/connectors/fints",
+      "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
+      // The product ID comes from .env in the repository root (not committed)
+      "runtimeArgs": ["--env-file-if-exists=../../.env", "--conditions=development", "src/index.ts"],
+      "outFiles": [],
+      "env": { "MBM_FINTS_SOCKET": "../../.run/fints.sock" },
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**", "${workspaceFolder}/node_modules/**"]
+    },
+    {
+      "name": "Web in Chrome debuggen",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/clients/web",
+      "preLaunchTask": "Web (dev)"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Server + Web debuggen",
+      "configurations": ["Server debuggen", "FinTS-Konnektor debuggen", "Web in Chrome debuggen"],
+      "stopAll": true
+    }
+  ]
+}

@@ -1,0 +1,411 @@
+# Builds and publishes the container images. Nothing is tagged until the images have been
+# started and answered their health checks. It creates no version number -- that is
+# release.yml alone, on request.
+#
+# Three images: mbm-server and mbm-fints run as two containers (compose.split.yaml), mbm-server-full
+# has the FinTS connector inside (compose.yaml).
+#
+# FinTS product registration number: only mbm-server-full of a version tag is official. It gets
+# the number from the repository secret FINTS_PRODUCT_ID as a build secret (never a build
+# argument, never in the source) and is built without any cache, so the layer holding the number
+# never reaches the Actions cache. mbm-fints never carries one; :main, :dev and every other build
+# carry none either (docs/development.md, "Veröffentlichung").
+name: Build Images
+
+on:
+    push:
+        # Both long-lived branches publish a rolling image: :main is the released state, :dev the
+        # one in development. Neither creates a version.
+        branches: ["main", "dev"]
+        # A release tag reaches this workflow through the workflow_dispatch that release.yml
+        # fires -- semantic-release pushes the tag over GITHUB_TOKEN, and such a push creates no
+        # workflow run. The filter covers a tag pushed by hand.
+        tags: ["v*.*.*"]
+        # A commit that only touches documentation changes nothing inside the images. Path
+        # filters apply to branch pushes only -- neither a tag nor workflow_dispatch is affected.
+        paths-ignore:
+            - "**.md"
+    workflow_dispatch: # Manual trigger in the Actions tab, for any branch or tag
+
+# A second push to the same branch makes the older build pointless. Tag builds are never
+# cancelled -- their image is the artefact of a release.
+concurrency:
+    group: build-${{ github.ref }}
+    cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+# The registry is named once, here. A job's `env` cannot read the `env` context, so `prepare`
+# composes the image names in a `run:` step, and the jobs below take them from `needs`.
+env:
+    REGISTRY: ghcr.io
+
+jobs:
+    # Typecheck, lint and test before anything is built. Reuses ci.yml rather than restating the
+    # steps, so the gate cannot drift from the branch checks.
+    verify:
+        uses: ./.github/workflows/ci.yml
+        permissions:
+            contents: read
+
+    # The single source of the version string, the image names and whether this build is official.
+    prepare:
+        needs: verify
+        runs-on: ubuntu-latest
+        # Computes strings from GITHUB_REF and GITHUB_SHA -- no checkout, no registry, no API.
+        permissions: {}
+        outputs:
+            version: ${{ steps.version.outputs.version }}
+            official: ${{ steps.version.outputs.official }}
+            server_image: ${{ steps.version.outputs.server_image }}
+            fints_image: ${{ steps.version.outputs.fints_image }}
+            server-full_image: ${{ steps.version.outputs.server-full_image }}
+        steps:
+            - name: Determine version
+              id: version
+              env:
+                  OWNER: ${{ github.repository_owner }}
+              run: |
+                  echo "server_image=$REGISTRY/${OWNER,,}/mbm-server" >> "$GITHUB_OUTPUT"
+                  echo "fints_image=$REGISTRY/${OWNER,,}/mbm-fints" >> "$GITHUB_OUTPUT"
+                  echo "server-full_image=$REGISTRY/${OWNER,,}/mbm-server-full" >> "$GITHUB_OUTPUT"
+                  if [[ $GITHUB_REF == refs/tags/v* ]]; then
+                    echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+                    echo "official=true" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "version=${GITHUB_REF_NAME}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+                    echo "official=false" >> "$GITHUB_OUTPUT"
+                  fi
+
+            # release.yml checks this before it creates the tag; this covers a tag pushed by hand
+            # or a re-run after the secret was removed. Never prints the value.
+            - name: Product ID present
+              if: steps.version.outputs.official == 'true'
+              env:
+                  FINTS_PRODUCT_ID: ${{ secrets.FINTS_PRODUCT_ID }}
+              run: |
+                  if [ -z "$FINTS_PRODUCT_ID" ]; then
+                    echo "::error::Repository secret FINTS_PRODUCT_ID is missing: official images need the FinTS product registration number."
+                    exit 1
+                  fi
+
+    # All three images ship as multi-arch manifests. Each architecture is built on a native runner and
+    # pushed **by digest and without a tag** -- tagging is the publish job's business, and that
+    # one runs after the smoke test.
+    build:
+        needs: prepare
+        runs-on: ${{ matrix.runner }}
+        permissions:
+            contents: read
+            packages: write
+
+        strategy:
+            fail-fast: false
+            matrix:
+                image: [server, fints, server-full]
+                arch: [amd64, arm64]
+                include:
+                    - arch: amd64
+                      runner: ubuntu-latest
+                      platform: linux/amd64
+                    - arch: arm64
+                      runner: ubuntu-24.04-arm
+                      platform: linux/arm64
+
+        env:
+            IMAGE: ${{ needs.prepare.outputs[format('{0}_image', matrix.image)] }}
+            # Only mbm-server-full of a version tag carries the product ID.
+            OFFICIAL: ${{ matrix.image == 'server-full' && needs.prepare.outputs.official == 'true' }}
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v7
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v4
+
+            - name: Log in to the Container registry
+              uses: docker/login-action@v4
+              with:
+                  registry: ${{ env.REGISTRY }}
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            # Tags are attached by the publish job; here only the labels are needed.
+            - name: Extract Docker metadata
+              id: meta
+              uses: docker/metadata-action@v6
+              with:
+                  images: ${{ env.IMAGE }}
+
+            # An official mbm-server-full build gets the secret and no cache at all: Docker leaves the
+            # content of a secret out of the cache key, and a cached layer holding the number
+            # would sit in the Actions cache. Every other build caches per image and
+            # architecture, or the six jobs would overwrite each other's layers.
+            - name: Build and push by digest
+              id: build
+              uses: docker/build-push-action@v7
+              with:
+                  context: .
+                  file: ./docker/${{ matrix.image }}.Dockerfile
+                  platforms: ${{ matrix.platform }}
+                  build-args: |
+                      MBM_VERSION=${{ needs.prepare.outputs.version }}
+                      ${{ env.OFFICIAL == 'true' && 'MBM_FINTS_OFFICIAL=1' || '' }}
+                  secrets: ${{ env.OFFICIAL == 'true' && format('fints_product_id={0}', secrets.FINTS_PRODUCT_ID) || '' }}
+                  no-cache: ${{ env.OFFICIAL == 'true' }}
+                  cache-from: ${{ env.OFFICIAL != 'true' && format('type=gha,scope={0}-{1}', matrix.image, matrix.arch) || '' }}
+                  cache-to: ${{ env.OFFICIAL != 'true' && format('type=gha,mode=max,scope={0}-{1}', matrix.image, matrix.arch) || '' }}
+                  labels: ${{ steps.meta.outputs.labels }}
+                  outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+
+            # The file name is the digest; the file itself stays empty. The cheapest way to hand a
+            # string from a matrix job to a later job.
+            - name: Export digest
+              env:
+                  DIGEST: ${{ steps.build.outputs.digest }}
+              run: |
+                  mkdir -p /tmp/digests
+                  touch "/tmp/digests/${DIGEST#sha256:}"
+
+            - name: Upload digest
+              uses: actions/upload-artifact@v7
+              with:
+                  name: digests-${{ matrix.image }}-${{ matrix.arch }}
+                  path: /tmp/digests/*
+                  if-no-files-found: error
+                  retention-days: 1
+
+    # Starts what was just built and asks it whether it is alive -- the only place in the
+    # pipeline where the images are executed. It is a gate: nothing is tagged until it has
+    # passed. Both architectures run natively, each against exactly the digests of this run: the
+    # pair mbm-server + mbm-fints, then mbm-server-full on its own.
+    smoke:
+        name: Smoke test
+        needs: [prepare, build]
+        runs-on: ${{ matrix.runner }}
+        permissions:
+            contents: read
+            packages: read
+
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - arch: amd64
+                      runner: ubuntu-latest
+                    - arch: arm64
+                      runner: ubuntu-24.04-arm
+
+        env:
+            SERVER_IMAGE: ${{ needs.prepare.outputs.server_image }}
+            FINTS_IMAGE: ${{ needs.prepare.outputs.fints_image }}
+            FULL_IMAGE: ${{ needs.prepare.outputs.server-full_image }}
+            OFFICIAL: ${{ needs.prepare.outputs.official }}
+
+        steps:
+            - name: Log in to the Container registry
+              uses: docker/login-action@v4
+              with:
+                  registry: ${{ env.REGISTRY }}
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            # There is no tag to pull yet, so the images are addressed by digest.
+            - name: Download the digests for this architecture
+              uses: actions/download-artifact@v8
+              with:
+                  path: /tmp/digests
+                  pattern: digests-*-${{ matrix.arch }}
+
+            - name: Resolve the digests
+              env:
+                  ARCH: ${{ matrix.arch }}
+              run: |
+                  server=$(basename /tmp/digests/digests-server-"$ARCH"/*)
+                  fints=$(basename /tmp/digests/digests-fints-"$ARCH"/*)
+                  full=$(basename /tmp/digests/digests-server-full-"$ARCH"/*)
+                  echo "SERVER_REF=$SERVER_IMAGE@sha256:$server" >> "$GITHUB_ENV"
+                  echo "FINTS_REF=$FINTS_IMAGE@sha256:$fints" >> "$GITHUB_ENV"
+                  echo "FULL_REF=$FULL_IMAGE@sha256:$full" >> "$GITHUB_ENV"
+
+            # Started the way compose.yaml starts them: read-only root file system, /tmp in
+            # memory, no new privileges, the socket in a tmpfs volume owned by uid 1000 that only
+            # these two mount, an empty data volume for the server. No download of the bank
+            # directory from bundesbank.de in a test. An image that needs more fails here, before
+            # anything is tagged. mbm-server-full runs next to them on its own port, with a data
+            # volume of its own and no socket.
+            - name: Start the images
+              run: |
+                  docker volume create mbm-smoke-sockets \
+                    --opt type=tmpfs --opt device=tmpfs --opt o=uid=1000,gid=1000,mode=0770
+                  docker run -d --name mbm-smoke-fints \
+                    --read-only --tmpfs /tmp --security-opt no-new-privileges:true \
+                    -v mbm-smoke-sockets:/run/mbm "$FINTS_REF"
+                  docker run -d --name mbm-smoke-server -p 127.0.0.1:3040:3040 \
+                    --read-only --tmpfs /tmp --security-opt no-new-privileges:true \
+                    -e MBM_FINTS_SOCKET=/run/mbm/fints.sock -e MBM_BANK_DIRECTORY_UPDATE=false \
+                    -v /data -v mbm-smoke-sockets:/run/mbm "$SERVER_REF"
+                  docker run -d --name mbm-smoke-full -p 127.0.0.1:3041:3040 \
+                    --read-only --tmpfs /tmp --security-opt no-new-privileges:true \
+                    -e MBM_BANK_DIRECTORY_UPDATE=false -v /data "$FULL_REF"
+
+            - name: Wait for all to answer
+              run: |
+                  # probe <container> <command...>: runs the command until it succeeds.
+                  probe() {
+                    local name=$1; shift
+                    for i in $(seq 1 60); do
+                      if "$@" > /dev/null 2>&1; then
+                        echo "$name answered after ${i}s"
+                        return 0
+                      fi
+                      # A container that already exited will never answer.
+                      if [ "$(docker inspect -f '{{.State.Running}}' "$name")" != "true" ]; then
+                        echo "::error::$name is no longer running"
+                        return 1
+                      fi
+                      sleep 1
+                    done
+                    echo "::error::$name did not answer within 60s"
+                    return 1
+                  }
+                  probe mbm-smoke-server bash -c \
+                    "curl -fsS http://127.0.0.1:3040/api/health | grep -q '\"ok\":true'"
+                  # Asked from inside the server container, over the shared socket: this is the
+                  # way the server reaches the connector, so it proves the socket volume and its
+                  # permissions as well.
+                  probe mbm-smoke-fints docker exec mbm-smoke-server node -e \
+                    "require('http').get({socketPath:'/run/mbm/fints.sock',path:'/v1/info'},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+                  # The embedded connector answers through the server: /api/connectors needs a
+                  # signed-in user, so the start line below shows that it was loaded.
+                  probe mbm-smoke-full bash -c \
+                    "curl -fsS http://127.0.0.1:3041/api/health | grep -q '\"ok\":true'"
+
+            # The connector's start line says where its product ID comes from, never the value.
+            # mbm-fints never carries one; mbm-server-full carries the number of the build in
+            # official images and none in all others.
+            - name: Product ID only in official mbm-server-full images
+              run: |
+                  # check <container> <expected>: the start line of its FinTS connector says so.
+                  check() {
+                    local line
+                    line=$(docker logs "$1" 2>&1 | grep -m1 "MBM FinTS connector" || true)
+                    if [[ "$line" != *"$2"* ]]; then
+                      echo "::error::$1: the FinTS connector does not report '$2'"
+                      return 1
+                    fi
+                    echo "$1: $2"
+                  }
+                  check mbm-smoke-fints "(no product ID: banks will not be contacted)"
+                  if [ "$OFFICIAL" = "true" ]; then
+                    check mbm-smoke-full "embedded (product ID of this build)"
+                  else
+                    check mbm-smoke-full "embedded (no product ID: banks will not be contacted)"
+                  fi
+
+            - name: Container logs
+              if: failure()
+              run: |
+                  echo "::group::server"; docker logs mbm-smoke-server 2>&1 | tail -50; echo "::endgroup::"
+                  echo "::group::fints"; docker logs mbm-smoke-fints 2>&1 | tail -50; echo "::endgroup::"
+                  echo "::group::server-full"; docker logs mbm-smoke-full 2>&1 | tail -50; echo "::endgroup::"
+
+            - name: Clean up
+              if: always()
+              run: |
+                  docker rm -fv mbm-smoke-server mbm-smoke-fints mbm-smoke-full 2>/dev/null || true
+                  docker volume rm mbm-smoke-sockets 2>/dev/null || true
+
+    # Nothing above carries a tag: every job so far pushed by digest only. This is where a build
+    # becomes something a user can pull, and it runs **after** the smoke test. A build that fails
+    # the smoke test leaves its digests untagged; the nightly Prune Registry run sweeps them.
+    publish:
+        name: Tag and publish
+        needs: [prepare, build, smoke]
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: write
+
+        env:
+            SERVER_IMAGE: ${{ needs.prepare.outputs.server_image }}
+            FINTS_IMAGE: ${{ needs.prepare.outputs.fints_image }}
+            FULL_IMAGE: ${{ needs.prepare.outputs.server-full_image }}
+
+        steps:
+            # No merge-multiple: the directory name is what tells the digests of the images apart.
+            - name: Download digests
+              uses: actions/download-artifact@v8
+              with:
+                  path: /tmp/digests
+                  pattern: digests-*
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v4
+
+            - name: Log in to the Container registry
+              uses: docker/login-action@v4
+              with:
+                  registry: ${{ env.REGISTRY }}
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            # One metadata run for all images; the step below splits the result up by name.
+            - name: Extract Docker metadata
+              id: meta
+              uses: docker/metadata-action@v6
+              with:
+                  images: |
+                      ${{ env.SERVER_IMAGE }}
+                      ${{ env.FINTS_IMAGE }}
+                      ${{ env.FULL_IMAGE }}
+                  tags: |
+                      # For a push to main or dev: the branch name plus the SHA
+                      type=ref,event=branch
+                      type=sha,prefix=sha-
+
+                      # For a release tag (v1.2.0): the version tags
+                      type=semver,pattern={{version}}
+                      type=semver,pattern={{major}}.{{minor}}
+                      # Only a stable release moves latest. A tag with a hyphen (v1.2.0-beta.1)
+                      # is a prerelease and must not reach every host that pulls latest.
+                      type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
+
+            - name: Apply the tags
+              run: |
+                  # $1 is the image, the rest are its per-architecture digests, which become one
+                  # multi-arch manifest list.
+                  publish() {
+                      local image=$1 digest
+                      shift
+                      local -a args
+                      # The image name *plus a colon*, so one name can never claim the tags of
+                      # another that merely starts with it.
+                      mapfile -t args < <(jq -r --arg i "$image" \
+                          '.tags[] | select(startswith($i + ":")) | "-t", .' \
+                          <<< "$DOCKER_METADATA_OUTPUT_JSON")
+                      if [ "${#args[@]}" -eq 0 ]; then
+                          echo "::error::no tags were computed for $image"
+                          return 1
+                      fi
+                      for digest in "$@"; do args+=("$image@sha256:$digest"); done
+                      echo "$image <- ${args[*]}"
+                      docker buildx imagetools create "${args[@]}"
+                  }
+
+                  # digests-server-{amd64,arm64} only: digests-server-* would take server-full too.
+                  mapfile -t server < <(basename -a /tmp/digests/digests-server-amd64/* /tmp/digests/digests-server-arm64/*)
+                  mapfile -t fints < <(basename -a /tmp/digests/digests-fints-*/*)
+                  mapfile -t full < <(basename -a /tmp/digests/digests-server-full-*/*)
+                  publish "$SERVER_IMAGE" "${server[@]}"
+                  publish "$FINTS_IMAGE" "${fints[@]}"
+                  publish "$FULL_IMAGE" "${full[@]}"
+
+            - name: Inspect the published images
+              env:
+                  VERSION: ${{ steps.meta.outputs.version }}
+              run: |
+                  for image in "$SERVER_IMAGE" "$FINTS_IMAGE" "$FULL_IMAGE"; do
+                      echo "::group::$image"
+                      docker buildx imagetools inspect "$image:$VERSION"
+                      echo "::endgroup::"
+                  done

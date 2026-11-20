@@ -1,0 +1,17 @@
+{
+  // Use the project's TypeScript (6.x) instead of the one bundled with VS Code
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "tailwindCSS.experimental.configFile": "clients/web/src/styles/app.css",
+  "search.exclude": {
+    "**/dist": true,
+    "**/coverage": true,
+    "server/data": true,
+    "package-lock.json": true
+  },
+  "files.watcherExclude": {
+    "**/dist/**": true,
+    "**/coverage/**": true,
+    "server/data/**": true
+  }
+}

@@ -1,0 +1,80 @@
+name: Publish Docs
+
+# Builds mkdocs.yml and publishes docs/ to GitHub Pages.
+#
+# Separate from ci.yml and release.yml on purpose: a Python toolchain has no
+# place in the release chain, and a typo in a documentation page must not be
+# able to block a release.
+#
+# `mkdocs build --strict` is the link check of the documentation, so it runs on
+# every branch and pull request that touches a page. Deploying is main's alone:
+# dev is the development channel, and the site shows the released state.
+on:
+    # The path lists are duplicated on purpose: GitHub Actions has no YAML anchors.
+    push:
+        paths:
+            - "docs/**"
+            - "mkdocs.yml"
+            - "requirements-docs.txt"
+            - ".github/workflows/docs.yml"
+    pull_request:
+        paths:
+            - "docs/**"
+            - "mkdocs.yml"
+            - "requirements-docs.txt"
+            - ".github/workflows/docs.yml"
+    workflow_dispatch:
+
+jobs:
+    build:
+        name: Build site
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        concurrency:
+            group: docs-${{ github.ref }}
+            cancel-in-progress: true
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v7
+
+            - name: Set up Python
+              uses: actions/setup-python@v7
+              with:
+                  python-version: "3.12"
+                  cache: pip
+                  cache-dependency-path: requirements-docs.txt
+
+            - name: Install MkDocs Material
+              run: pip install -r requirements-docs.txt
+
+            # --strict turns a warning into a failure: a link that points
+            # nowhere, a nav entry without a file, a page outside the nav.
+            - name: Build
+              run: mkdocs build --strict
+
+            - name: Upload artifact
+              if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+              uses: actions/upload-pages-artifact@v5
+              with:
+                  path: site
+
+    deploy:
+        name: Deploy to GitHub Pages
+        needs: build
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        runs-on: ubuntu-latest
+        # One deployment at a time, never cut short: the last completed build stays live.
+        concurrency:
+            group: pages
+            cancel-in-progress: false
+        permissions:
+            pages: write
+            id-token: write
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.page_url }}
+        steps:
+            - name: Deploy
+              id: deployment
+              uses: actions/deploy-pages@v5

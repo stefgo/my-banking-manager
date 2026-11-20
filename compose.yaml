@@ -1,0 +1,32 @@
+# My Banking Manager in one container: server, web client and FinTS connector (image mbm-server-full).
+# Behind your reverse proxy (HTTPS), reachable only in the home network.
+# Server and FinTS connector in two containers instead: compose.split.yaml.
+services:
+  server:
+    build:
+      context: .
+      dockerfile: docker/server-full.Dockerfile
+    # Official image instead of building yourself: set MBM_IMAGE_SERVER_FULL in .env (see
+    # .env.example), then `docker compose pull && docker compose up -d`.
+    image: ${MBM_IMAGE_SERVER_FULL:-mbm-server-full:local}
+    restart: unless-stopped
+    ports:
+      - "3040:3040"
+    environment:
+      # FinTS product registration number (fints.org). The official images carry one; leave this
+      # empty for them. Building yourself: register your own and put it into .env next to this
+      # file. It takes precedence over the number in the image. Without any, no bank is contacted.
+      MBM_FINTS_PRODUCT_ID: ${MBM_FINTS_PRODUCT_ID:-}
+      # Behind your reverse proxy: trust its X-Forwarded-* headers (its address or network,
+      # see docs/operations.md). Without it, HTTPS is not recognized and the cookie lacks "Secure".
+      # MBM_TRUST_PROXY: "172.16.0.0/12"
+    volumes:
+      - mbm-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  mbm-data:

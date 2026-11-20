@@ -1,0 +1,108 @@
+name: Prune Registry
+
+on:
+    schedule:
+        - cron: "0 2 * * *" # Every night at 02:00
+    workflow_dispatch:
+        inputs:
+            dry_run:
+                description: "Log what would be deleted, delete nothing"
+                type: boolean
+                default: true
+
+# The action is not safe to run twice against the same package, and the nightly schedule and a
+# manual run can otherwise meet. Not cancelling: aborting a run halfway through a delete is the
+# worse of the two outcomes.
+concurrency:
+    group: cleanup-images
+    cancel-in-progress: false
+
+jobs:
+    delete-old-packages:
+        runs-on: ubuntu-latest
+        permissions:
+            packages: write
+            contents: read
+
+        steps:
+            # dataaxiom/ghcr-cleanup-action, because it knows what a manifest child is: a
+            # multi-arch build pushes its per-architecture images and attestations untagged, only
+            # the manifest list carries the tag. A plain "delete untagged versions" would hollow
+            # out the tagged images.
+            - name: Delete unwanted versions
+              uses: dataaxiom/ghcr-cleanup-action@v1
+              with:
+                  # **A new image has to be added here by hand** (ci.yml checks it). The action
+                  # touches only the packages it is named.
+                  packages: mbm-server,mbm-fints,mbm-server-full
+
+                  # A child of a kept tag does not count as untagged here.
+                  delete-untagged: true
+                  keep-n-tagged: 10
+
+                  # Never deleted: the rolling images, the last release and every release, so a
+                  # pinned version stays pullable.
+                  exclude-tags: latest,main,dev,*.*.*,*.*
+
+                  # Removes manifests whose children are gone. The excluded tags above are left
+                  # alone even when they are broken.
+                  delete-ghost-images: true
+                  delete-partial-images: true
+
+                  # Re-checks that every multi-arch image still has all its children. It only
+                  # warns -- the step below makes that finding fail the run.
+                  validate: true
+
+                  # Manual runs default to a dry run; the nightly schedule passes no input and
+                  # deletes.
+                  dry-run: ${{ inputs.dry_run || false }}
+
+            - name: Log in to the Container registry
+              uses: docker/login-action@v4
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            # A failing scheduled run is what GitHub sends a mail about. Resolves every child digest
+            # individually: a hollowed-out image still lists its platforms in the manifest list,
+            # and only fetching the child shows that it is gone.
+            - name: Verify the protected tags survived
+              env:
+                  OWNER: ${{ github.repository_owner }}
+              run: |
+                  registry="ghcr.io/${OWNER,,}"
+                  rc=0
+
+                  verify() {
+                      local ref=$1 raw digests image bad=0 d
+                      if ! raw=$(docker buildx imagetools inspect --raw "$ref" 2>/dev/null); then
+                          # A tag that does not exist yet is not a defect: dev appears once dev
+                          # was pushed, latest with the first stable release.
+                          echo "  $ref -- absent, nothing to verify"
+                          return 0
+                      fi
+                      digests=$(jq -r '.manifests[]?.digest // empty' <<< "$raw")
+                      if [ -z "$digests" ]; then
+                          echo "  $ref -- ok (single manifest)"
+                          return 0
+                      fi
+                      image=${ref%:*}
+                      for d in $digests; do
+                          if ! docker buildx imagetools inspect --raw "$image@$d" > /dev/null 2>&1; then
+                              echo "::error::$ref points at $d, which no longer exists"
+                              bad=1
+                          fi
+                      done
+                      if [ "$bad" -eq 0 ]; then
+                          echo "  $ref -- ok ($(wc -w <<< "$digests" | tr -d ' ') children)"
+                      fi
+                      return "$bad"
+                  }
+
+                  for image in mbm-server mbm-fints mbm-server-full; do
+                      for tag in latest main dev; do
+                          verify "$registry/$image:$tag" || rc=1
+                      done
+                  done
+                  exit $rc

@@ -1,0 +1,303 @@
+// Schemas of the connector API (server ↔ connector over a Unix socket). The connector is
+// stateless: the server sends bank, login and the opaque state with every call and stores the
+// state the connector returns. Amounts in cents, dates as JJJJ-MM-TT.
+
+import { z } from "zod";
+import { Cents, IsoDate } from "./common.js";
+import { SEPA_NAME_MAX, SEPA_REMITTANCE_MAX, TRANSFER_MAX_CENTS } from "../sepa.js";
+
+export const Blz = z.string().regex(/^\d{8}$/, "Bankleitzahl mit 8 Ziffern");
+
+/** The bank: shared by all users (bank_connections). */
+export const ConnectorBank = z.object({
+    blz: Blz,
+    /** FinTS address of the bank (HTTPS). */
+    url: z.string().url().startsWith("https://"),
+});
+export type ConnectorBank = z.infer<typeof ConnectorBank>;
+
+/** A user's bank login (bank_logins), unsealed by the server for this call only. */
+export const ConnectorLogin = z.object({
+    userId: z.string().trim().min(1).max(30),
+    /** Kunden-ID, only if the bank gave one that differs from the login name. */
+    customerId: z.string().trim().max(30).optional(),
+    pin: z.string().min(1).max(64),
+    /** Opaque state from the previous call; absent at the first call. */
+    state: z.string().max(2_000_000).optional(),
+    /** Chosen TAN method (id from /v1/tan-methods); absent until chosen. */
+    tanMethod: z.string().regex(/^9\d\d$/).optional(),
+    /** Chosen TAN medium (name from /v1/tan-media), if the method needs one. */
+    tanMedium: z.string().max(32).optional(),
+});
+export type ConnectorLogin = z.infer<typeof ConnectorLogin>;
+
+export const ConnectorRequest = z.object({ bank: ConnectorBank, login: ConnectorLogin });
+
+/** Identifies an account of a login; as the connector reported it in /v1/accounts. */
+export const ConnectorAccountRef = z.object({
+    accountNumber: z.string().min(1).max(35),
+    subAccount: z.string().max(30).default(""),
+    iban: z.string().max(34).nullable().default(null),
+    bic: z.string().max(11).nullable().default(null),
+});
+export type ConnectorAccountRef = z.infer<typeof ConnectorAccountRef>;
+
+export const ConnectorAccountKind = z.enum(["giro", "savings", "credit_card", "loan", "depot", "other"]);
+
+export const ConnectorAccountCapabilities = z.object({
+    balance: z.boolean(),
+    transactions: z.boolean(),
+    cardTransactions: z.boolean(),
+    transfer: z.boolean(),
+    instantTransfer: z.boolean(),
+    /** The standing orders of the account can be listed (HKCDB). */
+    standingOrders: z.boolean(),
+    /** The scheduled transfers of the account can be listed (HKCSB). */
+    scheduledTransfers: z.boolean(),
+    /** Listing them needs an approval every time (HIPINS); such lists are not fetched along with the bookings. */
+    standingOrdersTan: z.boolean().default(false),
+    scheduledTransfersTan: z.boolean().default(false),
+    /** The bank checks the payee's name before a transfer (verification of payee). */
+    payeeVerification: z.boolean().default(false),
+});
+export type ConnectorAccountCapabilities = z.infer<typeof ConnectorAccountCapabilities>;
+
+export const ConnectorAccount = ConnectorAccountRef.extend({
+    /** Stable key per bank access: IBAN, else account number and sub-account. */
+    externalId: z.string(),
+    name: z.string(),
+    owner: z.string(),
+    currency: z.string(),
+    kind: ConnectorAccountKind,
+    capabilities: ConnectorAccountCapabilities,
+});
+export type ConnectorAccount = z.infer<typeof ConnectorAccount>;
+
+export const ConnectorBalance = z.object({
+    externalId: z.string(),
+    booked: Cents,
+    currency: z.string(),
+    /** Date of the booked balance. */
+    date: IsoDate.nullable(),
+    pending: Cents.nullable(),
+    available: Cents.nullable(),
+    creditLine: Cents.nullable(),
+});
+export type ConnectorBalance = z.infer<typeof ConnectorBalance>;
+
+export const ConnectorTransaction = z.object({
+    bookingDate: IsoDate,
+    valueDate: IsoDate.nullable(),
+    /** Signed: negative = debit. */
+    amount: Cents,
+    currency: z.string(),
+    status: z.enum(["booked", "pending"]),
+    counterpartyName: z.string(),
+    counterpartyIban: z.string().nullable(),
+    counterpartyBic: z.string().nullable(),
+    remittance: z.string(),
+    endToEndId: z.string().nullable(),
+    mandateId: z.string().nullable(),
+    creditorId: z.string().nullable(),
+    /** Booking text of the bank, e.g. "Lastschrift", "Kartenzahlung". */
+    bookingText: z.string(),
+    /** Reference of the bank for this booking, if it sends one. */
+    bankReference: z.string().nullable(),
+});
+export type ConnectorTransaction = z.infer<typeof ConnectorTransaction>;
+
+/** What standing orders and scheduled transfers share: the payment as the bank holds it. */
+const ConnectorOrderBase = z.object({
+    /** Order identification of the bank; null if it gave none. */
+    bankOrderId: z.string().nullable(),
+    payeeName: z.string(),
+    payeeIban: z.string(),
+    payeeBic: z.string().nullable(),
+    /** Not negative; an order is always a debit. */
+    amount: Cents,
+    currency: z.string(),
+    remittance: z.string(),
+    endToEndId: z.string().nullable(),
+    /** Whether the bank lets the order be changed or deleted; null if it does not say. */
+    canChange: z.boolean().nullable(),
+    canDelete: z.boolean().nullable(),
+});
+
+export const OrderUnit = z.enum(["month", "week"]);
+export type OrderUnit = z.infer<typeof OrderUnit>;
+
+/**
+ * Day of execution: with unit "month" the day of the month (1–30) or 97, 98, 99 for two days
+ * before, one day before and the last day of the month; with unit "week" 1 (Monday) to 7.
+ */
+export const OrderExecutionDay = z.number().int().min(1).max(99);
+
+export const ConnectorStandingOrder = ConnectorOrderBase.extend({
+    firstDate: IsoDate,
+    unit: OrderUnit,
+    /** Every n months or weeks. */
+    every: z.number().int().min(1).max(52),
+    executionDay: OrderExecutionDay,
+    lastDate: IsoDate.nullable(),
+});
+export type ConnectorStandingOrder = z.infer<typeof ConnectorStandingOrder>;
+
+export const ConnectorScheduledTransfer = ConnectorOrderBase.extend({ executionDate: IsoDate });
+export type ConnectorScheduledTransfer = z.infer<typeof ConnectorScheduledTransfer>;
+
+export const ConnectorTanMethod = z.object({
+    id: z.string(),
+    name: z.string(),
+    /** Approval in an app instead of a TAN. */
+    decoupled: z.boolean(),
+    /** The method needs a TAN medium (see /v1/tan-media). */
+    needsMedium: z.boolean(),
+});
+
+export const ConnectorTanMedium = z.object({ name: z.string(), active: z.boolean() });
+
+export const ConnectorChallenge = z.object({
+    decoupled: z.boolean(),
+    /** The bank's instructions, to be shown unchanged. */
+    text: z.string(),
+    medium: z.string(),
+    validUntil: z.string(),
+    methodName: z.string(),
+});
+export type ConnectorChallenge = z.infer<typeof ConnectorChallenge>;
+
+/**
+ * Result of the verification of payee: match (RCVC), close match (RVMC), no match (RVNM), not
+ * applicable (RVNA), still pending (PDNG); "none" when the bank did not check the name.
+ */
+export const VopResult = z.enum(["match", "close_match", "no_match", "not_applicable", "pending", "none"]);
+export type VopResult = z.infer<typeof VopResult>;
+
+export const ConnectorVop = z.object({
+    result: VopResult,
+    /** The name the payee's bank holds, on a close match. */
+    payeeName: z.string().nullable(),
+    /** Why the check was not applicable, as the bank put it. */
+    reason: z.string().nullable(),
+    /** The bank's explanation, to be shown to the user before any approval; "" if none. */
+    explanation: z.string(),
+    /** The explanation may carry the markup of the VoP specification (<p>, <br>, <b>, <ul>, …). */
+    structured: z.boolean(),
+});
+export type ConnectorVop = z.infer<typeof ConnectorVop>;
+
+const doneOutcome = <T extends z.ZodType>(data: T) => z.object({ status: z.literal("done"), data, state: z.string() });
+const approvalOutcome = z.object({
+    status: z.literal("approval"),
+    operationId: z.string(),
+    challenge: ConnectorChallenge,
+    /** Payments: the result of the verification of payee, shown next to the approval. */
+    vop: ConnectorVop.optional(),
+});
+
+/** Answer of every call that talks to the bank: done, or waiting for an approval. */
+export const outcome = <T extends z.ZodType>(data: T) => z.discriminatedUnion("status", [doneOutcome(data), approvalOutcome]);
+
+/**
+ * Answer of a payment: additionally "confirm" when the name of the payee differs (or could not
+ * be checked) and the user has to confirm before the bank asks for the approval.
+ */
+export const paymentOutcome = <T extends z.ZodType>(data: T) =>
+    z.discriminatedUnion("status", [doneOutcome(data), approvalOutcome, z.object({ status: z.literal("confirm"), operationId: z.string(), vop: ConnectorVop })]);
+
+export const AnyOutcomeData = z.unknown();
+
+// ---------- Requests and data ----------
+
+export const BankCheckRequest = z.object({ bank: ConnectorBank });
+export const BankCheckResponse = z.object({
+    bankName: z.string(),
+    bpdVersion: z.number().int(),
+    pinTan: z.boolean(),
+    /** Business transactions the bank offers, e.g. "HKCAZ", "HKKKU". */
+    jobs: z.array(z.string()),
+});
+
+export const TanMethodsData = z.object({ methods: z.array(ConnectorTanMethod) });
+export const TanMediaData = z.object({ media: z.array(ConnectorTanMedium) });
+export const AccountsData = z.object({ accounts: z.array(ConnectorAccount) });
+
+export const BalancesRequest = ConnectorRequest.extend({ accounts: z.array(ConnectorAccountRef).min(1).max(100) });
+export const BalancesData = z.object({ balances: z.array(ConnectorBalance) });
+
+export const TransactionsRequest = ConnectorRequest.extend({
+    account: ConnectorAccountRef,
+    from: IsoDate.optional(),
+    to: IsoDate.optional(),
+});
+export const TransactionsData = z.object({ transactions: z.array(ConnectorTransaction) });
+
+export const CardTransactionsData = z.object({
+    transactions: z.array(ConnectorTransaction),
+    balance: ConnectorBalance.nullable(),
+});
+
+export const OrdersRequest = ConnectorRequest.extend({ account: ConnectorAccountRef });
+export const StandingOrdersData = z.object({ orders: z.array(ConnectorStandingOrder) });
+export const ScheduledTransfersData = z.object({ orders: z.array(ConnectorScheduledTransfer) });
+
+/** One SEPA credit transfer as the connector sends it; the server has checked it already. */
+export const ConnectorTransfer = z.object({
+    payeeName: z.string().trim().min(1).max(SEPA_NAME_MAX),
+    payeeIban: z.string().regex(/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/),
+    payeeBic: z.string().regex(/^[A-Z0-9]{8}([A-Z0-9]{3})?$/).nullable(),
+    amount: Cents.refine((c) => c > 0 && c <= TRANSFER_MAX_CENTS, "Betrag außerhalb der Grenzen"),
+    remittance: z.string().max(SEPA_REMITTANCE_MAX),
+    endToEndId: z.string().regex(/^[A-Za-z0-9/?:().,'+\- ]{1,35}$/),
+    /** Instant credit transfer (HKIPZ) instead of a standard one (HKCCS). */
+    instant: z.boolean(),
+});
+export type ConnectorTransfer = z.infer<typeof ConnectorTransfer>;
+
+export const TransferRequest = ConnectorRequest.extend({ account: ConnectorAccountRef, transfer: ConnectorTransfer });
+
+export const TransferData = z.object({
+    /** What the bank said about the order (e.g. "Auftrag ausgeführt"). */
+    bankMessage: z.string(),
+    /** Processing reference of the bank (return code 3070), if it gave one. */
+    reference: z.string().nullable(),
+    vop: ConnectorVop,
+    /** Instant transfers: the bank has not yet confirmed that the money arrived (3045/3046). */
+    unconfirmed: z.boolean(),
+    /** Instant transfers: the bank turned it into a standard transfer (3270). */
+    converted: z.boolean(),
+});
+export type TransferData = z.infer<typeof TransferData>;
+
+export const TanRequest = z.object({ tan: z.string().trim().min(1).max(64) });
+export const OperationParam = z.object({ id: z.string().uuid() });
+
+export const ConnectorInfo = z.object({
+    name: z.string(),
+    version: z.string(),
+    /** False while no FinTS product ID is configured: the connector then refuses to contact banks. */
+    productConfigured: z.boolean(),
+    capabilities: z.array(z.enum(["accounts", "balances", "transactions", "card-transactions", "tan-media", "standing-orders", "scheduled-transfers", "transfers"])),
+});
+
+export const ConnectorErrorCode = z.enum([
+    "invalid", // request does not match the contract
+    "pin_wrong", // wrong PIN or access blocked; do not retry with the same PIN
+    "bank_error", // the bank refused; see bankCodes
+    "unreachable", // network error
+    "timeout", // the bank did not answer in time
+    "bank_answer_invalid", // the bank's answer could not be read
+    "no_tan_method", // no TAN method chosen or not offered
+    "not_supported", // the bank or account does not offer this
+    "operation_unknown", // unknown or expired operation
+    "product_id_missing", // connector has no FinTS product ID
+    "outcome_unknown", // a payment was sent, but the bank's answer was lost: it may or may not have been executed
+    "internal",
+]);
+
+export const ConnectorError = z.object({
+    error: ConnectorErrorCode,
+    message: z.string(),
+    bankCodes: z.array(z.object({ code: z.string(), text: z.string() })).optional(),
+});
+export type ConnectorError = z.infer<typeof ConnectorError>;

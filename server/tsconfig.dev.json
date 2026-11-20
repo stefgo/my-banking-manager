@@ -1,0 +1,9 @@
+{
+  // Used only by tsx (dev script, debugger). tsconfig.json maps better-sqlite3-multiple-ciphers to
+  // its index.d.ts so that TypeScript finds the types; tsx applies `paths` at runtime too and would
+  // load the .d.ts instead of the code. Without the mapping, Node resolves the package normally.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {}
+  }
+}

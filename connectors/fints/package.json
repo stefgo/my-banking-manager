@@ -1,0 +1,36 @@
+{
+  "name": "@mbm/connector-fints",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "MBM FinTS connector: FinTS 3.0 PIN/TAN, own implementation after the DK specification",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./embedded": {
+      "development": "./src/embedded.ts",
+      "types": "./dist/embedded.d.ts",
+      "default": "./dist/embedded.js"
+    },
+    "./testing": {
+      "development": "./src/testing/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit --customConditions development",
+    "dev": "MBM_FINTS_SOCKET=${MBM_FINTS_SOCKET:-../../.run/fints.sock} tsx watch --env-file-if-exists=../../.env --conditions=development src/index.ts",
+    "start": "node dist/index.js",
+    "bank-info": "tsx --env-file-if-exists=../../.env --conditions=development src/tools/bank-info.ts"
+  },
+  "dependencies": {
+    "@mbm/shared": "*",
+    "fast-xml-parser": "5.12.1",
+    "fastify": "^5.12.8",
+    "zod": "^4.6.7"
+  }
+}

@@ -1,0 +1,101 @@
+name: Check Code
+
+# Runs on every topic branch and pull request. build.yml and release.yml call this same workflow
+# via workflow_call, so the image builds and the releases are gated by exactly these checks -- no
+# second copy that could drift.
+on:
+    # main and dev are covered by build.yml, which calls this workflow itself -- listing them here
+    # too would run the checks twice for every push.
+    push:
+        branches-ignore: ["main", "dev"]
+    pull_request:
+    workflow_call:
+
+# Three pushes in a row to a topic branch make the first two runs pointless. github.workflow is
+# the *caller's* name when this workflow is reached through workflow_call, so a build.yml or
+# release.yml run lands in its own group and cannot cancel -- or be cancelled by -- a plain branch
+# run of these checks. A tag is never cancelled.
+concurrency:
+    group: ci-${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+    verify:
+        name: Typecheck, lint and test
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v7
+              with:
+                  # commitlint needs the commit range of a pull request.
+                  fetch-depth: 0
+
+            # cleanup-packages.yml names the images it prunes one by one: discovering them by
+            # wildcard would need a classic PAT with delete:packages. This step keeps the list
+            # from going stale -- an image added to build.yml but not to the cleanup would never
+            # be pruned or protected, and nothing else would turn red.
+            - name: Cleanup covers every published image
+              run: |
+                  published=$(grep -oE '/mbm-[a-z0-9-]+"' .github/workflows/build.yml | tr -d '/"' | sort -u)
+                  covered=$(sed -n 's/^ *packages: *//p' .github/workflows/cleanup-packages.yml \
+                      | tr ',' '\n' | tr -d ' ' | grep -E '^mbm-' | sort -u)
+                  if [ -z "$published" ]; then
+                      echo "::error::No image names found in build.yml -- the pattern above is out of date"
+                      exit 1
+                  fi
+                  missing=$(comm -23 <(echo "$published") <(echo "$covered"))
+                  if [ -n "$missing" ]; then
+                      echo "::error::Published but not pruned by cleanup-packages.yml: $(tr '\n' ' ' <<< "$missing")"
+                      exit 1
+                  fi
+                  echo "Covered: $(tr '\n' ' ' <<< "$covered")"
+
+            - name: Set up Node
+              uses: actions/setup-node@v7
+              with:
+                  # .nvmrc matches the node:26 base image of the Dockerfiles.
+                  node-version-file: .nvmrc
+                  cache: npm
+
+            # The npm of a Node release changes with its updates, and npm versions do not always
+            # agree about optional peers in the lockfile. packageManager in package.json is the
+            # single source of the version.
+            - name: Pin npm
+              run: npm i -g "npm@$(node -p "require('./package.json').packageManager.split('@')[1]")"
+
+            - name: Install dependencies
+              run: npm ci
+
+            # The commit message is what semantic-release derives the next version from. Locally
+            # .githooks/commit-msg checks it; this step covers the commits of a pull request,
+            # which never passed through that hook.
+            - name: Commit messages
+              if: github.event_name == 'pull_request'
+              env:
+                  BASE_SHA: ${{ github.event.pull_request.base.sha }}
+                  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+              run: npx commitlint --from "$BASE_SHA" --to "$HEAD_SHA" --verbose
+
+            # shared, server, FinTS connector and web client. First, because a build that fails
+            # is the cheapest thing to be told.
+            - name: Build all workspaces
+              run: npm run build
+
+            # All workspaces including their tests, which the builds leave out.
+            - name: Typecheck
+              run: npm run typecheck
+
+            - name: Lint
+              run: npm run lint
+
+            # Vitest for shared, server and web client: temporary data directories, never a real
+            # bank.
+            - name: Test
+              run: npm test
+
+            # contracts/server-api.yaml must match shared/src/api.ts and the schemas.
+            - name: OpenAPI file up to date
+              run: npm run contracts:check

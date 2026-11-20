@@ -1,0 +1,81 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Server (dev)",
+      "detail": "Fastify-Server mit Neustart bei Änderungen, Port 3040, Daten in server/data",
+      "type": "shell",
+      "command": "npm run dev:server",
+      "options": { "env": { "MBM_HOST": "127.0.0.1" } },
+      "isBackground": true,
+      "presentation": { "group": "dev", "panel": "dedicated" },
+      "problemMatcher": {
+        "owner": "mbm-server",
+        "pattern": { "regexp": "^__never__$" },
+        "background": {
+          "beginsPattern": "dev:server|Restarting|change in",
+          "endsPattern": "My Banking Manager on port"
+        }
+      }
+    },
+    {
+      "label": "Web (dev)",
+      "detail": "Vite-Dev-Server auf Port 5173, leitet /api an den Server weiter",
+      "type": "shell",
+      "command": "npm run dev:web",
+      "isBackground": true,
+      "presentation": { "group": "dev", "panel": "dedicated" },
+      "problemMatcher": {
+        "owner": "mbm-web",
+        "pattern": { "regexp": "^__never__$" },
+        "background": {
+          "beginsPattern": "dev:web",
+          "endsPattern": "ready in"
+        }
+      }
+    },
+    {
+      "label": "FinTS-Konnektor (dev)",
+      "detail": "FinTS-Konnektor mit Neustart bei Änderungen, Socket .run/fints.sock, Produkt-ID aus .env",
+      "type": "shell",
+      "command": "npm run dev:fints",
+      "isBackground": true,
+      "presentation": { "group": "dev", "panel": "dedicated" },
+      "problemMatcher": {
+        "owner": "mbm-fints",
+        "pattern": { "regexp": "^__never__$" },
+        "background": {
+          "beginsPattern": "dev:fints|Restarting|change in",
+          "endsPattern": "MBM FinTS connector"
+        }
+      }
+    },
+    {
+      "label": "Server + Web starten",
+      "dependsOn": ["Server (dev)", "FinTS-Konnektor (dev)", "Web (dev)"],
+      "dependsOrder": "parallel",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Tests",
+      "type": "shell",
+      "command": "npm test",
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Typecheck + Lint",
+      "type": "shell",
+      "command": "npm run typecheck && npm run lint",
+      "problemMatcher": ["$tsc", "$eslint-stylish"]
+    },
+    {
+      "label": "Contracts erzeugen",
+      "detail": "contracts/server-api.yaml aus shared/src/api.ts neu schreiben",
+      "type": "shell",
+      "command": "npm run contracts",
+      "problemMatcher": []
+    }
+  ]
+}

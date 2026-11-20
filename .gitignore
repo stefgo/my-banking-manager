@@ -1,0 +1,17 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.DS_Store
+# Runtime data: encrypted database, key store, local configuration
+/data/
+server/data/
+server/config.yaml
+.env
+# FinTS product registration number of an official build (written from a build secret)
+product-id
+# Unix sockets of the local development start
+.run/
+plans/
+# Built documentation site (mkdocs build)
+site/

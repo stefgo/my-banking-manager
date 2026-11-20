@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# Checks the commit message against commitlint.config.mjs (Conventional Commits, German subject).
+# Activated by core.hooksPath, which the root `prepare` script sets on every `npm install`.
+npx --no -- commitlint --edit "$1"

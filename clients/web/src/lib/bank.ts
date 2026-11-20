@@ -1,0 +1,89 @@
+// Bank accesses and fetch runs in the web client. PINs live only in the state of an open dialog
+// and in the request that carries them; nothing of it goes into browser storage.
+
+import { useQuery } from "@tanstack/react-query";
+import { routes, type SyncRun } from "@mbm/shared";
+import { ApiFailure, call, errorText } from "./api";
+import { invalidate, queryClient } from "./queries";
+import { plural } from "./format";
+import { currentDialog, ui } from "./ui";
+
+export const useConnections = () => useQuery({ queryKey: ["connections"], queryFn: () => call(routes.listConnections) });
+export const useBankDirectory = () => useQuery({ queryKey: ["bank-directory"], queryFn: () => call(routes.bankDirectory) });
+export const useConnectorStatus = () => useQuery({ queryKey: ["connectors"], queryFn: () => call(routes.connectorStatus), staleTime: 60_000 });
+
+/**
+ * The account list the own login last fetched from the bank, with the state of each account; the
+ * server keeps it in memory. Under "connections", so taking over or detaching refreshes it.
+ */
+export const useOfferedAccounts = (connectionId: number, enabled: boolean) =>
+    useQuery({ queryKey: ["connections", "offered", connectionId], queryFn: () => call(routes.lastOfferedAccounts, { params: { id: connectionId } }), enabled });
+
+/** Fetch runs of the signed-in user; the server keeps them current with "sync" events. */
+export const useSyncRuns = () => useQuery({ queryKey: ["sync"], queryFn: () => call(routes.listSync), staleTime: Infinity });
+
+export const setSyncRuns = (runs: SyncRun[]): void => {
+    queryClient.setQueryData(["sync"], runs);
+};
+
+export const isActive = (r: SyncRun): boolean => r.status === "running" || r.status === "approval";
+
+/**
+ * Takes the runs of a "sync" event. A run that needs an approval or failed opens the fetch panel
+ * (or, while another dialog is open, says so in a toast); a finished one that brought new bookings says so in a toast.
+ */
+export function receiveSyncRuns(runs: SyncRun[]): void {
+    const known = queryClient.getQueryData<SyncRun[]>(["sync"]);
+    setSyncRuns(runs);
+    // Without a previous list every run would look new, also old finished ones
+    if (!known) return;
+    const before = new Map(known.map((r) => [r.id, r]));
+    const changed = runs.filter((r) => before.get(r.id)?.status !== r.status);
+    const failed = changed.filter((r) => r.status === "error" && r.error !== "cancelled");
+    if (changed.some((r) => r.status === "approval") || failed.length > 0) {
+        if (!currentDialog()) ui.open({ kind: "sync" });
+        else for (const r of failed) ui.toast(`${r.connectionName}: Abruf fehlgeschlagen`, "error");
+    }
+    for (const r of changed) {
+        // Only new bookings are worth a toast. New accounts at the bank are not named here: the
+        // bank card and the fetch panel list them
+        if (r.status !== "done") continue;
+        if (r.ordersMessage) ui.toast(`${r.connectionName}: ${r.ordersMessage}`, "error");
+        if (r.ordersOnly) ui.toast(`${r.connectionName}: Aufträge abgerufen`);
+        else if (r.newTransactions > 0) ui.toast(`${r.connectionName}: ${plural(r.newTransactions, "neuer Umsatz", "neue Umsätze")}`);
+    }
+}
+
+/**
+ * Starts a fetch in the background; only an approval or an error opens the fetch panel. "Keine
+ * eigene Anmeldung" offers to add one. `ordersOnly` fetches just the standing orders and
+ * scheduled transfers.
+ */
+export async function startSync(target: { accountId?: number; connectionId?: number; groupId?: number }, pins?: Record<string, string>, ordersOnly = false): Promise<void> {
+    try {
+        const runs = await call(ordersOnly ? routes.fetchOrders : routes.startSync, { body: { ...target, pins } });
+        const others = (queryClient.getQueryData<SyncRun[]>(["sync"]) ?? []).filter((r) => !runs.some((n) => n.id === r.id));
+        setSyncRuns([...runs, ...others]);
+        if (runs.length === 0) ui.toast("Es gibt keine Bankkonten mit eigener Anmeldung zum Abrufen.", "error");
+    } catch (err) {
+        if (err instanceof ApiFailure && err.code === "no_own_login") {
+            const accountId = target.accountId;
+            const connectionId = accountId !== undefined ? connectionOfAccount(accountId) : undefined;
+            ui.confirm({
+                title: "Keine eigene Anmeldung",
+                text: `${err.message} Abrufen kannst du nur über deine eigene Anmeldung.`,
+                confirm: "Anmeldung hinzufügen",
+                onConfirm: () => ui.open({ kind: "bankSetup", connectionId }),
+            });
+            return;
+        }
+        ui.toast(errorText(err), "error");
+    }
+}
+
+function connectionOfAccount(accountId: number): number | undefined {
+    const accounts = queryClient.getQueryData<{ id: number; connectionId: number | null }[]>(["accounts"]);
+    return accounts?.find((a) => a.id === accountId)?.connectionId ?? undefined;
+}
+
+export const refreshBank = (): void => invalidate("connections", "accounts", "transactions", "orders");

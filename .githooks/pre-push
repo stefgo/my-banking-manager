@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# Only the two long-lived branches are pushed: main (released) and dev (development).
+# Topic branches stay local.
+current_branch=$(git symbolic-ref --short HEAD)
+
+case "$current_branch" in
+    main|dev)
+        exit 0
+        ;;
+    *)
+        echo "Push nur von 'main' oder 'dev' (aktueller Branch: '$current_branch')."
+        exit 1
+        ;;
+esac

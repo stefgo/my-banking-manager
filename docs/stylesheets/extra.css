@@ -1,0 +1,61 @@
+/* Header colour of the published site.
+ *
+ * Material only accepts its own palette names for `primary`, so a brand colour
+ * goes in as `primary: custom` plus these variables. #4F7BFF is MBM's accent
+ * (`--iris` in clients/web/src/styles/app.css, the start of the icon's
+ * gradient); if it changes there, this value follows it.
+ */
+:root,
+[data-md-color-scheme="slate"] {
+    --md-primary-fg-color: #4f7bff;
+    --md-primary-fg-color--light: #8cc8ff;
+    --md-primary-fg-color--dark: #3a63e0;
+    --md-primary-bg-color: #ffffff;
+    --md-primary-bg-color--light: rgba(255, 255, 255, 0.7);
+}
+
+/* The site loads no fonts from elsewhere (theme.font: false in mkdocs.yml), so
+ * it uses the system fonts, as MBM itself ships its own instead of a CDN. */
+:root {
+    --md-text-font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --md-code-font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* Screenshots, made by `npm run screenshots` (scripts/screenshots/).
+ *
+ * Captured at 2x, so `width: 100%` scales them back down. The border keeps a
+ * dark screenshot from bleeding into the dark page (and a light one into the
+ * light page).
+ */
+.md-typeset img[src*="screenshots/"] {
+    width: 100%;
+    border: 1px solid var(--md-default-fg-color--lightest);
+    border-radius: 6px;
+}
+
+/* Phone shots and the single-card screens are narrow; at full column width
+ * they read as a blown-up picture. */
+.md-typeset img[src*="screenshots/handy-"] {
+    width: auto;
+    max-width: min(100%, 320px);
+}
+.md-typeset img[src*="screenshots/anmelden-"],
+.md-typeset img[src*="screenshots/einrichten-"] {
+    width: auto;
+    max-width: min(100%, 560px);
+    display: block;
+    margin-inline: auto;
+}
+
+/* Captions: a <figcaption> on the start page, an italic paragraph right after
+ * the image on every other page. */
+.md-typeset figure figcaption,
+.md-typeset p:has(> img[src*="screenshots/"]) + p > em {
+    display: block;
+    max-width: 42rem;
+    margin: 0.3rem auto 1.2rem;
+    font-size: 0.72rem;
+    line-height: 1.5;
+    font-style: normal;
+    color: var(--md-default-fg-color--light);
+}

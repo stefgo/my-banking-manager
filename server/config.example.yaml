@@ -1,0 +1,88 @@
+# Copy to server/config.yaml (or point MBM_CONFIG at it). Environment variables win over this file.
+# Relative paths are resolved against the server's working directory.
+
+# Network address to listen on. 0.0.0.0 = all interfaces (LAN, Docker); 127.0.0.1 = local only.
+# Env: MBM_HOST
+host: 0.0.0.0
+
+# TCP port of the HTTP server.
+# Env: MBM_PORT
+port: 3040
+
+# Directory for the encrypted SQLite database and the key store.
+# Env: MBM_DATA_DIR. Tests and browser checks always use a separate directory.
+dataDir: ./data
+
+# Folder of the built web client; if it contains an index.html, the server serves the UI itself.
+# Empty or missing build = API only (in development Vite serves the UI).
+# Env: MBM_WEB_ROOT
+webRoot: ../clients/web/dist
+
+# Trust X-Forwarded-* headers (client IP, protocol) from a reverse proxy in front of the server.
+# false (default) = trust nobody; true = trust any direct peer (only if the port is reachable by
+# the proxy alone); or the proxy's addresses/networks, comma-separated, e.g. "172.16.0.0/12".
+# Without it, clients could spoof these headers and dodge the throttling of failed sign-ins.
+# Env: MBM_TRUST_PROXY
+trustProxy: false
+
+# Requests that change something (and the WebSocket of the web client) are refused when the
+# browser sends them from another page: its Origin has to be MBM's own address. That address
+# comes from the Host header, behind a trusted proxy (trustProxy) from X-Forwarded-Host. Only if
+# your proxy passes neither, list the address under which you open MBM, e.g.
+# ["https://mbm.example.org"]. Env: MBM_ALLOWED_ORIGINS (comma-separated)
+allowedOrigins: []
+
+# Secure flag of the session cookie (sent over HTTPS only). true = always, false = never,
+# auto = decided per request from the protocol (behind a proxy this needs trustProxy).
+# No env variable.
+secureCookies: auto
+
+# A browser session expires after this many days without use; then a new sign-in is needed.
+# Also sets the cookie lifetime. Range 1–365. Device tokens are not affected. No env variable.
+sessionDays: 30
+
+# A browser session locks after this many minutes without input; only the password unlocks it
+# (no new sign-in). 0 = never. Range 0–1440.
+# Env: MBM_SESSION_IDLE_MINUTES
+sessionIdleMinutes: 10
+
+# The whole server locks (vault closed) this many minutes after the last signed-in, unlocked
+# window disconnected; it must be unlocked with the password again. 0 = never. Range 0–1440.
+# Env: MBM_AUTO_LOCK_MINUTES
+autoLockMinutes: 10
+
+# Before a transfer, the password is asked for again if this session last entered it (sign-in or
+# unlock) longer ago than this many minutes. The approval in the banking app stays the real
+# safeguard. 0 = never. Range 0–1440.
+# Env: MBM_TRANSFER_CONFIRM_MINUTES
+transferConfirmMinutes: 15
+
+# Load the bank directory of the Deutsche Bundesbank (bank code, name, BIC) from bundesbank.de:
+# shortly after the start and then once a day; the file is only downloaded when the Bundesbank
+# published a new one (about every three months). Public data, kept unencrypted in
+# <dataDir>/blz.json. Only the server's address reaches the Bundesbank, no bank or user data.
+# false = keep the copy that comes with the server.
+# Env: MBM_BANK_DIRECTORY_UPDATE
+bankDirectoryUpdate: true
+
+# Start values of the user profile per device class (web = browser, macos = macOS client), used
+# until a user changes them under Settings → Profile. theme: system, dark or light. The web value
+# of theme also styles the sign-in screen. No env variables.
+profileDefaults:
+  web:
+    theme: dark
+    hideAmountsOnStart: false
+  macos:
+    theme: dark
+    hideAmountsOnStart: false
+
+# Pino log verbosity: fatal, error, warn, info, debug or trace.
+# Env: MBM_LOG_LEVEL
+logLevel: info
+
+# Connectors by name and the Unix socket they listen on (a tmpfs volume shared with the
+# connector container). Without an entry, bank accesses cannot be set up.
+# Env: MBM_FINTS_SOCKET (for the FinTS connector)
+connectors:
+  fints:
+    socket: /run/mbm/fints.sock

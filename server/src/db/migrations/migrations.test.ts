@@ -1,0 +1,124 @@
+import Database from "better-sqlite3-multiple-ciphers";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { initial } from "./0001-initial.js";
+import { unread } from "./0002-unread.js";
+import { applyMigration } from "./index.js";
+
+const columns = (db: Database.Database, table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
+
+describe("0001-initial", () => {
+    let db: Database.Database;
+
+    beforeEach(() => {
+        db = new Database(":memory:");
+        db.pragma("foreign_keys = ON");
+        applyMigration(db, initial);
+    });
+    afterEach(() => db.close());
+
+    it("keeps one slot for uncategorized bookings and lets it fall back to the top level when its parent goes", () => {
+        db.exec("INSERT INTO categories (id, parent_id, name, icon, color, position) VALUES (1, NULL, 'Freizeit', 'tag', 'green', 0)");
+        db.exec("INSERT INTO uncategorized_slot (id, parent_id, position) VALUES (1, 1, 0)");
+        expect(() => db.exec("INSERT INTO uncategorized_slot (id, parent_id, position) VALUES (2, NULL, NULL)")).toThrow();
+        db.exec("DELETE FROM categories WHERE id = 1");
+        expect(db.prepare("SELECT parent_id AS parentId FROM uncategorized_slot").get()).toEqual({ parentId: null });
+    });
+
+    it("limits overview cards to the 12-column grid and drops them with their user", () => {
+        db.exec(`
+            INSERT INTO users (id, name, created_at) VALUES (1, 'Anna', '2026-01-01T00:00:00Z');
+            INSERT INTO dashboard_cards (id, user_id, position, type, width, title, config) VALUES (1, 1, 0, 'balance', 8, NULL, '{}');
+        `);
+        expect(db.prepare("SELECT height FROM dashboard_cards WHERE id = 1").get()).toEqual({ height: null });
+        expect(() => db.exec("UPDATE dashboard_cards SET width = 13 WHERE id = 1")).toThrow();
+        expect(() => db.exec("UPDATE dashboard_cards SET width = 0 WHERE id = 1")).toThrow();
+        expect(() => db.exec("UPDATE dashboard_cards SET height = 1 WHERE id = 1")).toThrow();
+        db.exec("UPDATE dashboard_cards SET width = 12, height = 6 WHERE id = 1");
+        db.exec("DELETE FROM users WHERE id = 1");
+        expect(db.prepare("SELECT count(*) AS n FROM dashboard_cards").get()).toEqual({ n: 0 });
+    });
+
+    it("stores rules as a query and marks the preset category of counter bookings", () => {
+        expect(columns(db, "category_rules")).toContain("query");
+        expect(columns(db, "category_rules")).not.toContain("field");
+        expect(columns(db, "categories")).toContain("counter_default");
+        expect(columns(db, "categories")).not.toContain("system_key");
+        db.exec(`
+            INSERT INTO categories (id, parent_id, name, icon, color, position) VALUES (1, NULL, 'Umbuchung', 'arrow-left-right', 'neutral', 0);
+            INSERT INTO category_rules (query, category_id, position, created_at) VALUES ('gegenseite:rewe', 1, 0, '2026-01-01T00:00:00Z');
+        `);
+        expect(db.prepare("SELECT counter_default AS preset FROM categories WHERE id = 1").get()).toEqual({ preset: 0 });
+        expect(db.prepare("SELECT active FROM category_rules").get()).toEqual({ active: 1 });
+    });
+
+    it("drops the ignored accounts with their bank access", () => {
+        db.exec(`
+            INSERT INTO bank_connections (id, name, bank_name, blz, fints_url, icon, color, created_at) VALUES (1, 'Sparkasse', 'Sparkasse', '70054306', 'https://x.invalid', 'landmark', 'red', '2026-01-01T00:00:00Z');
+            INSERT INTO bank_ignored_accounts (connection_id, external_id, created_at) VALUES (1, 'DE02', '2026-01-01T00:00:00Z');
+        `);
+        expect(() => db.exec("INSERT INTO bank_ignored_accounts (connection_id, external_id, created_at) VALUES (1, 'DE02', '2026-01-02T00:00:00Z')")).toThrow();
+        db.exec("DELETE FROM bank_connections WHERE id = 1");
+        expect(db.prepare("SELECT count(*) AS n FROM bank_ignored_accounts").get()).toEqual({ n: 0 });
+    });
+
+    it("never hands out a booking id again and releases a counter booking with its booking", () => {
+        db.exec(`
+            INSERT INTO accounts (id, name, kind, icon, color, position, created_at) VALUES (1, 'Giro', 'giro', 'bank', 'blue', 0, '2026-01-01T00:00:00Z');
+            INSERT INTO accounts (id, name, kind, icon, color, position, created_at) VALUES (2, 'Bargeld', 'offline', 'banknote', 'green', 1, '2026-01-01T00:00:00Z');
+            INSERT INTO transactions (id, account_id, booking_date, amount, counterparty_name, status, first_seen_at, source, counter_transaction_id)
+                VALUES (1, 1, '2026-11-01', -5000, 'Automat', 'booked', '2026-11-01T00:00:00Z', 'bank', NULL),
+                       (2, 2, '2026-11-01', 5000, '', 'booked', '2026-11-01T00:00:00Z', 'manual', 1),
+                       (3, 1, '2026-11-02', -1200, 'Kino', 'pending', '2026-11-02T00:00:00Z', 'bank', NULL);
+            UPDATE transactions SET counter_transaction_id = 2 WHERE id = 1;
+        `);
+        // The pending booking goes, a new one comes: it gets a fresh id, not 3
+        db.exec("DELETE FROM transactions WHERE id = 3");
+        const id = Number(db.prepare("INSERT INTO transactions (account_id, booking_date, amount, status, first_seen_at, source) VALUES (1, '2026-11-03', -800, 'booked', '2026-11-03T00:00:00Z', 'bank')").run().lastInsertRowid);
+        expect(id).toBe(4);
+        db.exec("DELETE FROM transactions WHERE id = 1");
+        expect(db.prepare("SELECT counter_transaction_id AS counter FROM transactions WHERE id = 2").get()).toEqual({ counter: null });
+    });
+
+    it("allows loan accounts, one account per bank access and external id, and keeps the full card number", () => {
+        db.exec(`
+            INSERT INTO accounts (id, connection_id, external_id, name, kind, icon, color, position, created_at)
+                VALUES (1, 1, 'DE02', 'Giro', 'giro', 'landmark', 'blue', 0, '2026-01-01T00:00:00Z');
+            INSERT INTO accounts (id, name, kind, reference_account_id, icon, color, position, opening_balance, created_at)
+                VALUES (2, 'Bargeld', 'offline', 1, 'banknote', 'green', 1, 1500, '2026-01-01T00:00:00Z');
+            INSERT INTO accounts (id, name, kind, icon, color, position, created_at) VALUES (3, 'Darlehen', 'loan', 'percent', 'red', 2, '2026-01-01T00:00:00Z');
+            INSERT INTO accounts (id, connection_id, external_id, card_number, name, kind, icon, color, position, created_at)
+                VALUES (4, 1, '4111000000001234', '4111000000001234', 'Visa', 'credit_card', 'credit-card', 'blue', 3, '2026-01-01T00:00:00Z');
+            INSERT INTO transactions (id, account_id, booking_date, amount, status, first_seen_at, source) VALUES (1, 1, '2026-11-01', -5000, 'booked', '2026-11-01T00:00:00Z', 'bank');
+        `);
+        expect(columns(db, "accounts")).not.toContain("card_number_masked");
+        expect(db.prepare("SELECT info_attributes AS a, info_notes AS n, orders_fetched_at AS o FROM accounts WHERE id = 3").get()).toEqual({ a: "[]", n: "", o: null });
+        expect(() => db.exec("INSERT INTO accounts (name, kind, icon, color, position, created_at) VALUES ('Depot', 'depot', 'chart-line', 'red', 4, '2026-01-01T00:00:00Z')")).toThrow();
+        expect(() => db.exec("INSERT INTO accounts (connection_id, external_id, name, kind, icon, color, position, created_at) VALUES (1, 'DE02', 'Doppelt', 'giro', 'landmark', 'blue', 5, '2026-01-01T00:00:00Z')")).toThrow();
+        // Bookings go with their account, the reference account is released
+        db.exec("DELETE FROM accounts WHERE id = 1");
+        expect(db.prepare("SELECT count(*) AS n FROM transactions").get()).toEqual({ n: 0 });
+        expect(db.prepare("SELECT reference_account_id AS ref FROM accounts WHERE id = 2").get()).toEqual({ ref: null });
+    });
+});
+
+describe("0002-unread", () => {
+    it("starts with nothing new and drops marks with their booking or user", () => {
+        const db = new Database(":memory:");
+        db.pragma("foreign_keys = ON");
+        applyMigration(db, initial);
+        db.exec(`
+            INSERT INTO users (id, name, created_at) VALUES (1, 'Anna', '2026-01-01T00:00:00Z'), (2, 'Ben', '2026-01-01T00:00:00Z');
+            INSERT INTO accounts (id, kind, name, icon, color, position, created_at) VALUES (1, 'offline', 'Bargeld', 'banknote', 'green', 0, '2026-01-01T00:00:00Z');
+            INSERT INTO transactions (id, account_id, booking_date, amount, status, first_seen_at, source) VALUES (1, 1, '2026-01-02', -100, 'booked', '2026-01-02T00:00:00Z', 'manual');
+        `);
+        applyMigration(db, unread);
+        expect(db.prepare("SELECT count(*) AS n FROM transaction_unread").get()).toEqual({ n: 0 });
+        db.exec("INSERT INTO transaction_unread (user_id, transaction_id) VALUES (1, 1), (2, 1)");
+        expect(() => db.exec("INSERT INTO transaction_unread (user_id, transaction_id) VALUES (1, 1)")).toThrow();
+        db.exec("DELETE FROM users WHERE id = 2");
+        expect(db.prepare("SELECT user_id AS userId FROM transaction_unread").all()).toEqual([{ userId: 1 }]);
+        db.exec("DELETE FROM transactions WHERE id = 1");
+        expect(db.prepare("SELECT count(*) AS n FROM transaction_unread").get()).toEqual({ n: 0 });
+        db.close();
+    });
+});

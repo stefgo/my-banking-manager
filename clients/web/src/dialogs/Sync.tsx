@@ -1,0 +1,86 @@
+import { useState } from "react";
+import { AlertTriangle, Check, RefreshCw } from "lucide-react";
+import { routes, type SyncRun } from "@mbm/shared";
+import { call, errorText } from "../lib/api";
+import { isActive, setSyncRuns, startSync, useSyncRuns } from "../lib/bank";
+import { queryClient } from "../lib/queries";
+import { ui } from "../lib/ui";
+import { plural } from "../lib/format";
+import { Modal, Button, Spinner } from "../components/common";
+import { Ic } from "../components/icons";
+import { Approval } from "../components/Approval";
+
+/** The fetch runs of the signed-in user. Closing it does not stop them. */
+export function SyncDialog() {
+    const runs = (useSyncRuns().data ?? []).slice().sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+    const latest = new Map<number, SyncRun>();
+    for (const r of runs) if (!latest.has(r.connectionId)) latest.set(r.connectionId, r);
+    const shown = [...latest.values()];
+    const anyActive = shown.some(isActive);
+
+    return (
+        <Modal title="Abruf" onClose={() => ui.close()}>
+            <div className="sync-list">
+                {shown.length === 0 && <p className="muted">Noch kein Abruf in dieser Sitzung.</p>}
+                {shown.map((r) => <RunRow key={r.id} run={r} />)}
+            </div>
+            <div className="actions">
+                <button className="btn btn-ghost" onClick={() => ui.close()}>{anyActive ? "Im Hintergrund weiter" : "Schließen"}</button>
+                <Button icon={RefreshCw} disabled={anyActive} onClick={() => void startSync({})}>Alle abrufen</Button>
+            </div>
+        </Modal>
+    );
+}
+
+function RunRow({ run }: { run: SyncRun }) {
+    const [pin, setPin] = useState("");
+    const update = (r: SyncRun) => setSyncRuns([r, ...(queryClient.getQueryData<SyncRun[]>(["sync"]) ?? []).filter((x) => x.id !== r.id)]);
+    const state =
+        run.status === "done" ? (
+            <span className="sync-state ok"><Ic icon={Check} size={14} />{run.ordersOnly ? "Aufträge abgerufen" : run.newTransactions ? plural(run.newTransactions, "neuer Umsatz", "neue Umsätze") : "keine neuen Umsätze"}</span>
+        ) : run.status === "error" ? (
+            <span className="sync-state bad"><Ic icon={AlertTriangle} size={14} />{run.error === "cancelled" ? "abgebrochen" : "fehlgeschlagen"}</span>
+        ) : (
+            <span className="sync-state"><Spinner size={14} />{run.status === "approval" ? "wartet auf Freigabe" : "läuft"}</span>
+        );
+
+    return (
+        <section className="panel sync-run" aria-label={run.connectionName}>
+            <div className="sync-head">
+                <b>{run.connectionName}</b>
+                {state}
+            </div>
+            {run.status === "approval" && run.challenge && (
+                <Approval
+                    challenge={run.challenge}
+                    submitTan={async (tan) => {
+                        try {
+                            update(await call(routes.syncTan, { params: { id: run.id }, body: { tan } }));
+                        } catch (err) {
+                            ui.toast(errorText(err), "error");
+                        }
+                    }}
+                    onCancel={() => void call(routes.cancelSync, { params: { id: run.id } }).catch((err) => ui.toast(errorText(err), "error"))}
+                />
+            )}
+            {run.status === "error" && run.error === "pin_required" && (
+                <form
+                    className="approval-tan"
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        const target = run.accountIds.length === 1 ? { accountId: run.accountIds[0] } : { connectionId: run.connectionId };
+                        void startSync(target, { [String(run.connectionId)]: pin }, run.ordersOnly);
+                        setPin("");
+                    }}
+                >
+                    <input className="inp" type="password" autoComplete="off" aria-label="PIN" placeholder="PIN" value={pin} onChange={(e) => setPin(e.target.value)} autoFocus />
+                    <Button className="btn-primary" type="submit" disabled={!pin}>Abrufen</Button>
+                </form>
+            )}
+            {run.status === "error" && run.error !== "pin_required" && run.error !== "cancelled" && run.message && <p className="muted small">{run.message}</p>}
+            {run.status === "done" && run.ordersMessage && <p className="muted small">{run.ordersMessage}</p>}
+            {run.newAccounts.length > 0 && <p className="muted small">Neu bei der Bank: {run.newAccounts.join(", ")}. In den Einstellungen unter „Bankzugänge“ zeigt „Konten abrufen“ sie unter „Weitere Konten bei der Bank“; dort kannst du sie übernehmen oder ausblenden.</p>}
+            {run.missingAccounts.length > 0 && <p className="muted small">{plural(run.missingAccounts.length, "Konto meldet", "Konten melden")} die Bank nicht mehr. Gelöscht wird nichts.</p>}
+        </section>
+    );
+}

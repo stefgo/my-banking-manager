@@ -1,0 +1,14 @@
+**/node_modules
+**/dist
+data
+.git
+design
+plans
+contracts
+# Never into the build context: local secrets, runtime data, local configuration
+.env
+.env.*
+server/data
+server/config.yaml
+.run
+**/product-id

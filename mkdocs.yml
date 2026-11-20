@@ -1,0 +1,108 @@
+# MkDocs Material builds the site that .github/workflows/docs.yml publishes to
+# GitHub Pages. docs/ is the same directory GitHub shows in the repository, so
+# every page has to render in both.
+site_name: My Banking Manager
+site_description: Selbst betriebenes Homebanking mit verschlüsselten Daten
+site_url: https://stefgo.github.io/my-banking-manager/
+site_author: stefgo
+
+repo_url: https://github.com/stefgo/my-banking-manager
+repo_name: stefgo/my-banking-manager
+edit_uri: edit/main/docs/
+
+copyright: MIT licensed.
+
+docs_dir: docs
+site_dir: site
+
+theme:
+    name: material
+    language: de
+    # No Google Fonts: MBM loads nothing from third parties, its documentation
+    # neither. The fonts come from the reader's system (stylesheets/extra.css).
+    font: false
+    logo: assets/logo.svg
+    favicon: assets/favicon.svg
+    icon:
+        repo: fontawesome/brands/github
+    features:
+        - navigation.sections
+        - navigation.top
+        - navigation.tracking
+        - navigation.indexes
+        - toc.follow
+        - search.suggest
+        - search.highlight
+        - content.code.copy
+        - content.tabs.link
+        - content.action.edit
+    palette:
+        # Follow the system first, then let the reader choose.
+        - media: "(prefers-color-scheme)"
+          toggle:
+              icon: material/brightness-auto
+              name: Helle Darstellung
+        - media: "(prefers-color-scheme: light)"
+          scheme: default
+          primary: custom
+          accent: indigo
+          toggle:
+              icon: material/brightness-7
+              name: Dunkle Darstellung
+        - media: "(prefers-color-scheme: dark)"
+          scheme: slate
+          primary: custom
+          accent: indigo
+          toggle:
+              icon: material/brightness-4
+              name: Wie System
+
+# `primary: custom` only switches Material off its own palette; the colour
+# itself is in this stylesheet.
+extra_css:
+    - stylesheets/extra.css
+
+markdown_extensions:
+    - abbr
+    - admonition
+    - attr_list
+    - def_list
+    - footnotes
+    - md_in_html
+    - tables
+    - pymdownx.details
+    - pymdownx.highlight:
+          anchor_linenums: true
+    - pymdownx.inlinehilite
+    - pymdownx.keys
+    - pymdownx.superfences
+    - pymdownx.tabbed:
+          alternate_style: true
+    - toc:
+          permalink: true
+          slugify: !!python/object/apply:pymdownx.slugs.slugify {kwds: {case: lower}}
+
+plugins:
+    - search:
+          lang: de
+
+nav:
+    - Start: index.md
+    - Erste Schritte:
+          - Schnellstart: schnellstart.md
+          - Konfiguration: konfiguration.md
+    - Benutzung:
+          - Übersicht: guide/uebersicht.md
+          - Umsätze und Suche: guide/umsaetze.md
+          - Konten: guide/konten.md
+          - Kategorien und Regeln: guide/kategorien-regeln.md
+          - CSV-Import: guide/import.md
+          - Überweisen: guide/ueberweisen.md
+          - Aufträge: guide/auftraege.md
+          - Einstellungen: guide/einstellungen.md
+    - Betrieb:
+          - Sicherheit: sicherheit.md
+          - Updates und Backup: updates.md
+          - Betrieb im Detail: operations.md
+    - Mitmachen:
+          - Entwicklung: development.md

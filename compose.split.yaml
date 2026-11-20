@@ -1,0 +1,61 @@
+# My Banking Manager in two containers: server with web client (image mbm-server) and FinTS connector
+# (image mbm-fints). Behind your reverse proxy (HTTPS), reachable only in the home network.
+# Start: docker compose -f compose.split.yaml up -d. One container instead: compose.yaml.
+#
+# The image mbm-fints never carries a FinTS product registration number: set your own as
+# MBM_FINTS_PRODUCT_ID in .env (see .env.example), or no bank is contacted.
+services:
+  server:
+    build:
+      context: .
+      dockerfile: docker/server.Dockerfile
+    # Official images instead of building yourself: set MBM_IMAGE_SERVER and MBM_IMAGE_FINTS in
+    # .env (see .env.example), then `docker compose -f compose.split.yaml pull` and `up -d`.
+    image: ${MBM_IMAGE_SERVER:-mbm-server:local}
+    restart: unless-stopped
+    ports:
+      - "3040:3040"
+    # Behind your reverse proxy: trust its X-Forwarded-* headers (its address or network,
+    # see docs/operations.md). Without it, HTTPS is not recognized and the cookie lacks "Secure".
+    # environment:
+    #   MBM_TRUST_PROXY: "172.16.0.0/12"
+    environment:
+      MBM_FINTS_SOCKET: /run/mbm/fints.sock
+    volumes:
+      - mbm-data:/data
+      - mbm-sockets:/run/mbm
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  # FinTS connector. Publishes no port (it only reaches out to the banks): server and connector
+  # talk over a Unix socket in a tmpfs volume that only these two containers mount. It keeps
+  # nothing: read-only file system, no volume for data.
+  fints:
+    build:
+      context: .
+      dockerfile: docker/fints.Dockerfile
+    image: ${MBM_IMAGE_FINTS:-mbm-fints:local}
+    restart: unless-stopped
+    environment:
+      # FinTS product registration number (fints.org): required, this image carries none.
+      # Register your own and put it into .env next to this file. Without it, no bank is contacted.
+      MBM_FINTS_PRODUCT_ID: ${MBM_FINTS_PRODUCT_ID:-}
+    volumes:
+      - mbm-sockets:/run/mbm
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  mbm-data:
+  # In memory only; owned by the user "node" (uid 1000) both images run as
+  mbm-sockets:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: "uid=1000,gid=1000,mode=0770"
