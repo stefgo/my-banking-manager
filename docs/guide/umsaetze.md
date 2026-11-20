@@ -64,8 +64,8 @@ Das ⓘ daneben zeigt die ganze Syntax.
 | `datum:-30t` · `-2w` · `-3m` · `-1j` | letzte 30 Tage, 2 Wochen, 3 Monate, 1 Jahr |
 | `datum:vormonat` · `heute` · `woche` · `quartal` | relative Zeiträume, auch `vorwoche`, `vorjahr` … |
 
-`UND`, `ODER` und `NICHT` schreibst du in Großbuchstaben; Klammern gruppieren. Ein Datum in der
-Suche ersetzt den Zeitraum-Filter. ++esc++ leert das Feld.
+`UND`, `ODER` und `NICHT` (oder `AND`, `OR`, `NOT`) schreibst du in Großbuchstaben; Klammern
+gruppieren. Ein Datum in der Suche ersetzt den Zeitraum-Filter. ++esc++ leert das Feld.
 
 ## Am Handy
 
