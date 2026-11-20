@@ -18,3 +18,5 @@ Nothing inside an HTML comment is published.
   den CSV-Import für dieses Konto (statt „Buchung erfassen“).
 - **CSV-Import:** Die Liste der zu importierenden Umsätze ist nur so hoch, dass der ganze Dialog
   ins Fenster passt; „Importieren“ bleibt ohne Scrollen erreichbar.
+- **Umsätze:** Bei einer Kategorie zeigen die Tage in der Umsatzliste keinen Saldo mehr, nur die
+  Tagessumme. Der Saldo der Konten passte dort nicht zu den gezeigten Buchungen.
