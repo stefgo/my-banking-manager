@@ -253,7 +253,10 @@ function RuleForm({
         setBusy(true);
         const ok = await onSubmit(query.trim(), cat);
         setBusy(false);
-        if (ok && resetOnSuccess) setQuery("");
+        if (ok && resetOnSuccess) {
+            setQuery("");
+            setCat(initialCategory);
+        }
     };
 
     return (

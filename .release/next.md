@@ -25,3 +25,5 @@ Nothing inside an HTML comment is published.
 - **Suche und Regeln:** Die Felder gibt es jetzt auch mit englischen Namen: `counterparty:`,
   `purpose:`, `account:`, `category:` (`cat:`), `amount:`, `date:` und `is:new`, ebenso die
   Zeiträume (`today`, `lastmonth`, `-30d`, `-1y` …).
+- **Regeln:** Nach „Regel anlegen“ wird neben der Abfrage auch die gewählte Kategorie
+  zurückgesetzt.
