@@ -3686,7 +3686,7 @@ paths:
           in: query
           required: false
           schema:
-            description: 'Search: words (space = AND), "phrases", wildcards * and ?, UND/ODER/NICHT (or AND/OR/NOT, -word), parentheses, fields gegenseite: zweck: iban: kategorie: betrag: datum:, comparisons > >= < <= = for amounts and dates, ist:neu for new bookings'
+            description: 'Search: words (space = AND), "phrases", wildcards * and ?, UND/ODER/NICHT (or AND/OR/NOT, -word), parentheses, fields gegenseite: zweck: iban: konto: kategorie: betrag: datum: (or counterparty: purpose: account: category: amount: date:), comparisons > >= < <= = for amounts and dates, ist:neu (or is:new) for new bookings'
             type: string
             maxLength: 200
         - name: category

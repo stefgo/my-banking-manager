@@ -65,7 +65,9 @@ Das ⓘ daneben zeigt die ganze Syntax.
 | `datum:vormonat` · `heute` · `woche` · `quartal` | relative Zeiträume, auch `vorwoche`, `vorjahr` … |
 
 `UND`, `ODER` und `NICHT` (oder `AND`, `OR`, `NOT`) schreibst du in Großbuchstaben; Klammern
-gruppieren. Ein Datum in der Suche ersetzt den Zeitraum-Filter. ++esc++ leert das Feld.
+gruppieren. Die Felder gibt es auch mit englischen Namen: `counterparty:`, `purpose:`,
+`account:`, `category:` (`cat:`), `amount:`, `date:` und `is:new`. Ebenso die Zeiträume: `today`,
+`yesterday`, `week`, `month`, `quarter`, `year`, mit `last…` davor (`lastmonth`), und `-30d`, `-1y`. Ein Datum in der Suche ersetzt den Zeitraum-Filter. ++esc++ leert das Feld.
 
 ## Am Handy
 

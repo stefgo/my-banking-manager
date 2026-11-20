@@ -39,6 +39,7 @@ const HELP: Block[] = [
             ["datum:-30t  ·  -2w  ·  -3m  ·  -1j", "letzte 30 Tage, 2 Wochen, 3 Monate, 1 Jahr", "search"],
             ["datum:vormonat  ·  datum<-1j", "letzter Monat / älter als ein Jahr", "search"],
             ["heute gestern woche monat quartal jahr", "auch mit vor…: vorwoche, vormonat …", "search"],
+            ["today  ·  lastmonth  ·  -30d  ·  -1y", "auch englisch: yesterday, lastweek …", "search"],
         ],
     },
 ];
@@ -72,8 +73,8 @@ export function QueryHelp({ mode = "search" }: { mode?: "search" | "rule" }) {
                         ))}
                         <p className="muted small">
                             {mode === "search"
-                                ? "UND, ODER und NICHT (auch AND, OR, NOT) nur in Großbuchstaben. Ein Datum in der Suche ersetzt die Vorgabe im Menü „Zeitraum“. Esc leert das Feld."
-                                : "UND, ODER und NICHT (auch AND, OR, NOT) nur in Großbuchstaben. Regeln wirken nur auf Umsätze ohne Kategorie, deshalb gibt es hier kein kategorie: und keine relativen Daten wie -30t oder vormonat."}
+                                ? "UND, ODER und NICHT (auch AND, OR, NOT) nur in Großbuchstaben. Felder auch englisch: counterparty:, purpose:, account:, category:, amount:, date:, is:new. Ein Datum in der Suche ersetzt die Vorgabe im Menü „Zeitraum“. Esc leert das Feld."
+                                : "UND, ODER und NICHT (auch AND, OR, NOT) nur in Großbuchstaben. Felder auch englisch: counterparty:, purpose:, account:, amount:, date:. Regeln wirken nur auf Umsätze ohne Kategorie, deshalb gibt es hier kein kategorie: und keine relativen Daten wie -30t oder vormonat."}
                         </p>
                     </div>
                 </Popover.Content>
