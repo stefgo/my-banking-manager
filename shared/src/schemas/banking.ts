@@ -159,7 +159,8 @@ export const TransactionQuery = z.object({
         .optional()
         .describe(
             "Search: words (space = AND), \"phrases\", wildcards * and ?, UND/ODER/NICHT (or AND/OR/NOT, -word), parentheses, " +
-                "fields gegenseite: zweck: iban: kategorie: betrag: datum:, comparisons > >= < <= = for amounts and dates, ist:neu for new bookings",
+                "fields gegenseite: zweck: iban: konto: kategorie: betrag: datum: (or counterparty: purpose: account: category: amount: date:), " +
+                "comparisons > >= < <= = for amounts and dates, ist:neu (or is:new) for new bookings",
         ),
     category: z.string().regex(/^(all|(none|\d+)(,(none|\d+)){0,99})$/).default("all").describe("all, or a comma-separated list of category ids and none"),
     dir: z.enum(["all", "in", "out"]).default("all"),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dateBounds, foldText, matchTxQuery, parseDateSpec, parseTxQuery, quoteTxQueryValue, toTxQueryTarget, TX_QUERY_FIELDS, type TxQueryInput } from "./txquery.js";
+import { dateBounds, foldText, matchTxQuery, parseDateSpec, parseTxQuery, quoteTxQueryValue, toTxQueryTarget, TX_QUERY_FIELDS, TX_QUERY_FIELDS_EN, txQueryField, type TxQueryInput } from "./txquery.js";
 
 const TODAY = "2026-11-14"; // a Saturday
 
@@ -264,6 +264,29 @@ describe("relative dates", () => {
         expect(parseDateSpec("-1m", "2024-03-31")).toMatchObject({ from: "2024-03-01" });
     });
 
+    it("reads English units and names like the German ones", () => {
+        expect(span("-30d")).toEqual(span("-30t"));
+        expect(span("-1Y")).toEqual(span("-1j"));
+        for (const [en, de] of [
+            ["today", "heute"],
+            ["Yesterday", "gestern"],
+            ["week", "woche"],
+            ["lastweek", "vorwoche"],
+            ["month", "monat"],
+            ["lastmonth", "vormonat"],
+            ["quarter", "quartal"],
+            ["lastquarter", "vorquartal"],
+            ["year", "jahr"],
+            ["lastyear", "vorjahr"],
+        ]) {
+            expect(span(en!), en).toEqual(span(de!));
+            expect(span(en!), en).not.toBeNull();
+        }
+        expect(span("toString")).toBeNull();
+        expect(span("constructor")).toBeNull();
+        expect(parseTxQuery("date:lastmonth", { mode: "rule" })).toMatchObject({ ok: false });
+    });
+
     it("knows calendar periods by name", () => {
         expect(span("heute")).toEqual([TODAY, TODAY]);
         expect(span("Gestern")).toEqual(["2026-11-13", "2026-11-13"]);
@@ -352,5 +375,44 @@ describe("field names", () => {
         for (const f of Object.keys(TX_QUERY_FIELDS)) {
             expect(parseTxQuery(`${f}:${sample(f)}`, { mode: "rule" }).ok, f).toBe(TX_QUERY_FIELDS[f] !== "category" && TX_QUERY_FIELDS[f] !== "flag");
         }
+    });
+
+    it("reads English field names like the German ones", () => {
+        expect(TX_QUERY_FIELDS_EN).toEqual({
+            counterparty: "counterparty",
+            purpose: "remittance",
+            account: "account",
+            category: "category",
+            cat: "category",
+            amount: "amount",
+            date: "date",
+            is: "flag",
+        });
+        const tree = (q: string, mode?: "rule") => {
+            const r = parseTxQuery(q, { today: "2026-11-20", mode });
+            return r.ok ? JSON.stringify(r.query) : r.error;
+        };
+        expect(tree("purpose:miete")).toEqual(tree("zweck:miete"));
+        expect(tree("purpose:miete")).not.toEqual(tree("gegenseite:miete"));
+        expect(tree("Counterparty:rewe")).toEqual(tree("gegenseite:rewe"));
+        expect(tree("account:giro")).toEqual(tree("konto:giro"));
+        expect(tree("category:haushalt")).toEqual(tree("kategorie:haushalt"));
+        expect(tree("cat:-")).toEqual(tree("kat:-"));
+        expect(tree("amount>50")).toEqual(tree("betrag>50"));
+        expect(tree("amount:>=12,99")).toEqual(tree("betrag:>=12,99"));
+        expect(tree("date:3.2026")).toEqual(tree("datum:3.2026"));
+        expect(tree("is:new")).toEqual(tree("ist:neu"));
+        expect(tree("ist:new")).toEqual(tree("ist:neu"));
+        expect(tree("is:neu")).toEqual(tree("ist:neu"));
+        expect(tree("category:x", "rule")).toMatch(/^kategorie: geht in Regeln nicht/);
+        expect(tree("is:new", "rule")).toMatch(/^ist: geht in Regeln nicht/);
+    });
+
+    it("looks up field names of both languages, ignoring case", () => {
+        expect(txQueryField("ZWECK")).toBe("remittance");
+        expect(txQueryField("Purpose")).toBe("remittance");
+        expect(txQueryField("toString")).toBeUndefined();
+        expect(txQueryField("constructor")).toBeUndefined();
+        expect(parseTxQuery("constructor:x")).toMatchObject({ ok: true });
     });
 });

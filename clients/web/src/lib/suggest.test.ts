@@ -11,6 +11,20 @@ describe("suggestions while typing", () => {
         expect(at("rewe ka")?.from).toBe(5);
     });
 
+    it("offers English field names only where no German one fits", () => {
+        expect(at("am")?.items.map((i) => i.label)).toEqual(["amount:"]);
+        expect(at("pu")?.items.map((i) => i.label)).toEqual(["purpose:"]);
+        expect(at("da")?.items.map((i) => i.label)).toEqual(["datum:"]);
+        expect(at("date")?.items.map((i) => i.label)).toEqual(["date:"]);
+        expect(at("ca", { ...ctx, mode: "rule" })).toBeNull();
+    });
+
+    it("offers names after English fields too", () => {
+        expect(at("category:leb")?.items.map((i) => i.label)).toEqual(["Lebensmittel", "Lebensversicherung"]);
+        expect(at("Account:geld")?.items.map((i) => i.insert)).toEqual(["Account:Bargeld "]);
+        expect(at("is:")?.items.map((i) => i.insert)).toEqual(["is:neu "]);
+    });
+
     it("stays quiet for operators, numbers and other words", () => {
         expect(at("rewe UND")).toBeNull();
         expect(at("12,50")).toBeNull();

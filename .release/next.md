@@ -20,3 +20,8 @@ Nothing inside an HTML comment is published.
   ins Fenster passt; „Importieren“ bleibt ohne Scrollen erreichbar.
 - **Umsätze:** Bei einer Kategorie zeigen die Tage in der Umsatzliste keinen Saldo mehr, nur die
   Tagessumme. Der Saldo der Konten passte dort nicht zu den gezeigten Buchungen.
+- **Suche und Regeln:** Die Hilfe zur Suchsyntax nennt jetzt auch `AND`, `OR` und `NOT`; sie
+  funktionierten schon bisher wie `UND`, `ODER` und `NICHT`.
+- **Suche und Regeln:** Die Felder gibt es jetzt auch mit englischen Namen: `counterparty:`,
+  `purpose:`, `account:`, `category:` (`cat:`), `amount:`, `date:` und `is:new`, ebenso die
+  Zeiträume (`today`, `lastmonth`, `-30d`, `-1y` …).

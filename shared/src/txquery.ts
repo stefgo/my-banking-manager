@@ -1,5 +1,6 @@
 // Search syntax of the transaction list and of category rules: words, quoted phrases, wildcards
-// (* ?), fields (gegenseite: zweck: iban: konto: kategorie: betrag: datum: ist:), comparisons
+// (* ?), fields (gegenseite: zweck: iban: konto: kategorie: betrag: datum: ist:, also in English:
+// counterparty: purpose: account: category: amount: date: is:), comparisons
 // (> >= < <= =) for amounts and dates (absolute, partial or relative), UND / ODER / NICHT (or
 // AND / OR / NOT, upper case only), "-" for NICHT and parentheses. Whitespace between terms means
 // UND; UND binds stronger than ODER.
@@ -236,8 +237,23 @@ function monthSpan(y: number, m: number): { from: string; to: string } {
     return { from: iso(y, m, 1), to: iso(y, m, lastDay(y, m)) };
 }
 
-/** Calendar periods by name, relative to `today`. */
-function namedSpan(word: string, today: string): { from: string; to: string } | null {
+/** English names of calendar periods and their German counterparts. */
+const NAMED_EN: Readonly<Record<string, string>> = {
+    today: "heute",
+    yesterday: "gestern",
+    week: "woche",
+    lastweek: "vorwoche",
+    month: "monat",
+    lastmonth: "vormonat",
+    quarter: "quartal",
+    lastquarter: "vorquartal",
+    year: "jahr",
+    lastyear: "vorjahr",
+};
+
+/** Calendar periods by name (German or English), relative to `today`. */
+function namedSpan(name: string, today: string): { from: string; to: string } | null {
+    const word = Object.hasOwn(NAMED_EN, name) ? NAMED_EN[name]! : name;
     const [y, m] = today.split("-").map(Number) as [number, number];
     const q = Math.floor((m - 1) / 3);
     const monday = addDaysIso(today, -weekday(today));
@@ -271,18 +287,19 @@ function namedSpan(word: string, today: string): { from: string; to: string } | 
 
 /**
  * A date as a span of days: full or partial ("2026", "2026-03", "3.2026", "1.3.2026",
- * "2026-03-01"), the last N days, weeks, months or years up to today ("-30t", "-2w", "-3m", "-1j")
- * or a calendar period by name ("vormonat"). `relative` tells whether it depends on today.
+ * "2026-03-01"), the last N days, weeks, months or years up to today ("-30t", "-2w", "-3m", "-1j",
+ * in English also "-30d" and "-1y") or a calendar period by name ("vormonat", "lastmonth").
+ * `relative` tells whether it depends on today.
  */
 export function parseDateSpec(s: string, today = todayIso()): { from: string; to: string; relative: boolean } | null {
     const word = s.trim().toLowerCase();
     const named = namedSpan(word, today);
     if (named) return { ...named, relative: true };
-    let r = /^-(\d{1,4})([twmj])$/.exec(word);
+    let r = /^-(\d{1,4})([twmjdy])$/.exec(word);
     if (r) {
         const n = Number(r[1]);
         if (n < 1) return null;
-        const unit = r[2]!;
+        const unit = r[2] === "d" ? "t" : r[2] === "y" ? "j" : r[2]!;
         const from =
             unit === "t" ? addDaysIso(today, -(n - 1)) : unit === "w" ? addDaysIso(today, -(7 * n - 1)) : addDaysIso(addMonthsIso(today, -(unit === "m" ? n : 12 * n)), 1);
         return { from, to: today, relative: true };
@@ -320,11 +337,35 @@ const FIELDS: Record<string, TextField | "date" | "flag"> = {
     ist: "flag",
 };
 
-/** Values of `ist:`. */
-export const TX_QUERY_FLAGS = ["neu"] as const;
+/** English names of the fields; the parser reads them like the German ones. */
+const FIELDS_EN: Record<string, TextField | "date" | "flag"> = {
+    counterparty: "counterparty",
+    purpose: "remittance",
+    account: "account",
+    category: "category",
+    cat: "category",
+    amount: "amount",
+    date: "date",
+    is: "flag",
+};
 
-/** Field names of the search syntax and what they search; for suggestions while typing. */
+const ALL_FIELDS: Record<string, TextField | "date" | "flag"> = { ...FIELDS, ...FIELDS_EN };
+
+/** Values of `ist:` (German and English). */
+export const TX_QUERY_FLAGS = ["neu"] as const;
+const FLAG_VALUES = new Set(["neu", "new"]);
+
+/** German field names of the search syntax and what they search; for suggestions while typing. */
 export const TX_QUERY_FIELDS: Readonly<Record<string, TextField | "date" | "flag">> = FIELDS;
+
+/** English field names (counterparty:, purpose:, amount: …) and what they search. */
+export const TX_QUERY_FIELDS_EN: Readonly<Record<string, TextField | "date" | "flag">> = FIELDS_EN;
+
+/** What a field name of either language searches, case-insensitive; undefined if it is none. */
+export function txQueryField(name: string): TextField | "date" | "flag" | undefined {
+    const key = name.toLowerCase();
+    return Object.hasOwn(ALL_FIELDS, key) ? ALL_FIELDS[key] : undefined;
+}
 
 const OPERATORS: Record<string, "and" | "or" | "not"> = { UND: "and", AND: "and", ODER: "or", OR: "or", NICHT: "not", NOT: "not" };
 
@@ -459,7 +500,7 @@ class Lexer {
             return;
         }
         const f = /^([a-zA-ZäöüÄÖÜ]+)(:|>=|<=|>|<|=)(.*)$/.exec(w);
-        const field = f ? FIELDS[f[1]!.toLowerCase()] : undefined;
+        const field = f ? txQueryField(f[1]!) : undefined;
         if (!f || !field) {
             this.tokens.push({ t: "term", at, node: textNode(null, w) });
             return;
@@ -480,7 +521,7 @@ class Lexer {
         if (op !== ":" && field !== "amount" && field !== "date") throw new QueryError(`Vergleiche gehen nur bei betrag und datum, nicht bei ${name}`, at);
         const value = this.value(rest, `${name}${op}`, at);
         if (field === "flag") {
-            if (foldText(value).trim() !== "neu") throw new QueryError(`„${value}“ gibt es bei ist: nicht – möglich ist ist:neu`, at);
+            if (!FLAG_VALUES.has(foldText(value).trim())) throw new QueryError(`„${value}“ gibt es bei ist: nicht – möglich ist ist:neu`, at);
             this.tokens.push({ t: "term", at, node: { k: "unread" } });
         } else if (field === "date") this.tokens.push({ t: "term", at, node: this.dateNode(op, value, at) });
         else if (field === "amount" && op !== ":") this.tokens.push({ t: "term", at, node: amountNode(op, value, at) });

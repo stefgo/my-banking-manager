@@ -1,7 +1,8 @@
 // Suggestions while typing a search or a rule: field names of the search syntax, and after
-// "kategorie:" or "konto:" the names of categories or accounts, after "ist:" its values.
+// "kategorie:" or "konto:" the names of categories or accounts, after "ist:" its values. English
+// field names (amount:, purpose: …) are offered only where no German name fits the typed word.
 
-import { foldText, quoteTxQueryValue, TX_QUERY_FIELDS, TX_QUERY_FLAGS } from "@mbm/shared";
+import { foldText, quoteTxQueryValue, TX_QUERY_FIELDS, TX_QUERY_FIELDS_EN, TX_QUERY_FLAGS, txQueryField } from "@mbm/shared";
 
 export interface Suggestion {
     label: string;
@@ -36,6 +37,14 @@ const FIELD_HINTS: Record<string, string> = {
     betrag: "z. B. betrag>50",
     datum: "z. B. datum:3.2026",
     ist: "ist:neu – neue Umsätze",
+    counterparty: "wie gegenseite:",
+    purpose: "wie zweck:",
+    account: "wie konto:",
+    category: "wie kategorie:",
+    cat: "wie kategorie:",
+    amount: "wie betrag:",
+    date: "wie datum:",
+    is: "wie ist:",
 };
 
 /** Fields rules cannot use. */
@@ -54,13 +63,14 @@ export function suggest(text: string, caret: number, ctx: SuggestContext): Sugge
     if (colon < 0) {
         // Only plain lower-case words: "UND", "ODER", "NICHT" and amounts stay quiet
         if (!/^[a-zäöü]+$/.test(word)) return null;
-        const items = Object.keys(TX_QUERY_FIELDS)
-            .filter((f) => f.startsWith(word) && !(ctx.mode === "rule" && SEARCH_ONLY.has(TX_QUERY_FIELDS[f]!)))
-            .map((f) => ({ label: `${f}:`, hint: FIELD_HINTS[f], insert: `${f}:` }));
+        const fields = (names: Readonly<Record<string, string>>) =>
+            Object.keys(names).filter((f) => f.startsWith(word) && !(ctx.mode === "rule" && SEARCH_ONLY.has(names[f]!)));
+        const german = fields(TX_QUERY_FIELDS);
+        const items = (german.length ? german : fields(TX_QUERY_FIELDS_EN)).map((f) => ({ label: `${f}:`, hint: FIELD_HINTS[f], insert: `${f}:` }));
         return items.length ? { from, to, items } : null;
     }
 
-    const kind = TX_QUERY_FIELDS[word.slice(0, colon).toLowerCase()];
+    const kind = txQueryField(word.slice(0, colon));
     const searchOnly = ctx.mode !== "rule";
     const names = kind === "category" && searchOnly ? ctx.categories : kind === "flag" && searchOnly ? TX_QUERY_FLAGS : kind === "account" ? ctx.accounts : null;
     if (!names) return null;
