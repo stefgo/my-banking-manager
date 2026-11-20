@@ -20,7 +20,6 @@ import { CodeInput, Field } from "../components/form";
 import { SkeletonRows } from "../components/Skeleton";
 import { Ic, Sym, Tile } from "../components/icons";
 import { lockServer } from "../shell/session";
-import { openBooking } from "../shell/shortcuts";
 import { RulesTab } from "./Rules";
 
 export function SettingsPage() {
@@ -46,6 +45,14 @@ export function SettingsPage() {
                         <button className="btn" onClick={() => void reviewRules()}>
                             <Ic icon={Wand2} size={16} />
                             Auf Umsätze ohne Kategorie anwenden
+                        </button>
+                    </div>
+                )}
+                {tab === "imports" && (
+                    <div className="head-actions">
+                        <button className="btn btn-primary" onClick={() => ui.open({ kind: "import" })}>
+                            <Ic icon={FileUp} size={16} />
+                            CSV importieren
                         </button>
                     </div>
                 )}
@@ -133,8 +140,8 @@ function AccountsTab() {
                                     </button>
                                     <Amt cents={a.balance} />
                                     <span className="cc-acc-actions">
-                                        <button className="mini" aria-label="Buchung erfassen" title="Buchung erfassen" onClick={() => openBooking(a.id)}>
-                                            <Ic icon={Plus} size={15} />
+                                        <button className="mini" aria-label={`Buchungen in „${a.name}“ importieren`} title="Buchungen importieren …" onClick={() => ui.open({ kind: "import", accountId: a.id })}>
+                                            <Ic icon={FileUp} size={15} />
                                         </button>
                                         <button className="mini" aria-label={`„${a.name}“ löschen`} title="Konto löschen …" disabled={action.pending} onClick={() => confirmDeleteAccount(a, action)}>
                                             <Ic icon={Trash2} size={14} />
@@ -578,7 +585,7 @@ function ImportsTab() {
         <section className="panel">
             <div className="panel-head"><h3>CSV-Importe</h3></div>
             {importsQuery.isPending && <SkeletonRows rows={3} plain />}
-            {importsQuery.isSuccess && imports.length === 0 && <Empty icon={FileUp} title="Noch nichts importiert" text="CSV-Dateien importierst du über das Menü eines Kontos oder die Befehlspalette (⌘K)." />}
+            {importsQuery.isSuccess && imports.length === 0 && <Empty icon={FileUp} title="Noch nichts importiert" text="CSV-Dateien importierst du hier über „CSV importieren“, über das Menü eines Kontos oder die Befehlspalette (⌘K)." />}
             <div className="row-list">
                 {imports.map((i) => (
                     <div className="row-item" key={i.id}>

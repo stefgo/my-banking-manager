@@ -8,6 +8,9 @@ Aktionen dazu: Abrufen, Überweisen, Verlauf und Infos.
 
 *Die Umsätze eines Kontos. Vorgemerkte stehen oben, darunter die gebuchten nach Tagen mit Tagessumme und Saldo.*
 
+Bei einer Kategorie zeigen die Tage nur die Tagessumme; ein Saldo gehört zu Konten, nicht zu
+Kategorien.
+
 ## Neue Umsätze
 
 Was ein Abruf von der Bank bringt, ist für alle Benutzer **neu**; was jemand importiert, für alle

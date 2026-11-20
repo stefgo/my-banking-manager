@@ -428,7 +428,7 @@ function TransactionList() {
                 {items.length ? (
                     <TxList
                         items={items}
-                        balances={balances}
+                        balances={catView ? undefined : balances}
                         accounts={accounts}
                         cat={index}
                         virtual
