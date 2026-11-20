@@ -9,3 +9,8 @@ dev keeps the text; the stable release from main empties this file again.
 
 Nothing inside an HTML comment is published.
 -->
+
+### Verbessert
+
+- **CSV-Import:** Die Liste der zu importierenden Umsätze ist nur so hoch, dass der ganze Dialog
+  ins Fenster passt; „Importieren“ bleibt ohne Scrollen erreichbar.
