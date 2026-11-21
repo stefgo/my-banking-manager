@@ -267,17 +267,19 @@ export function BankSetupDialog({ connectionId }: { connectionId?: number }) {
                                 </div>
                             </>
                         )}
-                        <div className="kind-list">
-                            {offered.map((a) => (
-                                <label key={a.externalId} className={`bank-item ${a.supported ? "" : "disabled"}`}>
-                                    <input type="checkbox" disabled={!a.supported} checked={picked.has(a.externalId)} onChange={(e) => setPicked((p) => { const n = new Set(p); if (e.target.checked) n.add(a.externalId); else n.delete(a.externalId); return n; })} />
-                                    <span>
-                                        <b>{a.name}</b>
-                                        <small>{[(a.kind === "credit_card" && a.cardNumber ? groupCardNumber(a.cardNumber) : a.iban) ?? a.externalId, a.owner, a.accountId ? "schon in MBM – wird verknüpft" : a.supported && a.ignored ? "bisher nicht übernommen" : null, a.supported ? null : `${KIND_NAME[a.kind] ?? "Kontoart"}: kann MBM noch nicht übernehmen`].filter(Boolean).join(" · ")}</small>
-                                    </span>
-                                </label>
-                            ))}
-                        </div>
+                        {offered.length > 0 && (
+                            <div className="kind-list bank-offer">
+                                {offered.map((a) => (
+                                    <label key={a.externalId} className={`bank-item ${a.supported ? "" : "disabled"}`}>
+                                        <input type="checkbox" disabled={!a.supported} checked={picked.has(a.externalId)} onChange={(e) => setPicked((p) => { const n = new Set(p); if (e.target.checked) n.add(a.externalId); else n.delete(a.externalId); return n; })} />
+                                        <span>
+                                            <b>{a.name}</b>
+                                            <small>{[(a.kind === "credit_card" && a.cardNumber ? groupCardNumber(a.cardNumber) : a.iban) ?? a.externalId, a.owner, a.accountId ? "schon in MBM – wird verknüpft" : a.supported && a.ignored ? "bisher nicht übernommen" : null, a.supported ? null : `${KIND_NAME[a.kind] ?? "Kontoart"}: kann MBM noch nicht übernehmen`].filter(Boolean).join(" · ")}</small>
+                                        </span>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
                         <Field id="bs-group" label="Gruppe für neue Konten">
                             <Picker
                                 items={groupItems}

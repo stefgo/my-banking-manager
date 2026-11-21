@@ -1148,6 +1148,16 @@ body { margin: 0; }
 .bank-results { max-height: 280px; overflow-y: auto; }
 label.bank-item { cursor: pointer; grid-template-columns: 20px minmax(0, 1fr); }
 label.bank-item.disabled { cursor: default; opacity: 0.55; }
+/* Offered accounts only get the height left over, so title, group and button stay in the window;
+   below the list's minimum height the dialog body scrolls instead */
+.bank-offer { overflow-y: auto; overscroll-behavior: contain; align-content: start; }
+.bank-offer:has(> :nth-child(3)) { min-height: 120px; }
+.modal:has(.bank-offer) { display: flex; flex-direction: column; overflow-y: hidden; }
+.modal:has(.bank-offer) > .m-body { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.modal:has(.bank-offer) > .m-body > * { flex-shrink: 0; }
+.modal:has(.bank-offer) > .m-body > .form-grid { display: flex; flex-direction: column; min-height: 0; flex-shrink: 1; }
+.modal:has(.bank-offer) > .m-body > .form-grid > * { flex-shrink: 0; }
+.modal:has(.bank-offer) > .m-body > .form-grid > .bank-offer { flex-shrink: 1; }
 label.bank-item input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--p-violet, currentColor); }
 .approval { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 12px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line-soft); }
 .approval-main { display: grid; gap: 6px; min-width: 0; }
