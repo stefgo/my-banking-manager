@@ -90,7 +90,7 @@ liegen in [`docs/`](./docs):
   [Einstellungen](https://stefgo.github.io/my-banking-manager/guide/einstellungen/)
 - [Sicherheit](https://stefgo.github.io/my-banking-manager/sicherheit/),
   [Updates und Backup](https://stefgo.github.io/my-banking-manager/updates/),
-  [Betrieb im Detail](https://stefgo.github.io/my-banking-manager/operations/)
+  [Technische Details](https://stefgo.github.io/my-banking-manager/operations/)
 - [Entwicklung](https://stefgo.github.io/my-banking-manager/development/)
 
 ## Entwicklung

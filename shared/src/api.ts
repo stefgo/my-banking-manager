@@ -122,6 +122,7 @@ export const routes = {
     listImports: r({ method: "GET", path: "/api/imports", summary: "Past imports", tag: "Import", access: "user", response: List(B.ImportRecord) }),
     undoImport: r({ method: "DELETE", path: "/api/imports/:id", summary: "Delete an import: its remaining bookings and the record", tag: "Import", access: "user", params: IdParam, response: Ok }),
     listImportFormats: r({ method: "GET", path: "/api/import-formats", summary: "Import formats: those of the app and own ones", tag: "Import", access: "user", response: List(B.ImportFormat) }),
+    detectImportFormat: r({ method: "POST", path: "/api/import-formats/detect", summary: "Choose the format for a CSV file by its header", tag: "Import", access: "user", body: B.DetectImportFormatRequest, response: B.DetectedImportFormat }),
     createImportFormat: r({ method: "POST", path: "/api/import-formats", summary: "Save an own import format", tag: "Import", access: "user", body: B.CreateImportFormatRequest, response: B.ImportFormat }),
     updateImportFormat: r({ method: "PATCH", path: "/api/import-formats/:id", summary: "Change an own import format", tag: "Import", access: "user", params: IdParam, body: B.UpdateImportFormatRequest, response: B.ImportFormat }),
     deleteImportFormat: r({ method: "DELETE", path: "/api/import-formats/:id", summary: "Delete an own import format", tag: "Import", access: "user", params: IdParam, response: Ok }),

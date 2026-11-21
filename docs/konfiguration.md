@@ -100,4 +100,4 @@ Container, `fints` bei zweien) lässt ihn den Aufbau jeder Nachricht an die Bank
 ohne Inhalte. Das hilft, wenn eine Bank sich anders verhält als erwartet.
 
 Alle Einzelheiten zu Verschlüsselung, Anmeldung, Netz und Konnektor stehen unter
-[Betrieb im Detail](operations.md).
+[Technische Details](operations.md).

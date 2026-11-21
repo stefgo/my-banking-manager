@@ -2,7 +2,7 @@
 
 MBM verwaltet deine Bankdaten. Deshalb ist es so gebaut, dass ein gestohlener Datenträger, ein
 gestohlenes Backup oder ein vergessenes offenes Fenster möglichst wenig verrät. Hier steht das
-Wichtigste in Kürze; alle Einzelheiten stehen unter [Betrieb im Detail](operations.md).
+Wichtigste in Kürze; alle Einzelheiten stehen unter [Technische Details](operations.md).
 
 ## Keine Daten über Dritte
 

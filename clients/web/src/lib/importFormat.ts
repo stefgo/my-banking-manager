@@ -1,5 +1,5 @@
 import { useDeferredValue, useMemo } from "react";
-import { FORMAT_FIELDS, ImportFormatDefinition, formatIssues, missingColumns, readTable, REST_PART, type CsvTable, type FormatField, type FormatStep, type FormatValueRef, type ImportPreview } from "@mbm/shared";
+import { foldText, FORMAT_FIELDS, ImportFormatDefinition, formatIssues, missingColumns, readTable, REST_PART, type CsvTable, type FormatField, type FormatStep, type FormatValueRef, type ImportPreview } from "@mbm/shared";
 import { decodeCsv } from "./decode";
 import { plural } from "./format";
 
@@ -162,7 +162,7 @@ export function useFormatTable(sample: { buffer: ArrayBuffer } | null, file: Imp
 type ReviewRow = ImportPreview["rows"][number];
 
 /** What the list of the review shows; `changes` is everything that does something or failed. */
-export type ReviewFilter = "changes" | "new" | "fill" | "differs" | "duplicate" | "invalid";
+export type ReviewFilter = "changes" | "new" | "fill" | "differs" | "duplicate" | "invalid" | "all";
 
 export const rowFills = (r: ReviewRow): boolean => r.fillsBookingText || r.fillsDetails;
 export const rowDiffers = (r: ReviewRow): boolean => r.categoryState === "differs";
@@ -181,13 +181,60 @@ export function matchesFilter(r: ReviewRow, filter: ReviewFilter): boolean {
             return r.state === "duplicate" && !rowFills(r) && !rowDiffers(r);
         case "changes":
             return r.state !== "duplicate" || rowFills(r) || rowDiffers(r);
+        case "all":
+            return true;
     }
 }
 
 export function reviewCounts(rows: ReviewRow[]): Record<ReviewFilter, number> {
-    const counts: Record<ReviewFilter, number> = { changes: 0, new: 0, fill: 0, differs: 0, duplicate: 0, invalid: 0 };
+    const counts: Record<ReviewFilter, number> = { changes: 0, new: 0, fill: 0, differs: 0, duplicate: 0, invalid: 0, all: 0 };
     for (const r of rows) for (const f of Object.keys(counts) as ReviewFilter[]) if (matchesFilter(r, f)) counts[f]++;
     return counts;
+}
+
+/** Finds text in the counterparty, purpose, IBAN or reference; an IBAN also when typed with spaces. */
+export function matchesSearch(r: ReviewRow, text: string): boolean {
+    const needle = foldText(text).trim();
+    if (!needle) return true;
+    if ([r.name, r.purpose, r.iban ?? "", r.reference].some((v) => foldText(v).includes(needle))) return true;
+    return !!r.iban && foldText(r.iban).replace(/ /g, "").includes(needle.replace(/ /g, ""));
+}
+
+/** What was decided in the review. It lasts as long as file, format and account stay the same. */
+export interface ReviewChoice {
+    /** Lines of the file left out. */
+    excluded: ReadonlySet<number>;
+    createCategories: boolean;
+    overwriteCategories: boolean;
+}
+
+export const NO_CHOICE: ReviewChoice = { excluded: new Set(), createCategories: false, overwriteCategories: false };
+
+/** A row that can be left out, because taking it would change something. */
+export const rowSelectable = (r: ReviewRow, overwriteCategories: boolean): boolean => r.state === "new" || rowFills(r) || (overwriteCategories && rowDiffers(r));
+
+/** What the import does with the rows that are selected. */
+export function reviewOutcome(rows: ReviewRow[], choice: ReviewChoice) {
+    const kept = rows.filter((r) => !choice.excluded.has(r.line));
+    const differing = kept.filter(rowDiffers);
+    const overwrite = choice.overwriteCategories && differing.length > 0;
+    // Missing categories of rows that will be written: new ones, and differing ones when overwritten
+    const missing = [...new Set(kept.filter((r) => r.newCategory && (r.state === "new" || (overwrite && rowDiffers(r)))).map((r) => r.newCategory!))];
+    const create = choice.createCategories && missing.length > 0;
+    const takesCategory = (r: ReviewRow) => overwrite && rowDiffers(r) && (r.categoryId !== null || (create && !!r.newCategory));
+    const changes = kept.filter(takesCategory).length;
+    return {
+        differing: differing.length,
+        missing,
+        overwrite,
+        create,
+        changes,
+        blocked: overwrite && differing.length > changes,
+        fresh: kept.filter((r) => r.state === "new").length,
+        fills: kept.filter(rowFills).length,
+        affected: kept.filter((r) => r.state === "new" || rowFills(r) || takesCategory(r)).length,
+        leftOut: rows.filter((r) => choice.excluded.has(r.line) && rowSelectable(r, choice.overwriteCategories)).length,
+    };
 }
 
 /** Drops what points to a step or part that no longer exists. A step falls back to the first column. */

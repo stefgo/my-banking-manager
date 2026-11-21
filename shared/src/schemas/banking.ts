@@ -471,6 +471,13 @@ export const ImportRequest = z.object({
     format: ImportFormatDefinition.optional().describe("How to read the file; without it and without `columns` the format is chosen by the header"),
     createCategories: z.boolean().optional().describe("Create the categories the file names but that do not exist yet"),
     overwriteCategories: z.boolean().optional().describe("Give bookings already stored the category the file names where it differs; split bookings stay as they are"),
+    excludeLines: z.array(z.number().int().min(1)).max(1_000_000).optional().describe("Rows of the file (`line` of the preview) that change nothing; only for the import itself"),
+});
+
+export const DetectImportFormatRequest = z.object({ content: z.string().max(20_000_000) });
+export const DetectedImportFormat = z.object({
+    format: ImportFormatDefinition.describe("The format to read the file with"),
+    formatKey: z.string().nullable().describe("The stored format chosen by the header; null for the automatic column assignment"),
 });
 
 export const ImportPreviewRow = z.object({
@@ -526,6 +533,7 @@ export const ImportResult = z.object({
     bookingTextsFilled: z.number().int().describe("Bookings already stored whose empty kind of booking came from the file"),
     detailsFilled: z.number().int().describe("Bookings already stored with an empty reference, mandate, creditor id or BIC that came from the file"),
     filled: z.number().int().describe("Bookings already stored that got a kind of booking, a detail or both"),
+    excluded: z.number().int().describe("Rows that would have changed something but were left out"),
 });
 
 export const ImportRecord = z.object({

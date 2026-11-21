@@ -1,4 +1,4 @@
-# Betrieb und Sicherheit
+# Technische Details
 
 ## Verschlüsselung
 

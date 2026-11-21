@@ -133,6 +133,46 @@ describe("import formats", () => {
         expect(res).toMatchObject({ bookingTextsFilled: 1, detailsFilled: 1, filled: 2 });
     });
 
+    it("detects the format without an account", async () => {
+        const { api } = await setUp();
+        const known = await api<{ formatKey: string | null }>("POST", "/api/import-formats/detect", { content: FILE });
+        expect(known.body.formatKey).toBe("builtin:moneymoney");
+        const unknown = await api<{ formatKey: string | null; format: ImportFormatDefinition }>("POST", "/api/import-formats/detect", { content: "Tag;Wert\n01.10.2026;1,00\n" });
+        expect(unknown.body.formatKey).toBeNull();
+        expect(unknown.body.format.version).toBe(1);
+        expect((await api<{ error: string }>("POST", "/api/import-formats/detect", { content: "" })).body.error).toBe("empty_file");
+    });
+
+    it("leaves out deselected new rows, also their missing category", async () => {
+        const { api, account, items } = await setUp();
+        const line = (day: string, name: string, category: string) => `${day}.11.2026;${day}.11.2026;${category};${name};Text;;;-1,00;EUR`;
+        const content = `${HEADER}\n${line("01", "Bleibt", "Testkategorie")}\n${line("02", "Weg", "Nur abgewählt")}\n`;
+        const res = await api<{ imported: number; excluded: number; createdCategories: number }>("POST", `/api/accounts/${account.id}/import`, { fileName: "x.csv", content, createCategories: true, excludeLines: [2] });
+        expect(res.body).toMatchObject({ imported: 1, excluded: 1, createdCategories: 1 });
+        expect((await items()).map((i) => i.counterpartyName)).toEqual(["Bleibt"]);
+        const names = t.vault.database.prepare("SELECT name FROM categories").pluck().all() as string[];
+        expect(names).toContain("Testkategorie");
+        expect(names).not.toContain("Nur abgewählt");
+    });
+
+    it("does not fill in or overwrite a deselected booking", async () => {
+        const { api, account, items } = await setUp();
+        await api("POST", `/api/accounts/${account.id}/transactions`, { bookingDate: "2026-11-19", amount: -100, counterpartyName: "Muster GmbH" });
+        const res = await api<{ imported: number; skipped: number; filled: number; excluded: number }>("POST", `/api/accounts/${account.id}/import`, { fileName: "x.csv", content: FILE, excludeLines: [1] });
+        expect(res.body).toMatchObject({ imported: 0, skipped: 1, filled: 0, excluded: 1 });
+        expect((await items())[0]).toMatchObject({ bookingText: "", reference: "", mandateId: "" });
+    });
+
+    it("keeps equal rows matched when one of them is deselected", async () => {
+        const { api, account, items } = await setUp();
+        await api("POST", `/api/accounts/${account.id}/transactions`, { bookingDate: "2026-11-19", amount: -100, counterpartyName: "Muster GmbH" });
+        const row = "19.11.2026;19.11.2026;;Muster GmbH;Text;;;-1,00;EUR";
+        const res = await api<{ imported: number; skipped: number; excluded: number }>("POST", `/api/accounts/${account.id}/import`, { fileName: "x.csv", content: `${HEADER}\n${row}\n${row}\n${row}\n`, excludeLines: [2] });
+        // Row 1 is the stored booking, row 2 is left out, only row 3 is new
+        expect(res.body).toMatchObject({ imported: 1, skipped: 1, excluded: 1 });
+        expect(await items()).toHaveLength(2);
+    });
+
     it("never links a transfer through a reference from a file", async () => {
         const { api, account, items } = await setUp();
         const db = t.vault.database;

@@ -283,14 +283,9 @@ function SamplePanel({ def, table, row, onRow, sampleName, onPickSample }: { def
     }
     const count = table.rows.length;
     const at = Math.min(row, Math.max(count - 1, 0));
-    const read = previewParts(table, def, at);
     const result = count ? mapFormatRows({ ...table, rows: [table.rows[at]!] }, def)[0]! : null;
-    const inputs = [...new Map(def.steps.filter((s) => !("step" in s.input)).map((s) => [sourceLabel(s.input), s.input])).entries()];
-    const inputColumns = new Set(inputs.map(([, ref]) => ("column" in ref ? table.header.indexOf(ref.column) : "columnIndex" in ref ? ref.columnIndex : -1)));
     const cells = table.rows[at] ?? [];
-    const otherColumns = table.header
-        .map((name, index) => ({ index, label: name || `Spalte ${index + 1}`, value: (cells[index] ?? "").trim() }))
-        .filter((c) => !inputColumns.has(c.index));
+    const columns = table.header.map((name, index) => ({ index, label: name || `Spalte ${index + 1}`, value: (cells[index] ?? "").trim() }));
     const shown = RESULT.filter((c) => def.fields[c.field]?.length);
     return (
         <aside className="panel wb-sample" aria-label="Beispielzeile">
@@ -303,28 +298,17 @@ function SamplePanel({ def, table, row, onRow, sampleName, onPickSample }: { def
                 </span>
             </div>
             {sampleName && <p className="faint small wb-file">{sampleName}</p>}
-            {(inputs.length > 0 || otherColumns.length > 0) && (
+            {columns.length > 0 && (
                 <div className="wb-block">
                     <h4>Aus der Datei</h4>
-                    {inputs.map(([label, ref]) => (
-                        <div key={label}>
-                            <span className="flabel">{label}</span>
-                            <p className="wb-raw">{read(ref) || "—"}</p>
-                        </div>
-                    ))}
-                    {otherColumns.length > 0 && (
-                        <details className="wb-more">
-                            <summary>{inputs.length ? "Weitere Spalten" : "Alle Spalten"} ({otherColumns.length})</summary>
-                            <dl className="wb-result">
-                                {otherColumns.map((c) => (
-                                    <div key={c.index}>
-                                        <dt>{c.label}</dt>
-                                        <dd>{c.value || "—"}</dd>
-                                    </div>
-                                ))}
-                            </dl>
-                        </details>
-                    )}
+                    <dl className="wb-result">
+                        {columns.map((c) => (
+                            <div key={c.index}>
+                                <dt>{c.label}</dt>
+                                <dd>{c.value || "—"}</dd>
+                            </div>
+                        ))}
+                    </dl>
                 </div>
             )}
             <div className="wb-block">
