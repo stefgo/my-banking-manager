@@ -272,7 +272,8 @@ export function registerDataRoutes(app: FastifyInstance, ctx: AppContext): void 
         )();
         const created = result.createdCategories ? `, ${result.createdCategories} Kategorien angelegt` : "";
         const changed = result.recategorized ? `, ${result.recategorized} Kategorien geändert` : "";
-        logActivity(db, actor, "import", accounts.getAccount(db, params.id).name, `${body.fileName}: ${result.imported} neu, ${result.skipped} schon vorhanden${created}${changed}`);
+        const filled = result.bookingTextsFilled ? `, ${result.bookingTextsFilled} Umsatzarten ergänzt` : "";
+        logActivity(db, actor, "import", accounts.getAccount(db, params.id).name, `${body.fileName}: ${result.imported} neu, ${result.skipped} schon vorhanden${created}${changed}${filled}`);
         events.changed("accounts", "transactions", "categories", "imports", "activity", "unread");
         return result;
     });

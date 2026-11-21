@@ -78,12 +78,14 @@ export function ImportDialog({ accountId: initial }: { accountId?: number }) {
             ok: (res) =>
                 `${plural(res.imported, "Umsatz", "Umsätze")} importiert${res.skipped ? ` · ${res.skipped} übersprungen` : ""}` +
                 (res.createdCategories ? ` · ${plural(res.createdCategories, "Kategorie", "Kategorien")} angelegt` : "") +
-                (res.recategorized ? ` · ${plural(res.recategorized, "Kategorie", "Kategorien")} geändert` : ""),
+                (res.recategorized ? ` · ${plural(res.recategorized, "Kategorie", "Kategorien")} geändert` : "") +
+                (res.bookingTextsFilled ? ` · ${plural(res.bookingTextsFilled, "Umsatzart", "Umsatzarten")} ergänzt` : ""),
         });
         if (r) ui.close();
     };
 
     const fresh = preview?.counts.new ?? 0;
+    const filled = preview?.counts.filled ?? 0;
     const rows = preview?.rows ?? [];
     const differing = rows.filter(differs);
     const overwrite = overwriteCategories && differing.length > 0;
@@ -102,17 +104,22 @@ export function ImportDialog({ accountId: initial }: { accountId?: number }) {
     const rowState = (r: Row): string => {
         if (r.state === "invalid") return "unlesbar";
         if (r.state === "new") return r.pending ? "neu · vorgemerkt" : "neu";
-        if (r.categoryState === "split") return "aufgeteilt, bleibt";
-        if (!differs(r)) return "schon vorhanden";
-        return overwrite && (r.categoryId !== null || (create && r.newCategory)) ? "Kategorie wird geändert" : "Kategorie abweichend";
+        if (r.categoryState === "split") return r.fillsBookingText ? "aufgeteilt, bleibt · Umsatzart wird ergänzt" : "aufgeteilt, bleibt";
+        if (!differs(r)) return r.fillsBookingText ? "Umsatzart wird ergänzt" : "schon vorhanden";
+        const category = overwrite && (r.categoryId !== null || (create && r.newCategory)) ? "Kategorie wird geändert" : "Kategorie abweichend";
+        return r.fillsBookingText ? `${category} · Umsatzart wird ergänzt` : category;
     };
     const duplicates = preview?.counts.duplicate ?? 0;
-    const duplicateText = !duplicates
-        ? ""
-        : changes
-          ? ` · ${duplicates} schon vorhanden, bei ${changes} davon wird die Kategorie geändert`
-          : ` · ${duplicates} schon vorhanden, werden übersprungen${differing.length ? ` (${differing.length} mit abweichender Kategorie)` : ""}`;
-    const actionText = [fresh ? `${plural(fresh, "Umsatz", "Umsätze")} importieren` : "", changes ? `${plural(changes, "Kategorie", "Kategorien")} ändern` : ""].filter(Boolean).join(", ");
+    const duplicateChanges = [changes ? `bei ${changes} davon wird die Kategorie geändert` : "", filled ? `bei ${filled} davon wird die Umsatzart ergänzt` : ""].filter(Boolean).join(", ");
+    const differingNote = !changes && differing.length ? ` (${differing.length} mit abweichender Kategorie)` : "";
+    const duplicateText = duplicates ? ` · ${duplicates} schon vorhanden, ${duplicateChanges || "werden übersprungen"}${differingNote}` : "";
+    const actionText = [
+        fresh ? `${plural(fresh, "Umsatz", "Umsätze")} importieren` : "",
+        changes ? `${plural(changes, "Kategorie", "Kategorien")} ändern` : "",
+        filled ? `${plural(filled, "Umsatzart", "Umsatzarten")} ergänzen` : "",
+    ]
+        .filter(Boolean)
+        .join(", ");
 
     return (
         <Modal title={`Umsätze importieren${account ? ` · ${account.name}` : ""}`} onClose={() => ui.close()} wide={!!preview}>
@@ -189,7 +196,7 @@ export function ImportDialog({ accountId: initial }: { accountId?: number }) {
                     </div>
                     <div className="imp-prev">
                         {preview.rows.map((r) => (
-                            <div key={r.line} className={`imp-row ${differs(r) ? "diff" : r.state === "duplicate" ? "dup" : r.state === "invalid" ? "bad" : ""}`} title={r.error ?? undefined}>
+                            <div key={r.line} className={`imp-row ${differs(r) ? "diff" : r.state === "duplicate" && !r.fillsBookingText ? "dup" : r.state === "invalid" ? "bad" : ""}`} title={r.error ?? undefined}>
                                 <span>{r.date ? dateText(r.date) : "?"}</span>
                                 <span>
                                     {r.name || "—"}
@@ -239,7 +246,7 @@ export function ImportDialog({ accountId: initial }: { accountId?: number }) {
                         >
                             Andere Datei
                         </button>
-                        <Button className="btn-primary" busy={action.pending} disabled={(!fresh && !changes) || busy} icon={Check} onClick={() => void commit()}>
+                        <Button className="btn-primary" busy={action.pending} disabled={(!fresh && !changes && !filled) || busy} icon={Check} onClick={() => void commit()}>
                             {actionText || `${plural(0, "Umsatz", "Umsätze")} importieren`}
                         </Button>
                     </div>

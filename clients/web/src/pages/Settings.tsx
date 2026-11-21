@@ -585,7 +585,7 @@ function ImportsTab() {
         <section className="panel">
             <div className="panel-head"><h3>CSV-Importe</h3></div>
             {importsQuery.isPending && <SkeletonRows rows={3} plain />}
-            {importsQuery.isSuccess && imports.length === 0 && <Empty icon={FileUp} title="Noch nichts importiert" text="CSV-Dateien importierst du hier über „CSV importieren“, über das Menü eines Kontos oder die Befehlspalette (⌘K)." />}
+            {importsQuery.isSuccess && imports.length === 0 && <Empty icon={FileUp} title="Noch nichts importiert" text="CSV-Dateien importierst du hier über „CSV importieren“, über das Menü eines Offline-Kontos oder die Befehlspalette (⌘K)." />}
             <div className="row-list">
                 {imports.map((i) => (
                     <div className="row-item" key={i.id}>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Link, Outlet, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import { CalendarDays, Eye, EyeOff, Home, Landmark, List, Search, Send, Settings } from "lucide-react";
 import type { Me } from "@mbm/shared";
 import { ROUTE_TITLES } from "../router";
@@ -26,6 +26,7 @@ export function Shell({ me }: { me: Me }) {
     useIdleLock(me.sessionIdleMinutes);
     const profile = useProfile();
     const settings = profile.data?.settings;
+    const router = useRouter();
     const path = useRouterState({ select: (s) => s.location.pathname });
     const privacy = useUi((s) => s.privacy);
     const panelOpen = useUi((s) => s.drawerTx !== null || s.drawerOrder !== null || s.drawerTransfer !== null);
@@ -60,6 +61,16 @@ export function Shell({ me }: { me: Me }) {
             ui.showTransferForm(false);
         }
     }, [path]);
+
+    // A booking's details belong to the page they were opened on. Closed when the navigation
+    // starts, so a jump that opens a booking once it has arrived keeps that booking open.
+    useEffect(
+        () =>
+            router.subscribe("onBeforeNavigate", (e) => {
+                if (e.pathChanged) ui.openTx(null);
+            }),
+        [router],
+    );
 
     const sbWidth = width ?? savedWidth;
 

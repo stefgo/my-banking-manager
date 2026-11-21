@@ -6348,6 +6348,13 @@ paths:
                           minimum: 0
                           maximum: 9007199254740991
                         - type: "null"
+                    bookingText:
+                      default: null
+                      anyOf:
+                        - type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        - type: "null"
                     status:
                       anyOf:
                         - type: integer
@@ -6429,6 +6436,13 @@ paths:
                             minimum: 0
                             maximum: 9007199254740991
                           - type: "null"
+                      bookingText:
+                        default: null
+                        anyOf:
+                          - type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          - type: "null"
                       status:
                         anyOf:
                           - type: integer
@@ -6448,6 +6462,7 @@ paths:
                       - name
                       - iban
                       - purpose
+                      - bookingText
                       - status
                       - category
                     additionalProperties: false
@@ -6478,6 +6493,12 @@ paths:
                             - "null"
                         purpose:
                           type: string
+                        bookingText:
+                          type: string
+                          description: Kind of booking the file names ("Lastschrift" …)
+                        fillsBookingText:
+                          type: boolean
+                          description: Duplicate without a kind of booking that takes the one of the file
                         pending:
                           type: boolean
                         categoryId:
@@ -6525,6 +6546,8 @@ paths:
                         - name
                         - iban
                         - purpose
+                        - bookingText
+                        - fillsBookingText
                         - pending
                         - categoryId
                         - newCategory
@@ -6558,11 +6581,17 @@ paths:
                         minimum: -9007199254740991
                         maximum: 9007199254740991
                         description: Duplicates with a differing category
+                      filled:
+                        type: integer
+                        minimum: -9007199254740991
+                        maximum: 9007199254740991
+                        description: Duplicates whose empty kind of booking the file fills in
                     required:
                       - new
                       - duplicate
                       - invalid
                       - differs
+                      - filled
                     additionalProperties: false
                 required:
                   - header
@@ -6646,6 +6675,13 @@ paths:
                           minimum: 0
                           maximum: 9007199254740991
                         - type: "null"
+                    bookingText:
+                      default: null
+                      anyOf:
+                        - type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        - type: "null"
                     status:
                       anyOf:
                         - type: integer
@@ -6709,6 +6745,11 @@ paths:
                     minimum: -9007199254740991
                     maximum: 9007199254740991
                     description: Bookings already stored that got the category of the file
+                  bookingTextsFilled:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                    description: Bookings already stored whose empty kind of booking came from the file
                 required:
                   - importId
                   - imported
@@ -6716,6 +6757,7 @@ paths:
                   - invalid
                   - createdCategories
                   - recategorized
+                  - bookingTextsFilled
                 additionalProperties: false
         default:
           description: Error

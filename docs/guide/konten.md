@@ -70,5 +70,6 @@ Umbenennen, Symbol und Farbe, Infos, Verschieben und Löschen.
 **Infos** sind eigene Merkmale und Notizen zu einem Konto, einer Gruppe oder Kategorie, etwa
 Kontoinhaber oder Ansprechpartner.
 
-**Vom Bankzugang lösen** macht aus einem Bankkonto ein Offline-Konto mit allen Buchungen oder
-löscht es; die Bank meldet es dann nicht mehr als neu.
+**Vom Bankzugang lösen** (unter **Einstellungen → Konten**, Symbol in der Zeile des Kontos) macht
+aus einem Bankkonto ein Offline-Konto mit allen Buchungen oder löscht es; die Bank meldet es dann
+nicht mehr als neu.

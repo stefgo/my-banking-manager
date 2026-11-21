@@ -376,9 +376,11 @@ export const ApplyRulesResponse = z.object({ changed: z.number().int() });
 
 // ---------- CSV import ----------
 
-export const ColumnMapSchema = z.object(
-    Object.fromEntries(IMPORT_FIELDS.map((f) => [f, z.number().int().min(0).nullable()])) as Record<(typeof IMPORT_FIELDS)[number], z.ZodNullable<z.ZodNumber>>,
-);
+export const ColumnMapSchema = z.object({
+    ...(Object.fromEntries(IMPORT_FIELDS.map((f) => [f, z.number().int().min(0).nullable()])) as Record<(typeof IMPORT_FIELDS)[number], z.ZodNullable<z.ZodNumber>>),
+    // Added later: column maps of existing API callers do not name it
+    bookingText: z.number().int().min(0).nullable().default(null),
+});
 
 export const ImportRequest = z.object({
     fileName: z.string().max(255),
@@ -395,6 +397,8 @@ export const ImportPreviewRow = z.object({
     name: z.string(),
     iban: z.string().nullable(),
     purpose: z.string(),
+    bookingText: z.string().describe("Kind of booking the file names (\"Lastschrift\" …)"),
+    fillsBookingText: z.boolean().describe("Duplicate without a kind of booking that takes the one of the file"),
     pending: z.boolean(),
     categoryId: Id.nullable().describe("Category the row gets; for a duplicate the category the file names"),
     newCategory: z.string().nullable().describe("Category named by the file that does not exist yet (\"Parent › Child › …\")"),
@@ -412,7 +416,13 @@ export const ImportPreview = z.object({
     columns: ColumnMapSchema,
     rows: z.array(ImportPreviewRow),
     newCategories: z.array(z.string()).describe("Missing categories named by the new rows and the duplicates with a differing category"),
-    counts: z.object({ new: z.number().int(), duplicate: z.number().int(), invalid: z.number().int(), differs: z.number().int().describe("Duplicates with a differing category") }),
+    counts: z.object({
+        new: z.number().int(),
+        duplicate: z.number().int(),
+        invalid: z.number().int(),
+        differs: z.number().int().describe("Duplicates with a differing category"),
+        filled: z.number().int().describe("Duplicates whose empty kind of booking the file fills in"),
+    }),
 });
 export type ImportPreview = z.infer<typeof ImportPreview>;
 
@@ -423,6 +433,7 @@ export const ImportResult = z.object({
     invalid: z.number().int(),
     createdCategories: z.number().int(),
     recategorized: z.number().int().describe("Bookings already stored that got the category of the file"),
+    bookingTextsFilled: z.number().int().describe("Bookings already stored whose empty kind of booking came from the file"),
 });
 
 export const ImportRecord = z.object({

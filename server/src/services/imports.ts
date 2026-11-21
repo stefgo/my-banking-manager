@@ -18,9 +18,11 @@ interface Planned extends ImportRow {
     storedId: number | null;
     storedCategoryId: number | null;
     categoryState: "same" | "differs" | "split" | null;
+    /** Duplicate without a kind of booking that takes the one of the file. */
+    fillsBookingText: boolean;
 }
 
-const NO_CATEGORY = { categoryId: null, categorySource: null, ruleId: null, missing: null, storedId: null, storedCategoryId: null, categoryState: null } as const;
+const NO_CATEGORY = { categoryId: null, categorySource: null, ruleId: null, missing: null, storedId: null, storedCategoryId: null, categoryState: null, fillsBookingText: false } as const;
 
 /** A category the file names that does not exist yet, with the path leading to it. */
 interface MissingCategory {
@@ -96,15 +98,15 @@ function plan(db: Db, accountId: number, content: string, columns?: ColumnMap): 
     const parsed = mapRows(table, map);
     const dates = parsed.map((r) => r.date).filter((d): d is string => !!d).sort();
     // Stored bookings by day and amount, with their counterparty
-    const existing = new Map<string, { id: number; iban: string | null; name: string }[]>();
+    const existing = new Map<string, { id: number; iban: string | null; name: string; bookingText: string }[]>();
     if (dates.length) {
         const rows = db
-            .prepare("SELECT id, booking_date, amount, counterparty_name, counterparty_iban FROM transactions WHERE account_id = ? AND booking_date BETWEEN ? AND ?")
-            .all(accountId, dates[0], dates[dates.length - 1]) as { id: number; booking_date: string; amount: number; counterparty_name: string; counterparty_iban: string | null }[];
+            .prepare("SELECT id, booking_date, amount, counterparty_name, counterparty_iban, booking_text FROM transactions WHERE account_id = ? AND booking_date BETWEEN ? AND ?")
+            .all(accountId, dates[0], dates[dates.length - 1]) as { id: number; booking_date: string; amount: number; counterparty_name: string; counterparty_iban: string | null; booking_text: string }[];
         for (const r of rows) {
             const key = duplicateKey(r.booking_date, r.amount);
             const list = existing.get(key) ?? [];
-            list.push({ id: r.id, iban: r.counterparty_iban, name: r.counterparty_name });
+            list.push({ id: r.id, iban: r.counterparty_iban, name: r.counterparty_name, bookingText: r.booking_text });
             existing.set(key, list);
         }
     }
@@ -119,7 +121,8 @@ function plan(db: Db, accountId: number, content: string, columns?: ColumnMap): 
         const at = stored.findIndex((c) => sameCounterparty(c, r));
         if (at >= 0) {
             const [match] = stored.splice(at, 1);
-            return duplicate(r, match!.id, storedCategories.all(match!.id) as number[], categories);
+            const planned = duplicate(r, match!.id, storedCategories.all(match!.id) as number[], categories);
+            return { ...planned, fillsBookingText: !!r.bookingText && !match!.bookingText };
         }
         const fromFile = r.category ? categoryByName(categories, r.category) : null;
         if (fromFile) return { ...r, state: "new", ...NO_CATEGORY, categoryId: fromFile, categorySource: "auto" };
@@ -202,10 +205,11 @@ function createMissing(db: Db, missing: Map<string, MissingCategory>): { ids: Ma
 
 export function previewImport(db: Db, accountId: number, content: string, columns?: ColumnMap): ImportPreview {
     const p = plan(db, accountId, content, columns);
-    const counts = { new: 0, duplicate: 0, invalid: 0, differs: 0 };
+    const counts = { new: 0, duplicate: 0, invalid: 0, differs: 0, filled: 0 };
     for (const r of p.rows) {
         counts[r.state]++;
         if (r.categoryState === "differs") counts.differs++;
+        if (r.fillsBookingText) counts.filled++;
     }
     return {
         header: p.header,
@@ -219,6 +223,8 @@ export function previewImport(db: Db, accountId: number, content: string, column
             name: r.name,
             iban: r.iban,
             purpose: r.purpose,
+            bookingText: r.bookingText,
+            fillsBookingText: r.fillsBookingText,
             pending: r.pending,
             categoryId: r.categoryId,
             newCategory: r.missing?.label ?? null,
@@ -239,7 +245,7 @@ export function commitImport(
     userId: number | null,
     createCategories = false,
     overwriteCategories = false,
-): { importId: number; imported: number; skipped: number; invalid: number; createdCategories: number; recategorized: number } {
+): { importId: number; imported: number; skipped: number; invalid: number; createdCategories: number; recategorized: number; bookingTextsFilled: number } {
     const p = plan(db, accountId, content, columns);
     const fresh = p.rows.filter((r) => r.state === "new");
     const differing = overwriteCategories ? p.rows.filter((r) => r.categoryState === "differs") : [];
@@ -271,13 +277,13 @@ export function commitImport(
         ).lastInsertRowid,
     );
     const insertTx = db.prepare(
-        `INSERT INTO transactions (account_id, booking_date, value_date, amount, counterparty_name, counterparty_iban, remittance, status, first_seen_at, source, import_id, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'import', ?, ?)`,
+        `INSERT INTO transactions (account_id, booking_date, value_date, amount, counterparty_name, counterparty_iban, remittance, booking_text, status, first_seen_at, source, import_id, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'import', ?, ?)`,
     );
     const insertCat = db.prepare("INSERT INTO transaction_categories (transaction_id, category_id, amount, source, rule_id) VALUES (?, ?, ?, ?, ?)");
     const ids: number[] = [];
     for (const r of fresh) {
-        const id = Number(insertTx.run(accountId, r.date, r.valueDate ?? r.date, r.amount, r.name, r.iban, r.purpose, r.pending ? "pending" : "booked", now, importId, userId).lastInsertRowid);
+        const id = Number(insertTx.run(accountId, r.date, r.valueDate ?? r.date, r.amount, r.name, r.iban, r.purpose, r.bookingText, r.pending ? "pending" : "booked", now, importId, userId).lastInsertRowid);
         if (r.categoryId) insertCat.run(id, r.categoryId, r.amount, r.categorySource ?? "auto", r.ruleId);
         ids.push(id);
     }
@@ -292,7 +298,13 @@ export function commitImport(
         insertCat.run(r.storedId, r.categoryId, r.amount, "manual", null);
         recategorized++;
     }
-    return { importId, imported: fresh.length, skipped, invalid, createdCategories, recategorized };
+    // Only an empty kind of booking is filled in, one already stored stays
+    const fillBookingText = db.prepare("UPDATE transactions SET booking_text = ? WHERE id = ? AND booking_text = ''");
+    let bookingTextsFilled = 0;
+    for (const r of p.rows) {
+        if (r.fillsBookingText && r.storedId !== null) bookingTextsFilled += fillBookingText.run(r.bookingText, r.storedId).changes;
+    }
+    return { importId, imported: fresh.length, skipped, invalid, createdCategories, recategorized, bookingTextsFilled };
 }
 
 export function listImports(db: Db): ImportRecord[] {
