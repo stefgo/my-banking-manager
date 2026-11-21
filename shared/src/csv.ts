@@ -5,7 +5,7 @@ import { parseDate } from "./dates.js";
 import { parseAmount } from "./money.js";
 import { cleanIban } from "./iban.js";
 
-export const IMPORT_FIELDS = ["date", "valueDate", "amount", "name", "iban", "purpose", "status", "category"] as const;
+export const IMPORT_FIELDS = ["date", "valueDate", "amount", "name", "iban", "purpose", "bookingText", "status", "category"] as const;
 export type ImportField = (typeof IMPORT_FIELDS)[number];
 
 export const IMPORT_FIELD_LABELS: Record<ImportField, string> = {
@@ -15,6 +15,7 @@ export const IMPORT_FIELD_LABELS: Record<ImportField, string> = {
     name: "Gegenseite",
     iban: "IBAN der Gegenseite",
     purpose: "Verwendungszweck",
+    bookingText: "Umsatzart",
     status: "Status (vorgemerkt)",
     category: "Kategorie",
 };
@@ -139,6 +140,7 @@ const HINTS: Record<ImportField, string[]> = {
     ],
     iban: ["kontonummeriban", "iban", "ibangegenkonto", "gegenkontoiban", "kontonummer", "konto"],
     purpose: ["verwendungszweck", "buchungsdetails", "zweck", "beschreibung", "purpose", "memo", "typ"],
+    bookingText: ["buchungstext", "umsatzart", "buchungsart", "vorgang", "transaktionsart"],
     status: ["info", "status"],
     category: ["kategorie", "category"],
 };
@@ -149,13 +151,20 @@ const HINTS: Record<ImportField, string[]> = {
  */
 const EXACT_ONLY = new Set(["konto"]);
 
+/** Fields matched by the whole column name only: "Vorgangsnummer" is no "Vorgang". */
+const EXACT_FIELDS = new Set<ImportField>(["bookingText", "status"]);
+
+/** Never guessed by a part of its name: "Umsatztyp" contains "umsatz" but holds no amount. */
+const NOT_GUESSED = new Set(["umsatztyp"]);
+
 /** Proposes which column holds which field, from the column names. */
 export function guessColumns(header: string[]): ColumnMap {
     const names = header.map(norm);
     const used = new Set<number>();
     const map = Object.fromEntries(IMPORT_FIELDS.map((f) => [f, null])) as ColumnMap;
     // Fields with the most specific hints go first, so "Valutadatum" is not taken as "Datum"
-    for (const field of ["valueDate", "iban", "date", "amount", "name", "purpose", "status", "category"] as ImportField[]) {
+    // and "Buchungstext" or "Umsatzart" not as date or amount
+    for (const field of ["bookingText", "valueDate", "iban", "date", "amount", "name", "purpose", "status", "category"] as ImportField[]) {
         for (const hint of HINTS[field]) {
             const at = names.findIndex((n, i) => !used.has(i) && n === hint);
             if (at >= 0) {
@@ -164,8 +173,8 @@ export function guessColumns(header: string[]): ColumnMap {
                 break;
             }
         }
-        if (map[field] === null && field !== "status") {
-            const at = names.findIndex((n, i) => !used.has(i) && HINTS[field].some((h) => h.length > 4 && !EXACT_ONLY.has(h) && n.includes(h)));
+        if (map[field] === null && !EXACT_FIELDS.has(field)) {
+            const at = names.findIndex((n, i) => !used.has(i) && !NOT_GUESSED.has(n) && HINTS[field].some((h) => h.length > 4 && !EXACT_ONLY.has(h) && n.includes(h)));
             if (at >= 0) {
                 map[field] = at;
                 used.add(at);
@@ -183,6 +192,7 @@ export interface ImportRow {
     name: string;
     iban: string | null;
     purpose: string;
+    bookingText: string;
     pending: boolean;
     category: string | null;
     error: string | null;
@@ -207,6 +217,7 @@ export function mapRows(table: CsvTable, map: ColumnMap): ImportRow[] {
             name: collapse(cell(r, "name")),
             iban: /^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(ibanRaw) ? ibanRaw : null,
             purpose: collapse(cell(r, "purpose")),
+            bookingText: collapse(cell(r, "bookingText")),
             pending: statusText.includes("vorgemerkt") || statusText === "pending" || statusText === "ausstehend",
             category: cell(r, "category") || null,
             error: null,

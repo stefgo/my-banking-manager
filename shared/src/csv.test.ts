@@ -34,6 +34,7 @@ describe("Sparkasse CSV-CAMT", () => {
     it("maps the columns by name", () => {
         expect(map.date).toBe(1);
         expect(map.valueDate).toBe(2);
+        expect(map.bookingText).toBe(3);
         expect(map.purpose).toBe(4);
         expect(map.name).toBe(11);
         expect(map.iban).toBe(12);
@@ -44,7 +45,7 @@ describe("Sparkasse CSV-CAMT", () => {
     it("reads bookings", () => {
         const rows = mapRows(table, map);
         expect(rows).toHaveLength(2);
-        expect(rows[0]).toMatchObject({ date: "2026-11-03", amount: -5423, name: "REWE Markt GmbH", iban: "DE02120300000000202051", pending: false, error: null });
+        expect(rows[0]).toMatchObject({ date: "2026-11-03", amount: -5423, name: "REWE Markt GmbH", iban: "DE02120300000000202051", bookingText: "LASTSCHRIFT", pending: false, error: null });
         expect(rows[1]).toMatchObject({ date: "2026-11-04", amount: 285000, purpose: "Lohn/Gehalt Oktober", pending: true });
     });
 });
@@ -62,6 +63,22 @@ describe("counterparty account column", () => {
     it("takes \"Konto\" only as the whole name, not \"Auftragskonto\"", () => {
         expect(guessColumns(["Buchungstag", "Auftragskonto", "Betrag"]).iban).toBeNull();
         expect(guessColumns(["Buchungstag", "Auftragskonto", "Konto", "Betrag"]).iban).toBe(2);
+    });
+});
+
+describe("kind of booking column", () => {
+    it("is not taken as amount or date", () => {
+        expect(guessColumns(["Buchungstag", "Umsatzart", "Name", "Verwendungszweck", "Betrag in Euro"])).toMatchObject({ date: 0, bookingText: 1, amount: 4 });
+        expect(guessColumns(["Wertstellung", "Buchungstext", "Name", "Betrag"])).toMatchObject({ date: null, valueDate: 0, bookingText: 1, amount: 3 });
+    });
+
+    it("matches the whole column name only", () => {
+        expect(guessColumns(["Buchungstag", "Vorgangsnummer", "Betrag"]).bookingText).toBeNull();
+    });
+
+    it("leaves \"Umsatztyp\" unassigned", () => {
+        const map = guessColumns(["Buchungstag", "Umsatztyp", "Betrag in Euro"]);
+        expect(map).toMatchObject({ bookingText: null, amount: 2 });
     });
 });
 

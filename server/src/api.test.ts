@@ -717,14 +717,14 @@ describe("CSV import", () => {
         // One equal booking already exists: only the second baker row is new
         await api("POST", `/api/accounts/${cash.id}/transactions`, { bookingDate: "2026-10-02", amount: -1250, counterpartyName: "BÄCKEREI HUBER", remittance: "Brot, Umsatzart: Lastschrift" });
         const preview = await api<ImportPreview>("POST", `/api/accounts/${cash.id}/import/preview`, { fileName: "x.csv", content: CSV });
-        expect(preview.body.counts).toEqual({ new: 2, duplicate: 1, invalid: 1, differs: 0 });
+        expect(preview.body.counts).toEqual({ new: 2, duplicate: 1, invalid: 1, differs: 0, filled: 0 });
         const rent = (await api<CategoryList>("GET", "/api/categories")).body.items.find((c) => c.name === "Miete")!;
         expect(preview.body.rows[0]!.categoryId).toBe(rent.id);
 
         const result = await api<{ importId: number; imported: number }>("POST", `/api/accounts/${cash.id}/import`, { fileName: "x.csv", content: CSV });
         expect(result.body).toMatchObject({ imported: 2, skipped: 1, invalid: 1 });
         const again = await api<ImportPreview>("POST", `/api/accounts/${cash.id}/import/preview`, { fileName: "x.csv", content: CSV });
-        expect(again.body.counts).toEqual({ new: 0, duplicate: 3, invalid: 1, differs: 0 });
+        expect(again.body.counts).toEqual({ new: 0, duplicate: 3, invalid: 1, differs: 0, filled: 0 });
 
         await api("DELETE", `/api/imports/${result.body.importId}`);
         expect((await api<TransactionList>("GET", "/api/transactions?range=all")).body.count).toBe(1);
@@ -881,7 +881,7 @@ describe("CSV import", () => {
         ].join("\n");
 
         const preview = (await api<ImportPreview>("POST", `/api/accounts/${acc.id}/import/preview`, { fileName: "x.csv", content: file })).body;
-        expect(preview.counts).toEqual({ new: 1, duplicate: 6, invalid: 0, differs: 3 });
+        expect(preview.counts).toEqual({ new: 1, duplicate: 6, invalid: 0, differs: 3, filled: 0 });
         expect(preview.rows.map((r) => r.categoryState)).toEqual(["same", "differs", "differs", "split", "differs", null, null]);
         expect(preview.rows.map((r) => r.storedCategoryId)).toEqual([rent.id, rent.id, null, null, null, rent.id, null]);
         expect(preview.rows[1]!.categoryId).toBe(market.id);
@@ -919,6 +919,40 @@ describe("CSV import", () => {
         expect(categoryOf(missing)).toEqual([{ categoryId: created.id, source: "manual" }]);
         const log = (await api<ActivityEntry[]>("GET", "/api/activity")).body;
         expect(log.find((e) => e.action === "import")?.details).toBe("x.csv: 1 neu, 6 schon vorhanden, 1 Kategorien angelegt, 1 Kategorien geändert");
+    });
+
+    it("takes the kind of booking from the file and fills in only empty ones", async () => {
+        const { api } = await setUpSignedIn(t);
+        const acc = (await api<Account>("POST", "/api/accounts", { name: "Konto" })).body;
+        await api("POST", `/api/accounts/${acc.id}/transactions`, { bookingDate: "2026-10-01", amount: -1000, counterpartyName: "Markt" });
+        const file = (first: string, second: string) => `Datum;Buchungstext;Name;Betrag\n01.10.2026;${first};Markt;-10,00\n02.10.2026;${second};Muster AG;20,00\n`;
+        const texts = async () => Object.fromEntries((await api<TransactionList>("GET", "/api/transactions?range=all")).body.items.map((x) => [x.counterpartyName, x.bookingText]));
+
+        const preview = (await api<ImportPreview>("POST", `/api/accounts/${acc.id}/import/preview`, { fileName: "x.csv", content: file("LASTSCHRIFT", "GUTSCHRIFT") })).body;
+        expect(preview.counts).toEqual({ new: 1, duplicate: 1, invalid: 0, differs: 0, filled: 1 });
+        expect(preview.rows.map((r) => r.fillsBookingText)).toEqual([true, false]);
+        const first = (await api<{ imported: number; bookingTextsFilled: number }>("POST", `/api/accounts/${acc.id}/import`, { fileName: "x.csv", content: file("LASTSCHRIFT", "GUTSCHRIFT") })).body;
+        expect(first).toMatchObject({ imported: 1, bookingTextsFilled: 1 });
+        expect(await texts()).toEqual({ Markt: "LASTSCHRIFT", "Muster AG": "GUTSCHRIFT" });
+        const log = (await api<ActivityEntry[]>("GET", "/api/activity")).body;
+        expect(log.find((e) => e.action === "import")?.details).toBe("x.csv: 1 neu, 1 schon vorhanden, 1 Umsatzarten ergänzt");
+
+        // A kind of booking already stored stays, whatever the file says
+        const other = file("KARTENZAHLUNG", "UEBERWEISUNG");
+        expect((await api<ImportPreview>("POST", `/api/accounts/${acc.id}/import/preview`, { fileName: "y.csv", content: other })).body.counts.filled).toBe(0);
+        const second = (await api<{ imported: number; bookingTextsFilled: number }>("POST", `/api/accounts/${acc.id}/import`, { fileName: "y.csv", content: other })).body;
+        expect(second).toMatchObject({ imported: 0, bookingTextsFilled: 0 });
+        expect(await texts()).toEqual({ Markt: "LASTSCHRIFT", "Muster AG": "GUTSCHRIFT" });
+    });
+
+    it("accepts a column map that does not name the kind of booking", async () => {
+        const { api } = await setUpSignedIn(t);
+        const acc = (await api<Account>("POST", "/api/accounts", { name: "Konto" })).body;
+        const columns = { date: 0, valueDate: null, amount: 2, name: null, iban: null, purpose: null, status: null, category: null };
+        const res = await api<ImportPreview>("POST", `/api/accounts/${acc.id}/import/preview`, { fileName: "x.csv", content: "Datum;Buchungstext;Betrag\n01.10.2026;LASTSCHRIFT;-10,00\n", columns });
+        expect(res.status).toBe(200);
+        expect(res.body.columns.bookingText).toBeNull();
+        expect(res.body.rows[0]).toMatchObject({ amount: -1000, bookingText: "" });
     });
 
     it("counts imported bookings of any date into the balance, starting from the opening balance", async () => {

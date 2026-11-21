@@ -10,6 +10,12 @@ dev keeps the text; the stable release from main empties this file again.
 Nothing inside an HTML comment is published.
 -->
 
+### Neu
+
+- Der CSV-Import übernimmt die Umsatzart. Bei vorhandenen Umsätzen ergänzt er sie, wenn sie noch
+  fehlt, und überschreibt nie eine vorhandene.
+
 ### Behoben
 
 - Die Details eines Umsatzes schließen sich jetzt, wenn du die Seite verlässt.
+- Der CSV-Import hält Spalten wie „Umsatzart“ oder „Buchungstext“ nicht mehr für Betrag oder Datum.
