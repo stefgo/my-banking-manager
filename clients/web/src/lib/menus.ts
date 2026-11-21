@@ -6,6 +6,7 @@ import { routes, type Account, type AccountGroup } from "@mbm/shared";
 import { call } from "./api";
 import type { useAction } from "./queries";
 import { plural } from "./format";
+import { openImport } from "./importNav";
 import { createGroupAndRename } from "./treeCreate";
 import { ui } from "./ui";
 import { markAccountsRead } from "./unread";
@@ -58,7 +59,7 @@ export function accountMenu(a: Account, action: Action, openStyle: () => void, o
                   { label: "Buchung erfassen", icon: Plus, run: () => ui.open({ kind: "booking", accountId: a.id }) },
                   { label: "Saldo abgleichen", icon: Scale, run: () => ui.open({ kind: "reconcile", accountId: a.id }) },
                   { label: "Anfangssaldo ändern …", icon: Coins, run: () => ui.open({ kind: "openingBalance", accountId: a.id }) },
-                  { label: "Importieren …", icon: FileUp, run: () => ui.open({ kind: "import", accountId: a.id }) },
+                  { label: "Importieren …", icon: FileUp, run: () => openImport(a.id) },
                   { separator: true },
                   {
                       label: "Konto löschen",

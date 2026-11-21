@@ -12,6 +12,7 @@
 
 import {
     BUILTIN_IMPORT_FORMATS,
+    columnsFromFormat,
     addDaysIso,
     ibanProblem,
     CARD_CONFIGS,
@@ -30,6 +31,7 @@ import {
     type Rule,
     type Transaction,
     type TxRange,
+    type ImportPreview,
 } from "@mbm/shared";
 
 export const TODAY = "2026-11-20";
@@ -697,6 +699,62 @@ export function payees() {
 // ---------- Imports and activity ----------
 
 export const importFormats = BUILTIN_IMPORT_FORMATS.map((f) => ({ key: f.key, id: null, name: f.name, builtin: true, definition: f.definition }));
+
+// The invented file and preview of the import pictures
+const SAMPLE_HEADER = ["Datum", "Wertstellung", "Kategorie", "Name", "Verwendungszweck", "Konto", "Bank", "Betrag", "Währung"];
+const SAMPLE_IBAN = "DE02120300000000202051";
+export const importSampleCsv = [
+    SAMPLE_HEADER.join(";"),
+    `18.11.2026;18.11.2026;;Hausverwaltung Lindenhof GmbH;Miete November, Umsatzart: Dauerauftrag, Referenz: MIETE-2026-11, Mandat: LH-4711;${SAMPLE_IBAN};BYLADEM1001;-950,00;EUR`,
+    `17.11.2026;17.11.2026;;Frischemarkt;Umsatzart: Kartenzahlung;${SAMPLE_IBAN};BYLADEM1001;-42,18;EUR`,
+    "",
+].join("\n");
+
+const previewRow = (line: number, date: string | null, amount: number | null, name: string, purpose: string, bookingText: string, over: Partial<ImportPreview["rows"][number]> = {}): ImportPreview["rows"][number] => ({
+    line,
+    date,
+    amount,
+    name,
+    iban: SAMPLE_IBAN,
+    purpose,
+    bookingText,
+    fillsBookingText: false,
+    reference: "",
+    mandateId: "",
+    creditorId: "",
+    counterpartyBic: "BYLADEM1001",
+    fillsDetails: false,
+    pending: false,
+    categoryId: null,
+    newCategory: null,
+    state: "new",
+    storedCategoryId: null,
+    categoryState: null,
+    error: null,
+    ...over,
+});
+
+const samplePreviewRows = [
+    previewRow(1, "2026-11-18", -95000, "Hausverwaltung Lindenhof GmbH", "Miete November", "Dauerauftrag", { reference: "MIETE-2026-11", mandateId: "LH-4711" }),
+    previewRow(2, "2026-11-17", -4218, "Frischemarkt", "", "Kartenzahlung"),
+    previewRow(3, "2026-11-16", -1899, "Versandhaus Nordlicht", "Bestellung 20418", "Lastschrift"),
+    previewRow(4, "2026-11-14", 320000, "Muster AG", "Gehalt November", "Lohn/Gehalt", { state: "duplicate", fillsBookingText: true }),
+    previewRow(5, "2026-11-12", -6400, "Stadtwerke", "Abschlag November", "Lastschrift", { state: "duplicate", fillsDetails: true, reference: "SW-2026-11" }),
+    previewRow(6, "2026-11-10", -2750, "Buchhandlung am Markt", "Rechnung 881", "Überweisung", { state: "duplicate" }),
+    previewRow(7, null, -1200, "Unbekannt", "", "Lastschrift", { state: "invalid", error: "Datum „32.11.2026“ nicht lesbar" }),
+];
+
+const sampleFormat = BUILTIN_IMPORT_FORMATS.find((f) => f.key === "builtin:moneymoney")!.definition;
+
+export const importPreview: ImportPreview = {
+    header: SAMPLE_HEADER,
+    columns: columnsFromFormat(sampleFormat, SAMPLE_HEADER),
+    format: sampleFormat,
+    formatKey: "builtin:moneymoney",
+    rows: samplePreviewRows,
+    newCategories: [],
+    counts: { new: 3, duplicate: 3, invalid: 1, differs: 0, filled: 2 },
+};
 
 export const imports = [
     { id: 1, accountId: CASH, fileName: "kassenbuch-2026.csv", importedAt: at("2026-05-02", "17:52:00"), userName: "Alex", rows: 48, imported: 46, skipped: 2, remaining: 46 },

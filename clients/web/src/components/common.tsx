@@ -116,19 +116,25 @@ export function ConfirmDialog({
     confirm,
     danger,
     onConfirm,
+    onCancel,
 }: {
     title: string;
     text: string;
     confirm: string;
     danger?: boolean;
     onConfirm: () => Promise<boolean | void> | boolean | void;
+    onCancel?: () => void;
 }) {
     const [busy, setBusy] = useState(false);
+    const cancel = () => {
+        onCancel?.();
+        ui.close();
+    };
     return (
-        <Modal title={title} onClose={() => ui.close()} narrow>
+        <Modal title={title} onClose={cancel} narrow>
             <p className="muted">{text}</p>
             <div className="actions">
-                <button type="button" className="btn btn-ghost" onClick={() => ui.close()}>
+                <button type="button" className="btn btn-ghost" onClick={cancel}>
                     Abbrechen
                 </button>
                 <Button

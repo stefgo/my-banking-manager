@@ -9,7 +9,6 @@ export type Dialog =
     | { kind: "booking"; accountId?: number; txId?: number }
     | { kind: "reconcile"; accountId: number }
     | { kind: "counterBooking"; txId: number }
-    | { kind: "import"; accountId?: number }
     /** `offline`: straight to the offline account form, without the choice of kind. */
     | { kind: "addAccount"; offline?: boolean }
     | { kind: "bankSetup"; connectionId?: number }
@@ -45,6 +44,8 @@ export type Dialog =
           danger?: boolean;
           /** False when it failed: the dialog then stays open. */
           onConfirm: () => Promise<boolean | void> | boolean | void;
+          /** Called when the dialog is closed without confirming. */
+          onCancel?: () => void;
       };
 
 /**

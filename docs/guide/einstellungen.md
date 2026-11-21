@@ -11,7 +11,7 @@ Versionen von MBM und vom FinTS-Konnektor.
 | **Geräte** | Angemeldete Browser und Geräte-Tokens |
 | **Profil** | Darstellung und „Beträge beim Start ausblenden“, je Geräteklasse |
 | **Sicherheit** | Eigenes Passwort, Wiederherstellungsschlüssel, Sperren |
-| **Importe** | Alle CSV-Importe, mit Rückgängig, und **CSV importieren** für einen neuen Import. Siehe [CSV-Import](import.md). |
+| **Importe** | Importformate anlegen und bearbeiten, alle CSV-Importe mit Rückgängig und **CSV importieren** für einen neuen Import. Siehe [CSV-Import](import.md). |
 | **Protokoll** | Wer wann was getan hat |
 
 ## Benutzer
