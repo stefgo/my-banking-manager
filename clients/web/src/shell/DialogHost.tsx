@@ -7,7 +7,7 @@ import { CalendarDays, Eye, EyeOff, Home, Keyboard, List, Lock, LogOut, Menu, Pl
 import { useAccounts, useCategoryIndex, useGroups, useTransactions } from "../lib/queries";
 import { ui, useUi } from "../lib/ui";
 import { useOpenTransactions } from "../lib/useOpenTransactions";
-import { fmtSigned, dayMonth } from "../lib/format";
+import { fmtSigned, dayMonth, partyName } from "../lib/format";
 import { categoryPath } from "../lib/tree";
 import { ConfirmDialog, Kbd, Modal } from "../components/common";
 import { Ic, Sym } from "../components/icons";
@@ -194,7 +194,7 @@ function Palette() {
                                                 key={t.id}
                                                 value={`tx-${t.id} ${q}`}
                                                 icon={<Ic icon={List} size={17} />}
-                                                label={t.counterpartyName || t.remittance || "Umsatz"}
+                                                label={partyName(t) || t.remittance || "Umsatz"}
                                                 hint={`${dayMonth(t.bookingDate)} · ${fmtSigned(t.amount)}`}
                                                 onSelect={() => run(() => void open({ kind: "query", q }).then(() => ui.openTx(t.id)))}
                                             />

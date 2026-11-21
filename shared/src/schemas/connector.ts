@@ -93,6 +93,11 @@ export const ConnectorTransaction = z.object({
     currency: z.string(),
     status: z.enum(["booked", "pending"]),
     counterpartyName: z.string(),
+    /**
+     * Ultimate creditor of a debit or ultimate debtor of a credit, e.g. the shop of a card payment
+     * whose counterparty is the bank that processes it; "" if none. Older connectors leave it out.
+     */
+    ultimateParty: z.string().default(""),
     counterpartyIban: z.string().nullable(),
     counterpartyBic: z.string().nullable(),
     remittance: z.string(),

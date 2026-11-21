@@ -3759,11 +3759,15 @@ paths:
                           const: EUR
                         counterpartyName:
                           type: string
+                        ultimateParty:
+                          type: string
                         counterpartyIban:
                           type:
                             - string
                             - "null"
                         remittance:
+                          type: string
+                        bookingText:
                           type: string
                         status:
                           type: string
@@ -3816,8 +3820,10 @@ paths:
                         - amount
                         - currency
                         - counterpartyName
+                        - ultimateParty
                         - counterpartyIban
                         - remittance
+                        - bookingText
                         - status
                         - source
                         - importId
@@ -3943,11 +3949,15 @@ paths:
                     const: EUR
                   counterpartyName:
                     type: string
+                  ultimateParty:
+                    type: string
                   counterpartyIban:
                     type:
                       - string
                       - "null"
                   remittance:
+                    type: string
+                  bookingText:
                     type: string
                   status:
                     type: string
@@ -4000,8 +4010,10 @@ paths:
                   - amount
                   - currency
                   - counterpartyName
+                  - ultimateParty
                   - counterpartyIban
                   - remittance
+                  - bookingText
                   - status
                   - source
                   - importId
@@ -4107,11 +4119,15 @@ paths:
                     const: EUR
                   counterpartyName:
                     type: string
+                  ultimateParty:
+                    type: string
                   counterpartyIban:
                     type:
                       - string
                       - "null"
                   remittance:
+                    type: string
+                  bookingText:
                     type: string
                   status:
                     type: string
@@ -4164,8 +4180,10 @@ paths:
                   - amount
                   - currency
                   - counterpartyName
+                  - ultimateParty
                   - counterpartyIban
                   - remittance
+                  - bookingText
                   - status
                   - source
                   - importId
@@ -4441,11 +4459,15 @@ paths:
                     const: EUR
                   counterpartyName:
                     type: string
+                  ultimateParty:
+                    type: string
                   counterpartyIban:
                     type:
                       - string
                       - "null"
                   remittance:
+                    type: string
+                  bookingText:
                     type: string
                   status:
                     type: string
@@ -4498,8 +4520,10 @@ paths:
                   - amount
                   - currency
                   - counterpartyName
+                  - ultimateParty
                   - counterpartyIban
                   - remittance
+                  - bookingText
                   - status
                   - source
                   - importId
@@ -6164,6 +6188,8 @@ paths:
                           maximum: 9007199254740991
                         counterpartyName:
                           type: string
+                        ultimateParty:
+                          type: string
                         remittance:
                           type: string
                         categoryId:
@@ -6180,6 +6206,7 @@ paths:
                         - bookingDate
                         - amount
                         - counterpartyName
+                        - ultimateParty
                         - remittance
                         - categoryId
                         - ruleId

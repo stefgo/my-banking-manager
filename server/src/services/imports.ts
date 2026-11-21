@@ -127,7 +127,7 @@ function plan(db: Db, accountId: number, content: string, columns?: ColumnMap): 
         const missing = r.category ? missingCategory(r.category) : null;
         const rule = firstMatch(
             rules,
-            target({ account_id: accountId, booking_date: r.date, amount: r.amount, counterparty_name: r.name, counterparty_iban: r.iban, remittance: r.purpose, category_id: null }),
+            target({ account_id: accountId, booking_date: r.date, amount: r.amount, counterparty_name: r.name, ultimate_party: "", counterparty_iban: r.iban, remittance: r.purpose, category_id: null }),
         );
         return { ...r, state: "new", ...NO_CATEGORY, categoryId: rule?.categoryId ?? null, categorySource: rule ? "rule" : null, ruleId: rule?.id ?? null, missing };
     });

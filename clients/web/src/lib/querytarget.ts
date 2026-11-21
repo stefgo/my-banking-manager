@@ -10,6 +10,7 @@ export function ruleTarget(tx: Transaction, accounts: Account[], groups: Account
     for (let g = account?.groupId != null ? byId.get(account.groupId) : undefined; g && path.length < 100; g = g.parentId != null ? byId.get(g.parentId) : undefined) path.push(g.name);
     return toTxQueryTarget({
         counterparty: tx.counterpartyName,
+        ultimateParty: tx.ultimateParty,
         remittance: tx.remittance,
         iban: tx.counterpartyIban,
         amount: tx.amount,

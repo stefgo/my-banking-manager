@@ -8,7 +8,7 @@
 // for as long as the run does.
 
 import { randomUUID } from "node:crypto";
-import type { ConnectorAccount, ConnectorAccountRef, ConnectorBalance, ConnectorChallenge, ConnectorLogin, ConnectorScheduledTransfer, ConnectorStandingOrder, ConnectorTransaction, SyncRun } from "@mbm/shared";
+import { ConnectorTransaction, type ConnectorAccount, type ConnectorAccountRef, type ConnectorBalance, type ConnectorChallenge, type ConnectorLogin, type ConnectorScheduledTransfer, type ConnectorStandingOrder, type SyncRun } from "@mbm/shared";
 import { ConnectorCallError, type ConnectorClient } from "../connectors/client.js";
 import type { Db } from "../db/database.js";
 import { HttpError } from "../http/errors.js";
@@ -249,7 +249,10 @@ export class SyncManager {
             } else if (t.caps.transactions) {
                 txs = (await call<{ transactions: ConnectorTransaction[] }>("transactions", { account: t.ref, ...(from ? { from } : {}) })).transactions;
             }
-            const result = applyFetch(db(), t.id, txs, balance, run.userId);
+            // Data that comes after an approval has not been checked against the contract yet
+            const checked = ConnectorTransaction.array().safeParse(txs);
+            if (!checked.success) throw new ConnectorCallError("internal", "Die Antwort des Konnektors passt nicht zum Vertrag.");
+            const result = applyFetch(db(), t.id, checked.data, balance, run.userId);
             run.api.newTransactions += result.newTransactions;
             this.emit(run);
         }

@@ -4,7 +4,7 @@
 
 import { XMLParser } from "fast-xml-parser";
 import { arr, at, obj, str } from "./xml.js";
-import { cleanRef, emptyTransaction, splitSepaPurpose, type Transaction } from "./transaction.js";
+import { cleanRef, emptyTransaction, partiesOf, splitSepaPurpose, type Transaction } from "./transaction.js";
 
 const parser = new XMLParser({
     ignoreAttributes: false,
@@ -61,7 +61,8 @@ function entry(n: unknown, fallback: "booked" | "pending"): Transaction | null {
         const ultimate = credit ? "UltmtDbtr" : "UltmtCdtr";
         const parties = at(tx, "RltdPties");
         // .02: Dbtr/Nm; from .08: Dbtr/Pty/Nm
-        t.counterpartyName = str(at(parties, party, "Nm")) || str(at(parties, party, "Pty", "Nm")) || str(at(parties, ultimate, "Nm")) || str(at(parties, ultimate, "Pty", "Nm"));
+        const name = str(at(parties, party, "Nm")) || str(at(parties, party, "Pty", "Nm"));
+        const ultimateName = str(at(parties, ultimate, "Nm")) || str(at(parties, ultimate, "Pty", "Nm"));
         t.counterpartyIban = str(at(parties, `${party}Acct`, "Id", "IBAN")) || null;
         const agent = credit ? "DbtrAgt" : "CdtrAgt";
         t.counterpartyBic = str(at(tx, "RltdAgts", agent, "FinInstnId", "BICFI")) || str(at(tx, "RltdAgts", agent, "FinInstnId", "BIC")) || null;
@@ -73,6 +74,7 @@ function entry(n: unknown, fallback: "booked" | "pending"): Transaction | null {
         t.endToEndId ??= sepa.endToEndId;
         t.mandateId ??= sepa.mandateId;
         t.creditorId ??= sepa.creditorId;
+        Object.assign(t, partiesOf(name, ultimateName || sepa.ultimate));
         const info = str(at(tx, "AddtlTxInf"));
         if (info && !t.bookingText) t.bookingText = info;
     }

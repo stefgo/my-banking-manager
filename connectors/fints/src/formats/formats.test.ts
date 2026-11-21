@@ -51,6 +51,24 @@ describe("MT940", () => {
         expect(credit).toMatchObject({ amount: 500, counterpartyName: "Anna", remittance: "Rest" });
         expect(bare).toMatchObject({ amount: 100, counterpartyName: "", remittance: "", bookingText: "" });
     });
+
+    it("keeps the ultimate party (ABWE, ABWA) apart from the counterparty", () => {
+        const text = [
+            ":60F:C261110EUR100,",
+            ":61:2611101110D25,NDDTNONREF",
+            ":86:106?00KARTENZAHLUNG?20EREF+1234?21SVWZ+2026-11-09T18.30 Debitk.?22ABWE+Shop Muster/Hauptstr. 1/?23MUSTERSTADT/DE?32Landesbank Muster",
+            ":61:2611101110D5,NDDTNONREF",
+            ":86:106?00KARTENZAHLUNG?20SVWZ+Kaffee?21ABWA+Cafe Eck?32Landesbank Muster",
+            ":61:2611101110D1,NDDTNONREF",
+            ":86:106?00KARTENZAHLUNG?20SVWZ+Brot?21ABWA+Baeckerei",
+            "-",
+        ].join("\n");
+        const [card, cafe, bakery] = parseMt940(text, "booked");
+        expect(card).toMatchObject({ counterpartyName: "Landesbank Muster", ultimateParty: "Shop Muster/Hauptstr. 1/MUSTERSTADT/DE", remittance: "2026-11-09T18.30 Debitk.", bookingText: "KARTENZAHLUNG" });
+        expect(cafe).toMatchObject({ counterpartyName: "Landesbank Muster", ultimateParty: "Cafe Eck" });
+        // Without a name the ultimate party is the name
+        expect(bakery).toMatchObject({ counterpartyName: "Baeckerei", ultimateParty: "" });
+    });
 });
 
 describe("camt.052", () => {
@@ -64,7 +82,18 @@ describe("camt.052", () => {
     it("reads the status of the entry and version .02 names", () => {
         expect(parseCamt(CAMT_PENDING, "booked")[0]).toMatchObject({ status: "pending", amount: -990, counterpartyName: "Kiosk", valueDate: null });
         const v2 = `<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.052.001.02"><BkToCstmrAcctRpt><Rpt><Ntry><Amt Ccy="EUR">5</Amt><CdtDbtInd>CRDT</CdtDbtInd><Sts>BOOK</Sts><BookgDt><Dt>2026-11-01</Dt></BookgDt><NtryDtls><TxDtls><RltdPties><Dbtr><Nm>A &amp; B</Nm></Dbtr></RltdPties><RmtInf><Ustrd>EREF+E1 SVWZ+Danke</Ustrd></RmtInf></TxDtls></NtryDtls></Ntry></Rpt></BkToCstmrAcctRpt></Document>`;
-        expect(parseCamt(v2, "pending")[0]).toMatchObject({ status: "booked", amount: 500, counterpartyName: "A & B", endToEndId: "E1", remittance: "Danke" });
+        expect(parseCamt(v2, "pending")[0]).toMatchObject({ status: "booked", amount: 500, counterpartyName: "A & B", ultimateParty: "", endToEndId: "E1", remittance: "Danke" });
+    });
+
+    it("keeps the ultimate creditor apart from the creditor", () => {
+        const entry = (parties: string) =>
+            `<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.052.001.08"><BkToCstmrAcctRpt><Rpt><Ntry><Amt Ccy="EUR">25</Amt><CdtDbtInd>DBIT</CdtDbtInd><Sts><Cd>BOOK</Cd></Sts><BookgDt><Dt>2026-11-10</Dt></BookgDt><AddtlNtryInf>Kartenzahlung</AddtlNtryInf><NtryDtls><TxDtls><RltdPties>${parties}</RltdPties></TxDtls></NtryDtls></Ntry></Rpt></BkToCstmrAcctRpt></Document>`;
+        const [card] = parseCamt(entry("<Cdtr><Pty><Nm>Landesbank Muster</Nm></Pty></Cdtr><UltmtCdtr><Pty><Nm>Shop Muster</Nm></Pty></UltmtCdtr>"), "booked");
+        expect(card).toMatchObject({ counterpartyName: "Landesbank Muster", ultimateParty: "Shop Muster", bookingText: "Kartenzahlung" });
+        const [only] = parseCamt(entry("<UltmtCdtr><Pty><Nm>Shop Muster</Nm></Pty></UltmtCdtr>"), "booked");
+        expect(only).toMatchObject({ counterpartyName: "Shop Muster", ultimateParty: "" });
+        const [same] = parseCamt(entry("<Cdtr><Pty><Nm>Shop Muster</Nm></Pty></Cdtr><UltmtCdtr><Pty><Nm>SHOP MUSTER</Nm></Pty></UltmtCdtr>"), "booked");
+        expect(same).toMatchObject({ counterpartyName: "Shop Muster", ultimateParty: "" });
     });
 
     it("skips entries it cannot read", () => {
@@ -100,7 +129,7 @@ describe("credit card statement", () => {
 
 describe("splitSepaPurpose", () => {
     it("splits identifiers and keeps unstructured text", () => {
-        expect(splitSepaPurpose("EREF+123 MREF+M1 CRED+DE00ZZZ SVWZ+Miete Mai")).toEqual({ remittance: "Miete Mai", endToEndId: "123", mandateId: "M1", creditorId: "DE00ZZZ", name: null });
+        expect(splitSepaPurpose("EREF+123 MREF+M1 CRED+DE00ZZZ SVWZ+Miete Mai")).toEqual({ remittance: "Miete Mai", endToEndId: "123", mandateId: "M1", creditorId: "DE00ZZZ", ultimate: null });
         expect(splitSepaPurpose("Danke fuer alles")).toMatchObject({ remittance: "Danke fuer alles", endToEndId: null });
     });
 });

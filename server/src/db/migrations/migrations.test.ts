@@ -2,6 +2,7 @@ import Database from "better-sqlite3-multiple-ciphers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { initial } from "./0001-initial.js";
 import { unread } from "./0002-unread.js";
+import { bookingDetails } from "./0003-booking-details.js";
 import { applyMigration } from "./index.js";
 
 const columns = (db: Database.Database, table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
@@ -119,6 +120,23 @@ describe("0002-unread", () => {
         expect(db.prepare("SELECT user_id AS userId FROM transaction_unread").all()).toEqual([{ userId: 1 }]);
         db.exec("DELETE FROM transactions WHERE id = 1");
         expect(db.prepare("SELECT count(*) AS n FROM transaction_unread").get()).toEqual({ n: 0 });
+        db.close();
+    });
+});
+
+describe("0003-booking-details", () => {
+    it("adds booking text and ultimate party, empty for bookings already there", () => {
+        const db = new Database(":memory:");
+        db.pragma("foreign_keys = ON");
+        applyMigration(db, initial);
+        applyMigration(db, unread);
+        db.exec(`
+            INSERT INTO accounts (id, kind, name, icon, color, position, created_at) VALUES (1, 'giro', 'Giro', 'landmark', 'blue', 0, '2026-01-01T00:00:00Z');
+            INSERT INTO transactions (id, account_id, booking_date, amount, status, first_seen_at, source, raw) VALUES
+                (1, 1, '2026-01-02', -100, 'booked', '2026-01-02T00:00:00Z', 'bank', '{"bookingText":"KARTENZAHLUNG"}');
+        `);
+        applyMigration(db, bookingDetails);
+        expect(db.prepare("SELECT booking_text AS t, ultimate_party AS u FROM transactions").get()).toEqual({ t: "", u: "" });
         db.close();
     });
 });

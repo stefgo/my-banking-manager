@@ -146,6 +146,22 @@ describe("fetching", () => {
         expect(booked.id).toBeGreaterThan(pendingId);
     });
 
+    it("keeps the ultimate party and the booking text; gegenseite: finds either name", async () => {
+        const { ids } = await setUpAccess();
+        const rule = (await api<{ id: number }>("POST", "/api/categories", { name: "Einkauf", parentId: null, icon: "shopping-cart", color: "blue" })).body.id;
+        await api("POST", "/api/rules", { query: "gegenseite:shop", categoryId: rule });
+        giroTxs = [...giroTxs, tx({ amount: -2500, counterpartyName: "Landesbank Muster", ultimateParty: "Shop Muster", bookingText: "KARTENZAHLUNG", remittance: "Debitk. 1", bookingDate: "2026-11-13" })];
+        await api("POST", "/api/sync", { accountId: ids.giro });
+        await waitFor((r) => r[0]?.status === "done");
+        type Listed = { id: number; counterpartyName: string; ultimateParty: string; bookingText: string; categoryId: number | null };
+        const list = async (q?: string) => (await api<{ items: Listed[] }>("GET", `/api/transactions?scope=all&range=all${q ? `&q=${encodeURIComponent(q)}` : ""}`)).body.items;
+        const card = (await list()).find((x) => x.counterpartyName === "Landesbank Muster");
+        expect(card).toMatchObject({ ultimateParty: "Shop Muster", bookingText: "KARTENZAHLUNG", categoryId: rule });
+        // Bookings without an ultimate party keep it empty
+        expect((await list()).find((x) => x.counterpartyName === "Stadtwerke")).toMatchObject({ ultimateParty: "", bookingText: "" });
+        for (const q of ["gegenseite:shop", "gegenseite:landesbank"]) expect((await list(q)).map((x) => x.id)).toEqual([card!.id]);
+    });
+
     it("marks fetched bookings as new for every user; a booked one stays read where its pending one was read", async () => {
         const ben = (await api<{ id: number }>("POST", "/api/users", { name: "Ben", password: "noch-ein-passwort", code: confirmCode(t, secret) })).body.id;
         const { ids } = await setUpAccess();

@@ -46,3 +46,9 @@ export function splitAmount(cents: number): [string, string] {
 }
 
 export const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * Who a booking is with, as lists and titles show it: the ultimate party (e.g. the shop of a card
+ * payment whose counterparty is the processing bank), else the counterparty.
+ */
+export const partyName = (tx: { counterpartyName: string; ultimateParty: string }): string => tx.ultimateParty || tx.counterpartyName;

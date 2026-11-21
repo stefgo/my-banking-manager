@@ -1,7 +1,7 @@
 // S.W.I.F.T. MT940 (booked) and MT942 (pending) as German banks deliver them over FinTS
 // (HIKAZ, format "SRG 2001" with the SEPA allocation of the DFÜ-Abkommen).
 
-import { emptyTransaction, splitSepaPurpose, type Transaction } from "./transaction.js";
+import { emptyTransaction, partiesOf, splitSepaPurpose, type Transaction } from "./transaction.js";
 
 /** Parses all statements in an MT940/MT942 text into transactions. */
 export function parseMt940(data: string | Uint8Array, status: "booked" | "pending"): Transaction[] {
@@ -108,7 +108,6 @@ function apply86(t: Transaction, value: string): void {
         else sub[key] = (sub[key] ?? "") + content;
     }
     t.bookingText = (sub["00"] ?? "").trim();
-    t.counterpartyName = `${sub["32"] ?? ""}${sub["33"] ?? ""}`.trim();
     const account = (sub["31"] ?? "").trim();
     const bank = (sub["30"] ?? "").trim();
     if (/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(account)) t.counterpartyIban = account;
@@ -118,5 +117,5 @@ function apply86(t: Transaction, value: string): void {
     t.endToEndId = sepa.endToEndId;
     t.mandateId = sepa.mandateId;
     t.creditorId = sepa.creditorId;
-    if (!t.counterpartyName && sepa.name) t.counterpartyName = sepa.name;
+    Object.assign(t, partiesOf(`${sub["32"] ?? ""}${sub["33"] ?? ""}`, sepa.ultimate));
 }

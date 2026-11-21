@@ -129,9 +129,17 @@ export const Transaction = z.object({
     valueDate: IsoDate.nullable(),
     amount: Cents,
     currency: z.literal("EUR"),
+    /** Holder of the counterparty's account (for a card payment often the processing bank). */
     counterpartyName: z.string(),
+    /**
+     * Ultimate creditor of a debit or ultimate debtor of a credit as the bank reports it (e.g. the
+     * shop of a card payment); "" if none. Lists show it instead of the name.
+     */
+    ultimateParty: z.string(),
     counterpartyIban: z.string().nullable(),
     remittance: z.string(),
+    /** Booking text of the bank, e.g. "Kartenzahlung", "Lastschrift"; "" if none. */
+    bookingText: z.string(),
     status: TxStatus,
     source: TxSource,
     importId: Id.nullable(),
@@ -348,6 +356,7 @@ export const RuleMatch = z.object({
     bookingDate: IsoDate,
     amount: Cents,
     counterpartyName: z.string(),
+    ultimateParty: z.string(),
     remittance: z.string(),
     categoryId: Id,
     ruleId: Id,
