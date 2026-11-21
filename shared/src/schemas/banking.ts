@@ -480,6 +480,9 @@ export const DetectedImportFormat = z.object({
     formatKey: z.string().nullable().describe("The stored format chosen by the header; null for the automatic column assignment"),
 });
 
+export const ImportFillField = z.enum(["bookingText", "reference", "mandateId", "creditorId", "counterpartyBic"]);
+export type ImportFillField = z.infer<typeof ImportFillField>;
+
 export const ImportPreviewRow = z.object({
     line: z.number().int(),
     date: IsoDate.nullable(),
@@ -494,6 +497,7 @@ export const ImportPreviewRow = z.object({
     creditorId: z.string(),
     counterpartyBic: z.string(),
     fillsDetails: z.boolean().describe("Duplicate with an empty reference, mandate, creditor id or BIC that takes the one of the file"),
+    fills: z.array(ImportFillField).describe("Duplicate: the fields empty in the stored booking that take the value of this row"),
     pending: z.boolean(),
     categoryId: Id.nullable().describe("Category the row gets; for a duplicate the category the file names"),
     newCategory: z.string().nullable().describe("Category named by the file that does not exist yet (\"Parent › Child › …\")"),

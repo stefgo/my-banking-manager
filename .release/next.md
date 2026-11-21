@@ -20,8 +20,10 @@ Nothing inside an HTML comment is published.
   mit „Als neues Format speichern“. Die Beispielzeile zeigt alle Spalten der Datei und daneben das
   Ergebnis des Imports.
 - Der Import ist jetzt eine eigene, übersichtliche Seite mit den Schritten Datei, Format, Konto und
-  Prüfen. Ein erkanntes Format wird angezeigt und von dir bestätigt. Beim Prüfen filterst und
-  durchsuchst du die Zeilen und wählst einzeln, was du übernimmst.
+  Prüfen. Ein erkanntes Format ist vorgewählt und wird von dir bestätigt. Beim Prüfen filterst und
+  durchsuchst du die Zeilen und wählst einzeln, was du übernimmst. Bei abweichenden Kategorien und
+  zu ergänzenden Angaben siehst du den aktuellen Wert neben dem aus der Datei und ob der Import ihn
+  übernimmt.
 - Umsätze zeigen jetzt auch Referenz, Mandat, Gläubiger-ID und BIC, aus dem Bankabruf wie aus dem
   Import.
 - Der CSV-Import übernimmt die Umsatzart. Bei vorhandenen Umsätzen ergänzt er sie und die neuen

@@ -12,9 +12,9 @@ seinem Menü. Der Import läuft dann auf einer eigenen Seite in vier Schritten:
 
 1. **Datei:** Die Datei hineinziehen oder auswählen. MBM liest UTF-8 und Windows-1252 und Dateien
    bis 20 MB.
-2. **Format:** MBM schlägt anhand der Kopfzeile ein passendes [Importformat](#importformate) vor und
-   sagt dir, ob es eines erkannt hat. Du bestätigst es, wählst ein anderes oder ordnest die Spalten
-   selbst zu.
+2. **Format:** MBM wählt anhand der Kopfzeile ein passendes [Importformat](#importformate) vor. Du
+   bestätigst es, wählst ein anderes oder ordnest die Spalten selbst zu. Nur wenn kein Format passt,
+   weist MBM dich darauf hin.
 3. **Konto:** Das Konto, in das importiert wird. Startest du den Import bei einem Konto, ist es
    schon gewählt.
 4. **Prüfen:** Die Filterleiste zeigt, wie viele Zeilen *neu*, zu *ergänzen*, *abweichend*, schon
@@ -104,7 +104,8 @@ Neben Datum, Betrag und Gegenseite übernimmt MBM die **Umsatzart** (etwa „Las
 [Details des Umsatzes](umsaetze.md#details-eines-umsatzes).
 
 Fehlt einem vorhandenen Umsatz eine dieser Angaben, ergänzt MBM sie aus der Datei; die Prüfung zeigt
-dann „ergänzen“. So kannst du sie auch für schon importierte Umsätze nachtragen, indem
+dann „ergänzen“, und die Details der Zeile stellen für jede dieser Angaben den leeren Wert in MBM
+neben den aus der Datei. So kannst du sie auch für schon importierte Umsätze nachtragen, indem
 du die Datei noch einmal importierst. Vorhandene Angaben und der Verwendungszweck bleiben dabei
 erhalten.
 
@@ -123,7 +124,8 @@ legt es auf Wunsch an. Zeilen ohne Kategorie laufen durch die [Regeln](kategorie
 ### Abweichende Kategorien
 
 Nennt die Datei bei einem Umsatz, den es schon gibt, eine andere Kategorie, zeigt die Prüfung
-„Kategorie abweichend“; die Details der Zeile nennen beide Kategorien. Unter der Liste wählst du
+„Kategorie abweichend“. Die Details der Zeile stellen die Kategorie aktuell in MBM und die aus der
+Datei nebeneinander und sagen, ob der Import sie ersetzt. Unter der Liste wählst du
 **… abweichende Kategorien überschreiben**; dann bekommen diese Umsätze die Kategorie aus der Datei,
 als hättest du sie von Hand vergeben. Regeln ändern sie danach nicht mehr.
 

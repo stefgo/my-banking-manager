@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { BUILTIN_IMPORT_FORMATS, type ImportFormatDefinition, type ImportPreview } from "@mbm/shared";
-import { copyName, emptyFormat, fieldsSummary, fileSummary, formatColumns, formatProblem, matchesFilter, matchesSearch, newStep, NO_CHOICE, partName, pruneRefs, replaceStep, reviewCounts, reviewOutcome, rowSelectable, sourceKey, sourceOptions, stepsSummary } from "./importFormat";
+import { categoryChange, copyName, emptyFormat, fieldsSummary, fileSummary, formatColumns, formatProblem, matchesFilter, matchesSearch, newStep, NO_CHOICE, partName, pruneRefs, replaceStep, reviewCounts, reviewOutcome, rowSelectable, sourceKey, sourceOptions, stepsSummary } from "./importFormat";
 
 type Row = ImportPreview["rows"][number];
 
 const MONEY = BUILTIN_IMPORT_FORMATS.find((f) => f.key === "builtin:moneymoney")!.definition;
 const row = (over: Partial<Row>): Row => ({
-    line: 1, date: "2026-11-01", amount: -100, name: "Markt", iban: null, purpose: "", bookingText: "", fillsBookingText: false, reference: "", mandateId: "", creditorId: "", counterpartyBic: "", fillsDetails: false,
+    line: 1, date: "2026-11-01", amount: -100, name: "Markt", iban: null, purpose: "", bookingText: "", fillsBookingText: false, reference: "", mandateId: "", creditorId: "", counterpartyBic: "", fillsDetails: false, fills: [],
     pending: false, categoryId: null, newCategory: null, state: "new", storedCategoryId: null, categoryState: null, error: null, ...over,
 });
 const mapped = (over: Partial<ImportFormatDefinition> = {}): ImportFormatDefinition => ({ ...emptyFormat(), fields: { bookingDate: [{ column: "Tag" }], amount: [{ column: "Wert" }] }, ...over });
@@ -158,5 +158,14 @@ describe("choice of rows in the review", () => {
     it("overwrites only selected differing rows", () => {
         expect(reviewOutcome(all, { ...NO_CHOICE, overwriteCategories: true })).toMatchObject({ overwrite: true, changes: 1, affected: 4 });
         expect(reviewOutcome(all, { ...NO_CHOICE, overwriteCategories: true, excluded: new Set([5]) })).toMatchObject({ overwrite: false, changes: 0, affected: 3, leftOut: 1 });
+    });
+
+    it("says what happens to a stored category that differs", () => {
+        const absent = row({ line: 7, state: "duplicate", categoryState: "differs", categoryId: null, newCategory: "Neu C" });
+        expect(categoryChange(differs, NO_CHOICE)).toBe("no-overwrite");
+        expect(categoryChange(differs, { ...NO_CHOICE, overwriteCategories: true })).toBe("replaced");
+        expect(categoryChange(differs, { ...NO_CHOICE, overwriteCategories: true, excluded: new Set([5]) })).toBe("left-out");
+        expect(categoryChange(absent, { ...NO_CHOICE, overwriteCategories: true })).toBe("needs-category");
+        expect(categoryChange(absent, { ...NO_CHOICE, overwriteCategories: true, createCategories: true })).toBe("replaced");
     });
 });

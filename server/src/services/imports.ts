@@ -1,4 +1,4 @@
-import { columnsFromFormat, duplicateKey, formatFromColumns, guessColumns, IMPORT_FIELDS, mapFormatRows, matchFormat, missingColumns, readCsv, readWithFormat, ROTATING_COLORS, sameCounterparty, type ColumnMap, type ImportFormatDefinition, type ImportPreview, type ImportRecord, type ImportRow } from "@mbm/shared";
+import { columnsFromFormat, duplicateKey, formatFromColumns, guessColumns, IMPORT_FIELDS, mapFormatRows, matchFormat, missingColumns, readCsv, readWithFormat, ROTATING_COLORS, sameCounterparty, type ColumnMap, type ImportFillField, type ImportFormatDefinition, type ImportPreview, type ImportRecord, type ImportRow } from "@mbm/shared";
 import type { Db } from "../db/database.js";
 import { nowIso } from "../db/database.js";
 import { badRequest, notFound } from "../http/errors.js";
@@ -23,6 +23,8 @@ interface Planned extends ImportRow {
     fillsBookingText: boolean;
     /** Duplicate with an empty detail (reference, mandate, creditor id, BIC) the file has. */
     fillsDetails: boolean;
+    /** Duplicate: the fields that are empty in the stored booking and that the file has. */
+    fills: readonly ImportFillField[];
 }
 
 /** How to read a file: a format, a plain column assignment, or neither (chosen by the header). */
@@ -31,7 +33,7 @@ export interface ImportSelection {
     format?: ImportFormatDefinition | undefined;
 }
 
-const NO_CATEGORY = { categoryId: null, categorySource: null, ruleId: null, missing: null, storedId: null, storedCategoryId: null, categoryState: null, fillsBookingText: false, fillsDetails: false } as const;
+const NO_CATEGORY = { categoryId: null, categorySource: null, ruleId: null, missing: null, storedId: null, storedCategoryId: null, categoryState: null, fillsBookingText: false, fillsDetails: false, fills: [] } as const;
 
 /** A category the file names that does not exist yet, with the path leading to it. */
 interface MissingCategory {
@@ -42,6 +44,7 @@ interface MissingCategory {
 
 /** Details a file can add to a booking already stored. */
 const DETAILS = ["reference", "mandateId", "creditorId", "counterpartyBic"] as const;
+const FILLABLE = ["bookingText", ...DETAILS] as const;
 
 interface StoredBooking {
     id: number;
@@ -164,8 +167,8 @@ function plan(db: Db, accountId: number, content: string, selection: ImportSelec
         if (at >= 0) {
             const [match] = stored.splice(at, 1);
             const planned = duplicate(r, match!.id, storedCategories.all(match!.id) as number[], categories, separator);
-            const fillsDetails = DETAILS.some((d) => !!r[d] && !match![d]);
-            return { ...planned, fillsBookingText: !!r.bookingText && !match!.bookingText, fillsDetails };
+            const fills = FILLABLE.filter((f) => !!r[f] && !match![f]);
+            return { ...planned, fills, fillsBookingText: fills.includes("bookingText"), fillsDetails: fills.some((f) => f !== "bookingText") };
         }
         const fromFile = r.category ? categoryByName(categories, r.category, separator) : null;
         if (fromFile) return { ...r, state: "new", ...NO_CATEGORY, categoryId: fromFile, categorySource: "auto" };
@@ -275,6 +278,7 @@ export function previewImport(db: Db, accountId: number, content: string, select
             creditorId: r.creditorId,
             counterpartyBic: r.counterpartyBic,
             fillsDetails: r.fillsDetails,
+            fills: [...r.fills],
             pending: r.pending,
             categoryId: r.categoryId,
             newCategory: r.missing?.label ?? null,

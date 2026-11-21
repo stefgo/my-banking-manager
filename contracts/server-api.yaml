@@ -6921,6 +6921,17 @@ paths:
                         fillsDetails:
                           type: boolean
                           description: Duplicate with an empty reference, mandate, creditor id or BIC that takes the one of the file
+                        fills:
+                          type: array
+                          items:
+                            type: string
+                            enum:
+                              - bookingText
+                              - reference
+                              - mandateId
+                              - creditorId
+                              - counterpartyBic
+                          description: "Duplicate: the fields empty in the stored booking that take the value of this row"
                         pending:
                           type: boolean
                         categoryId:
@@ -6975,6 +6986,7 @@ paths:
                         - creditorId
                         - counterpartyBic
                         - fillsDetails
+                        - fills
                         - pending
                         - categoryId
                         - newCategory
