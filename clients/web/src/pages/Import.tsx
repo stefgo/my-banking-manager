@@ -110,7 +110,6 @@ export function ImportPage() {
     const [file, setFile] = useState<LoadedFile | null>(null);
     const [def, setDef] = useState<ImportFormatDefinition | null>(null);
     const [baseKey, setBaseKey] = useState<string | null>(null);
-    const [detectedKey, setDetectedKey] = useState<string | null>(null);
     const [choice, setChoice] = useState<ReviewChoice>(NO_CHOICE);
     const [dirty, setDirty] = useState(false);
     // Another format starts the editor afresh; saving the one at hand leaves it as it is
@@ -124,7 +123,6 @@ export function ImportPage() {
     const action = useAction();
     const target = accounts.find((a) => a.id === accountId);
     const base = formats.find((f) => f.key === baseKey);
-    const detected = formats.find((f) => f.key === detectedKey);
     const at = STEP_ORDER.indexOf(step);
     const table = useFormatTable(step === "format" ? file : null, def?.file ?? NO_FILE_SETTINGS);
     const problem = def && step === "format" && table ? formatProblem(def, table) : "";
@@ -163,7 +161,6 @@ export function ImportPage() {
             setFile(next);
             setDef(found.format);
             setBaseKey(found.formatKey);
-            setDetectedKey(found.formatKey);
             setChoice(NO_CHOICE);
             setPreview(null);
             setDirty(false);
@@ -230,7 +227,6 @@ export function ImportPage() {
         setFile(null);
         setDef(null);
         setBaseKey(null);
-        setDetectedKey(null);
         setChoice(NO_CHOICE);
         setDirty(false);
         setPreview(null);
@@ -251,43 +247,44 @@ export function ImportPage() {
             <StepList steps={STEPS} at={at} onPick={step === "done" ? undefined : (i) => goTo(STEP_ORDER[i]!)} />
 
             {step === "file" && (
-                <section className="panel imp-file">
-                    {file && <p className="imp-current">Gewählt: <b>{file.name}</b></p>}
-                    <label
-                        className={`drop ${over ? "over" : ""}`}
-                        onDragOver={(e) => {
-                            e.preventDefault();
-                            setOver(true);
-                        }}
-                        onDragLeave={() => setOver(false)}
-                        onDrop={(e) => {
-                            e.preventDefault();
-                            setOver(false);
-                            const f = e.dataTransfer.files[0];
-                            if (f) void readFile(f);
-                        }}
-                    >
-                        <input type="file" accept=".csv,.txt,text/csv" hidden onChange={(e) => e.target.files?.[0] && void readFile(e.target.files[0])} />
-                        {busy ? <Spinner size={26} /> : <Ic icon={FileUp} size={26} />}
-                        <b>{file ? "Andere CSV-Datei hierher ziehen oder auswählen" : "CSV-Datei hierher ziehen oder auswählen"}</b>
-                        <small>z. B. CSV-Export aus dem Online-Banking, aus einem anderen Finanzprogramm oder ein Kassenbuch</small>
-                    </label>
-                    {error && <Hint tone="bad">{error}</Hint>}
-                    <p className="hint">
-                        <Ic icon={ShieldCheck} size={14} />
-                        Die Datei wird nur gelesen, nicht gespeichert. Schon vorhandene Umsätze werden erkannt.
-                    </p>
-                    {file && (
-                        <div className="actions">
-                            <Button className="btn-primary" icon={ArrowRight} onClick={() => goTo("format")}>Weiter</Button>
-                        </div>
-                    )}
-                </section>
+                <>
+                    <section className="panel imp-file">
+                        {file && <p className="imp-current">Gewählt: <b>{file.name}</b></p>}
+                        <label
+                            className={`drop ${over ? "over" : ""}`}
+                            onDragOver={(e) => {
+                                e.preventDefault();
+                                setOver(true);
+                            }}
+                            onDragLeave={() => setOver(false)}
+                            onDrop={(e) => {
+                                e.preventDefault();
+                                setOver(false);
+                                const f = e.dataTransfer.files[0];
+                                if (f) void readFile(f);
+                            }}
+                        >
+                            <input type="file" accept=".csv,.txt,text/csv" hidden onChange={(e) => e.target.files?.[0] && void readFile(e.target.files[0])} />
+                            {busy ? <Spinner size={26} /> : <Ic icon={FileUp} size={26} />}
+                            <b>{file ? "Andere CSV-Datei hierher ziehen oder auswählen" : "CSV-Datei hierher ziehen oder auswählen"}</b>
+                            <small>z. B. CSV-Export aus dem Online-Banking, aus einem anderen Finanzprogramm oder ein Kassenbuch</small>
+                        </label>
+                        {error && <Hint tone="bad">{error}</Hint>}
+                        <p className="hint">
+                            <Ic icon={ShieldCheck} size={14} />
+                            Die Datei wird nur gelesen, nicht gespeichert. Schon vorhandene Umsätze werden erkannt.
+                        </p>
+                    </section>
+                    <div className="imp-bar narrow">
+                        <Button className="btn-ghost" icon={ArrowLeft} disabled>Zurück</Button>
+                        <Button className="btn-primary" icon={ArrowRight} disabled={!file || busy} onClick={() => goTo("format")}>Weiter</Button>
+                    </div>
+                </>
             )}
 
             {step === "format" && def && file && (
                 <>
-                    {!dirty && baseKey === detectedKey && (detected ? <Hint tone="ok">Anhand der Kopfzeile erkannt: {detected.name}</Hint> : <Hint>Kein passendes Format erkannt, bitte Spalten zuordnen.</Hint>)}
+                    {!dirty && !base && <Hint>Kein passendes Format erkannt, bitte Spalten zuordnen.</Hint>}
                     <div className="imp-toolbar">
                         <label className="field">
                             <span className="flabel">Format</span>

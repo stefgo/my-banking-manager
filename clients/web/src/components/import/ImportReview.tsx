@@ -1,9 +1,9 @@
 import { useDeferredValue, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Check, Search, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Search, X } from "lucide-react";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import type { ImportPreview } from "@mbm/shared";
+import type { ImportFillField, ImportPreview } from "@mbm/shared";
 import { dateText, fmtSigned, plural } from "../../lib/format";
-import { matchesFilter, matchesSearch, reviewCounts, reviewOutcome, rowDiffers, rowFills, rowSelectable, type ReviewChoice, type ReviewFilter } from "../../lib/importFormat";
+import { categoryChange, matchesFilter, matchesSearch, reviewCounts, reviewOutcome, rowDiffers, rowFills, rowSelectable, type CategoryChange, type ReviewChoice, type ReviewFilter } from "../../lib/importFormat";
 import { categoryPath, type CategoryIndex } from "../../lib/tree";
 import { Button, Hint } from "../common";
 import { Ic } from "../icons";
@@ -29,33 +29,97 @@ const statusText = (r: Row): string => {
 
 const statusTone = (r: Row): string => (r.state === "invalid" ? "neg" : r.state === "new" ? "pos" : rowDiffers(r) ? "warn" : rowFills(r) ? "iris" : "");
 
-function RowDetails({ r, index }: { r: Row; index: CategoryIndex }) {
+const CHANGE_TEXT: Record<CategoryChange, string> = {
+    replaced: "Wird beim Import ersetzt.",
+    "no-overwrite": "Bleibt unverändert. Zum Ersetzen unten „abweichende Kategorien überschreiben“ wählen.",
+    "left-out": "Bleibt unverändert, weil die Zeile abgewählt ist.",
+    "needs-category": "Bleibt unverändert, bis du unten „Fehlende Kategorien anlegen“ wählst.",
+};
+
+const fileCategory = (r: Row, index: CategoryIndex): string => (r.categoryId ? categoryPath(index, r.categoryId) : r.newCategory ? `${r.newCategory} (fehlt)` : "");
+
+const FILL_LABEL: Record<ImportFillField, string> = {
+    bookingText: "Umsatzart",
+    reference: "Referenz",
+    mandateId: "Mandat",
+    creditorId: "Gläubiger-ID",
+    counterpartyBic: "BIC",
+};
+
+/** One value before and after the import. */
+function ChangeLine({ label, before, after, tone, on, note }: { label: string; before: string | null; after: string; tone: "replace" | "fill"; on: boolean; note?: string }) {
+    return (
+        <div className={`rv-change ${tone} ${on ? "on" : ""}`}>
+            <b>{label}</b>
+            <div className={`rv-side old ${before === null ? "rv-blank" : ""}`} data-label="Aktuell in MBM"><span>{before ?? "Leer"}</span></div>
+            <Ic icon={ArrowRight} size={15} />
+            <div className="rv-side new" data-label="Aus der Datei"><span>{after}</span></div>
+            {note && <p>{note}</p>}
+        </div>
+    );
+}
+
+/** What the import changes in a booking already stored: its category and the empty fields it fills. */
+function StoredChanges({ r, index, choice }: { r: Row; index: CategoryIndex; choice: ReviewChoice }) {
+    const change = categoryChange(r, choice);
+    const leftOut = choice.excluded.has(r.line);
+    const one = r.fills.length === 1;
+    const fillNote = leftOut ? `${one ? "Diese Angabe bleibt" : "Diese Angaben bleiben"} leer, weil die Zeile abgewählt ist.` : `${one ? "Diese Angabe wird" : "Diese Angaben werden"} beim Import ergänzt.`;
+    return (
+        <section className="rv-compare" aria-label="Änderungen durch den Import">
+            <div className="rv-change head" aria-hidden="true">
+                <span />
+                <span>Aktuell in MBM</span>
+                <span />
+                <span>Aus der Datei</span>
+            </div>
+            {rowDiffers(r) && (
+                <ChangeLine
+                    label="Kategorie"
+                    before={r.storedCategoryId ? categoryPath(index, r.storedCategoryId) : null}
+                    after={fileCategory(r, index)}
+                    tone="replace"
+                    on={change === "replaced"}
+                    note={CHANGE_TEXT[change]}
+                />
+            )}
+            {r.fills.map((f) => <ChangeLine key={f} label={FILL_LABEL[f]} before={null} after={r[f]} tone="fill" on={!leftOut} />)}
+            {r.fills.length > 0 && <p className={leftOut ? "" : "on"}>{fillNote}</p>}
+        </section>
+    );
+}
+
+function RowDetails({ r, index, choice }: { r: Row; index: CategoryIndex; choice: ReviewChoice }) {
+    // A field that the import fills in already stands in the comparison
+    const detail = (f: ImportFillField): string => (r.fills.includes(f) ? "" : r[f]);
     const items: [string, string][] = [
         ["Verwendungszweck", r.purpose],
-        ["Kategorie", r.categoryId ? categoryPath(index, r.categoryId) : r.newCategory ? `${r.newCategory} (fehlt)` : ""],
-        ["Bisherige Kategorie", rowDiffers(r) && r.storedCategoryId ? categoryPath(index, r.storedCategoryId) : ""],
+        ["Kategorie", rowDiffers(r) ? "" : fileCategory(r, index)],
         ["IBAN", r.iban ?? ""],
-        ["BIC", r.counterpartyBic],
-        ["Referenz", r.reference],
-        ["Mandat", r.mandateId],
-        ["Gläubiger-ID", r.creditorId],
+        [FILL_LABEL.counterpartyBic, detail("counterpartyBic")],
+        [FILL_LABEL.reference, detail("reference")],
+        [FILL_LABEL.mandateId, detail("mandateId")],
+        [FILL_LABEL.creditorId, detail("creditorId")],
         ["Zeile der Datei", String(r.line)],
     ];
     return (
-        <dl className="rv-details">
-            {r.error && (
-                <div className="bad">
-                    <dt>Grund</dt>
-                    <dd>{r.error}</dd>
-                </div>
-            )}
-            {items.filter(([, v]) => v).map(([k, v]) => (
-                <div key={k}>
-                    <dt>{k}</dt>
-                    <dd>{v}</dd>
-                </div>
-            ))}
-        </dl>
+        <div className="rv-details">
+            {(rowDiffers(r) || r.fills.length > 0) && <StoredChanges r={r} index={index} choice={choice} />}
+            <dl className="rv-fields">
+                {r.error && (
+                    <div className="bad">
+                        <dt>Grund</dt>
+                        <dd>{r.error}</dd>
+                    </div>
+                )}
+                {items.filter(([, v]) => v).map(([k, v]) => (
+                    <div key={k}>
+                        <dt>{k}</dt>
+                        <dd>{v}</dd>
+                    </div>
+                ))}
+            </dl>
+        </div>
     );
 }
 
@@ -90,7 +154,7 @@ function ReviewList({ rows, index, choice, onToggle }: { rows: Row[]; index: Cat
                                 <span className={`rv-state ${statusTone(r)}`}>{statusText(r)}</span>
                             </button>
                         </div>
-                        {expanded && <RowDetails r={r} index={index} />}
+                        {expanded && <RowDetails r={r} index={index} choice={choice} />}
                     </div>
                 );
             })}

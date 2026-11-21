@@ -112,6 +112,8 @@ describe("import formats", () => {
         const preview = (await api<ImportPreview>("POST", `/api/accounts/${account.id}/import/preview`, { fileName: "x.csv", content: FILE })).body;
         expect(preview.counts).toMatchObject({ new: 0, duplicate: 1, filled: 1 });
         expect(preview.rows[0]).toMatchObject({ fillsBookingText: true, fillsDetails: true });
+        expect(preview.rows[0]!.fills).toEqual(expect.arrayContaining(["bookingText", "reference", "creditorId"]));
+        expect(preview.rows[0]!.fills).not.toContain("mandateId");
 
         const result = (await api<{ imported: number; bookingTextsFilled: number; detailsFilled: number; filled: number }>("POST", `/api/accounts/${account.id}/import`, { fileName: "x.csv", content: FILE })).body;
         expect(result).toMatchObject({ imported: 0, bookingTextsFilled: 1, detailsFilled: 1, filled: 1 });

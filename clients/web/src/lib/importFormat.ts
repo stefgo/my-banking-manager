@@ -213,6 +213,15 @@ export const NO_CHOICE: ReviewChoice = { excluded: new Set(), createCategories: 
 /** A row that can be left out, because taking it would change something. */
 export const rowSelectable = (r: ReviewRow, overwriteCategories: boolean): boolean => r.state === "new" || rowFills(r) || (overwriteCategories && rowDiffers(r));
 
+/** What the import does with the stored category of a differing row, and if nothing, why. */
+export type CategoryChange = "replaced" | "no-overwrite" | "left-out" | "needs-category";
+
+export function categoryChange(r: ReviewRow, choice: ReviewChoice): CategoryChange {
+    if (!choice.overwriteCategories) return "no-overwrite";
+    if (choice.excluded.has(r.line)) return "left-out";
+    return r.categoryId !== null || choice.createCategories ? "replaced" : "needs-category";
+}
+
 /** What the import does with the rows that are selected. */
 export function reviewOutcome(rows: ReviewRow[], choice: ReviewChoice) {
     const kept = rows.filter((r) => !choice.excluded.has(r.line));
