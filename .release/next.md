@@ -9,3 +9,7 @@ dev keeps the text; the stable release from main empties this file again.
 
 Nothing inside an HTML comment is published.
 -->
+
+### Behoben
+
+- Die Details eines Umsatzes schließen sich jetzt, wenn du die Seite verlässt.
