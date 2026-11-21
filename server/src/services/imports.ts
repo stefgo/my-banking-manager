@@ -14,7 +14,13 @@ interface Planned extends ImportRow {
     categorySource: "rule" | "auto" | null;
     ruleId: number | null;
     missing: MissingCategory | null;
+    /** Duplicate: the booking already stored, its category and how the file's category compares. */
+    storedId: number | null;
+    storedCategoryId: number | null;
+    categoryState: "same" | "differs" | "split" | null;
 }
+
+const NO_CATEGORY = { categoryId: null, categorySource: null, ruleId: null, missing: null, storedId: null, storedCategoryId: null, categoryState: null } as const;
 
 /** A category the file names that does not exist yet, with the path leading to it. */
 interface MissingCategory {
@@ -90,41 +96,58 @@ function plan(db: Db, accountId: number, content: string, columns?: ColumnMap): 
     const parsed = mapRows(table, map);
     const dates = parsed.map((r) => r.date).filter((d): d is string => !!d).sort();
     // Stored bookings by day and amount, with their counterparty
-    const existing = new Map<string, { iban: string | null; name: string }[]>();
+    const existing = new Map<string, { id: number; iban: string | null; name: string }[]>();
     if (dates.length) {
         const rows = db
-            .prepare("SELECT booking_date, amount, counterparty_name, counterparty_iban FROM transactions WHERE account_id = ? AND booking_date BETWEEN ? AND ?")
-            .all(accountId, dates[0], dates[dates.length - 1]) as { booking_date: string; amount: number; counterparty_name: string; counterparty_iban: string | null }[];
+            .prepare("SELECT id, booking_date, amount, counterparty_name, counterparty_iban FROM transactions WHERE account_id = ? AND booking_date BETWEEN ? AND ?")
+            .all(accountId, dates[0], dates[dates.length - 1]) as { id: number; booking_date: string; amount: number; counterparty_name: string; counterparty_iban: string | null }[];
         for (const r of rows) {
             const key = duplicateKey(r.booking_date, r.amount);
             const list = existing.get(key) ?? [];
-            list.push({ iban: r.counterparty_iban, name: r.counterparty_name });
+            list.push({ id: r.id, iban: r.counterparty_iban, name: r.counterparty_name });
             existing.set(key, list);
         }
     }
     const categories = db.prepare("SELECT id, parent_id AS parentId, name FROM categories").all() as CategoryRef[];
     const rules = activeRules(db);
     const target = queryTargets(db);
+    const storedCategories = db.prepare("SELECT category_id FROM transaction_categories WHERE transaction_id = ?").pluck();
     const rows = parsed.map((r): Planned => {
-        if (r.error || !r.date || r.amount === null) return { ...r, state: "invalid", categoryId: null, categorySource: null, ruleId: null, missing: null };
+        if (r.error || !r.date || r.amount === null) return { ...r, state: "invalid", ...NO_CATEGORY };
         // Each booking already stored covers one equal row of the file, no more
         const stored = existing.get(duplicateKey(r.date, r.amount)) ?? [];
         const at = stored.findIndex((c) => sameCounterparty(c, r));
         if (at >= 0) {
-            stored.splice(at, 1);
-            return { ...r, state: "duplicate", categoryId: null, categorySource: null, ruleId: null, missing: null };
+            const [match] = stored.splice(at, 1);
+            return duplicate(r, match!.id, storedCategories.all(match!.id) as number[], categories);
         }
         const fromFile = r.category ? categoryByName(categories, r.category) : null;
-        if (fromFile) return { ...r, state: "new", categoryId: fromFile, categorySource: "auto", ruleId: null, missing: null };
+        if (fromFile) return { ...r, state: "new", ...NO_CATEGORY, categoryId: fromFile, categorySource: "auto" };
         // Unless missing categories get created, the rules decide
         const missing = r.category ? missingCategory(r.category) : null;
         const rule = firstMatch(
             rules,
             target({ account_id: accountId, booking_date: r.date, amount: r.amount, counterparty_name: r.name, counterparty_iban: r.iban, remittance: r.purpose, category_id: null }),
         );
-        return { ...r, state: "new", categoryId: rule?.categoryId ?? null, categorySource: rule ? "rule" : null, ruleId: rule?.id ?? null, missing };
+        return { ...r, state: "new", ...NO_CATEGORY, categoryId: rule?.categoryId ?? null, categorySource: rule ? "rule" : null, ruleId: rule?.id ?? null, missing };
     });
     return { header: table.header, columns: map, rows };
+}
+
+/**
+ * A row of the file that is stored already, compared by the category the file names. Only the
+ * file counts here, no rules. A split booking is never overwritten, so its missing category is
+ * not offered for creation either.
+ */
+function duplicate(r: ImportRow, storedId: number, stored: number[], categories: CategoryRef[]): Planned {
+    const base: Planned = { ...r, state: "duplicate", ...NO_CATEGORY, storedId, storedCategoryId: stored.length === 1 ? stored[0]! : null };
+    if (!r.category) return base;
+    const fromFile = categoryByName(categories, r.category);
+    const missing = fromFile ? null : missingCategory(r.category);
+    if (!fromFile && !missing) return base;
+    if (stored.length > 1) return { ...base, categoryId: fromFile, categoryState: "split" };
+    if (fromFile !== null && fromFile === base.storedCategoryId) return { ...base, categoryId: fromFile, categoryState: "same" };
+    return { ...base, categoryId: fromFile, categorySource: "auto", missing, categoryState: "differs" };
 }
 
 function uniqueMissing(rows: Planned[]): Map<string, MissingCategory> {
@@ -179,8 +202,11 @@ function createMissing(db: Db, missing: Map<string, MissingCategory>): { ids: Ma
 
 export function previewImport(db: Db, accountId: number, content: string, columns?: ColumnMap): ImportPreview {
     const p = plan(db, accountId, content, columns);
-    const counts = { new: 0, duplicate: 0, invalid: 0 };
-    for (const r of p.rows) counts[r.state]++;
+    const counts = { new: 0, duplicate: 0, invalid: 0, differs: 0 };
+    for (const r of p.rows) {
+        counts[r.state]++;
+        if (r.categoryState === "differs") counts.differs++;
+    }
     return {
         header: p.header,
         columns: p.columns,
@@ -197,6 +223,8 @@ export function previewImport(db: Db, accountId: number, content: string, column
             categoryId: r.categoryId,
             newCategory: r.missing?.label ?? null,
             state: r.state,
+            storedCategoryId: r.storedCategoryId,
+            categoryState: r.categoryState,
             error: r.error,
         })),
     };
@@ -210,15 +238,17 @@ export function commitImport(
     columns: ColumnMap | undefined,
     userId: number | null,
     createCategories = false,
-): { importId: number; imported: number; skipped: number; invalid: number; createdCategories: number } {
+    overwriteCategories = false,
+): { importId: number; imported: number; skipped: number; invalid: number; createdCategories: number; recategorized: number } {
     const p = plan(db, accountId, content, columns);
     const fresh = p.rows.filter((r) => r.state === "new");
+    const differing = overwriteCategories ? p.rows.filter((r) => r.categoryState === "differs") : [];
     let createdCategories = 0;
     if (createCategories) {
         // The file decides over the rules for the categories it names
-        const { ids, created } = createMissing(db, uniqueMissing(fresh));
+        const { ids, created } = createMissing(db, uniqueMissing([...fresh, ...differing]));
         createdCategories = created;
-        for (const r of fresh) {
+        for (const r of [...fresh, ...differing]) {
             if (!r.missing) continue;
             r.categoryId = ids.get(r.missing.key) ?? null;
             r.categorySource = "auto";
@@ -253,7 +283,16 @@ export function commitImport(
     }
     // New for the others; the importing user saw them in the preview
     markNew(db, ids, userId);
-    return { importId, imported: fresh.length, skipped, invalid, createdCategories };
+    // Bookings already stored take the file's category as if assigned by hand
+    const clear = db.prepare("DELETE FROM transaction_categories WHERE transaction_id = ?");
+    let recategorized = 0;
+    for (const r of differing) {
+        if (r.categoryId === null || r.storedId === null) continue;
+        clear.run(r.storedId);
+        insertCat.run(r.storedId, r.categoryId, r.amount, "manual", null);
+        recategorized++;
+    }
+    return { importId, imported: fresh.length, skipped, invalid, createdCategories, recategorized };
 }
 
 export function listImports(db: Db): ImportRecord[] {

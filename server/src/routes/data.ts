@@ -267,9 +267,12 @@ export function registerDataRoutes(app: FastifyInstance, ctx: AppContext): void 
     handle(app, ctx, routes.importPreview, ({ db, params, body }) => imports.previewImport(db, params.id, body.content, body.columns));
 
     handle(app, ctx, routes.importCommit, ({ db, actor, params, body }) => {
-        const result = db.transaction(() => imports.commitImport(db, params.id, body.fileName, body.content, body.columns, actor.userId, body.createCategories))();
+        const result = db.transaction(() =>
+            imports.commitImport(db, params.id, body.fileName, body.content, body.columns, actor.userId, body.createCategories, body.overwriteCategories),
+        )();
         const created = result.createdCategories ? `, ${result.createdCategories} Kategorien angelegt` : "";
-        logActivity(db, actor, "import", accounts.getAccount(db, params.id).name, `${body.fileName}: ${result.imported} neu, ${result.skipped} schon vorhanden${created}`);
+        const changed = result.recategorized ? `, ${result.recategorized} Kategorien geändert` : "";
+        logActivity(db, actor, "import", accounts.getAccount(db, params.id).name, `${body.fileName}: ${result.imported} neu, ${result.skipped} schon vorhanden${created}${changed}`);
         events.changed("accounts", "transactions", "categories", "imports", "activity", "unread");
         return result;
     });

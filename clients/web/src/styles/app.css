@@ -947,6 +947,8 @@ button.ctx-ic:hover, button.ctx-ic:focus-visible { box-shadow: inset 0 0 0 1.5px
 .imp-row.dup { opacity: 0.6; }
 .imp-row.dup > small { color: var(--faint); }
 .imp-row.bad > small { color: var(--neg); }
+/* Stored already, but the file names another category: not dimmed, so it stands out */
+.imp-row.diff > small { color: var(--warn); }
 .cc-acc .mini { width: 26px; height: 26px; }
 .cc-acc-actions { display: flex; gap: 4px; justify-content: flex-end; }
 .cc-acc-main { min-width: 0; }

@@ -12,6 +12,9 @@ Nothing inside an HTML comment is published.
 
 ### Verbessert
 
+- **CSV-Import:** Die Vorschau zeigt bei schon vorhandenen Umsätzen, wenn die Datei eine andere
+  Kategorie nennt („bisher: … → Datei: …“). Auf Wunsch übernimmt MBM die Kategorie aus der Datei;
+  aufgeteilte Buchungen bleiben unverändert.
 - **CSV-Import:** Unter Einstellungen → Importe startest du über „CSV importieren“ direkt einen
   neuen Import; das Konto wählst du im Dialog.
 - **Offline-Konten:** Unter Einstellungen → Konten öffnet der Knopf neben einem Offline-Konto jetzt
