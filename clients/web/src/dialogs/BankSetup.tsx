@@ -44,6 +44,8 @@ export function BankSetupDialog({ connectionId }: { connectionId?: number }) {
     // Step "method"
     const [methods, setMethods] = useState<Method[]>([]);
     const [method, setMethod] = useState("");
+    // Fixed when the methods arrive, so the label does not follow the selection
+    const [recommended, setRecommended] = useState<string | null>(null);
     const [media, setMedia] = useState<string[] | null>(null);
     const [medium, setMedium] = useState("");
     // Step "accounts"
@@ -96,7 +98,9 @@ export function BankSetupDialog({ connectionId }: { connectionId?: number }) {
             const r = await call(routes.setLogin, { params: { id: conn! }, body: { loginName: loginName.trim(), pin, savePin } });
             if (savePin) setPin("");
             setMethods(r.tanMethods);
-            setMethod(r.tanMethods.find((m) => m.decoupled)?.id ?? r.tanMethods[0]?.id ?? "");
+            const app = r.tanMethods.find((m) => m.decoupled)?.id ?? null;
+            setRecommended(app);
+            setMethod(app ?? r.tanMethods[0]?.id ?? "");
             refreshBank();
             setStep("method");
         });
@@ -221,23 +225,29 @@ export function BankSetupDialog({ connectionId }: { connectionId?: number }) {
 
                 {step === "method" && (
                     <>
+                        <Hint>Mit dem TAN-Verfahren gibst du Abrufe und Überweisungen bei der Bank frei. Deine Bank bietet dir diese Verfahren an. Nimm das, das du auch sonst im Online-Banking nutzt.</Hint>
                         <div className="kind-list" role="radiogroup" aria-label="TAN-Verfahren">
                             {methods.map((m) => (
                                 <button key={m.id} type="button" role="radio" aria-checked={method === m.id} className={`bank-item ${method === m.id ? "on" : ""}`} onClick={() => (setMethod(m.id), setMedia(null), setMedium(""))}>
                                     <span className="acc-ic">{method === m.id ? <Ic icon={Check} size={16} /> : null}</span>
-                                    <span><b>{m.name}</b><small>{m.decoupled ? "Freigabe in der App" : "TAN-Eingabe"}</small></span>
+                                    <span><b>{m.name}</b><small>{m.decoupled ? "Du bestätigst in der App deiner Bank, ohne TAN-Eingabe" : "Du gibst eine TAN ein, die dir App oder TAN-Generator anzeigt"}</small></span>
+                                    {m.id === recommended && <span className="badge">Empfohlen</span>}
                                 </button>
                             ))}
                         </div>
                         {chosen?.needsMedium && (
                             media === null ? (
-                                <Button busy={busy && !pending} onClick={() => void fetchMedia()}>Geräte abrufen</Button>
+                                <Field id="bs-media" label="Gerät" hint="Für dieses Verfahren will die Bank wissen, auf welchem Gerät du freigibst, etwa dein Handy mit der App. MBM fragt die Namen bei der Bank ab; dabei kann schon eine Freigabe nötig sein.">
+                                    <div>
+                                        <Button id="bs-media" busy={busy && !pending} onClick={() => void fetchMedia()}>Geräte abrufen</Button>
+                                    </div>
+                                </Field>
                             ) : media.length === 0 ? (
                                 <Field id="bs-medium" label="Gerät" hint="Die Bank hat keine Geräte gemeldet. Gib die Bezeichnung so ein, wie sie in der App oder im Online-Banking steht.">
                                     <input id="bs-medium" className="inp" autoComplete="off" value={medium} onChange={(e) => setMedium(e.target.value)} />
                                 </Field>
                             ) : (
-                                <Field id="bs-medium" label="Gerät">
+                                <Field id="bs-medium" label="Gerät" hint="Wähle das Gerät, auf dem du freigibst.">
                                     <div className="kind-list">
                                         {media.map((m) => (
                                             <button key={m} type="button" className={`bank-item ${medium === m ? "on" : ""}`} onClick={() => setMedium(m)}>
@@ -249,6 +259,7 @@ export function BankSetupDialog({ connectionId }: { connectionId?: number }) {
                                 </Field>
                             )
                         )}
+                        {chosen && <Hint>Beim Abruf der Konten fragt die Bank meist nach {chosen.decoupled ? "einer Freigabe in der App" : "einer TAN"}.</Hint>}
                         <div className="actions">
                             <Button className="btn-primary" busy={busy && !pending} disabled={!method || (chosen?.needsMedium && !medium.trim()) || !!pending} onClick={() => void fetchAccounts()}>
                                 Konten abrufen

@@ -29,3 +29,6 @@ Nothing inside an HTML comment is published.
   Zeiträume (`today`, `lastmonth`, `-30d`, `-1y` …).
 - **Regeln:** Nach „Regel anlegen“ wird neben der Abfrage auch die gewählte Kategorie
   zurückgesetzt.
+- **Bankzugang einrichten:** Der Schritt „TAN-Verfahren wählen“ erklärt jetzt, wozu die Auswahl
+  dient, kennzeichnet das empfohlene Verfahren und sagt, wann die Bank nach einem Gerät oder einer
+  Freigabe fragt.
