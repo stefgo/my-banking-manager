@@ -15,7 +15,11 @@ und **Offline-Konten**, die du selbst führst. Beide legst du unter
    unter „Online-Banking-Software“ oder „HBCI/FinTS“, und beginnt mit `https://`.
 2. **Anmeldename und PIN** deines Online-Bankings. „PIN speichern“ kannst du abwählen; dann fragt
    MBM bei jedem Abruf nach der PIN und speichert sie nirgends.
-3. **TAN-Verfahren** wählen, etwa S-pushTAN, und das Gerät dazu.
+3. **TAN-Verfahren** wählen. Damit gibst du Abrufe und Überweisungen frei. MBM zeigt die Verfahren,
+   die deine Bank dir anbietet, und empfiehlt eines mit Freigabe in der App, etwa S-pushTAN.
+   Manche Verfahren gehören zu einem bestimmten Gerät, etwa deinem Handy mit der App: Dann holt
+   „Geräte abrufen“ die Namen bei der Bank, und du wählst deins. Beim Abruf der Konten fragt die
+   Bank meist nach einer Freigabe.
 4. MBM holt die **Liste deiner Konten**. Du wählst, welche es übernimmt und in welche Gruppe.
 
 Danach stehen die Konten im Kontenbaum. Konten, die MBM noch nicht übernehmen kann (etwa ein

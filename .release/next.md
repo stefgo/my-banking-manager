@@ -18,6 +18,8 @@ Nothing inside an HTML comment is published.
   den CSV-Import für dieses Konto (statt „Buchung erfassen“).
 - **CSV-Import:** Die Liste der zu importierenden Umsätze ist nur so hoch, dass der ganze Dialog
   ins Fenster passt; „Importieren“ bleibt ohne Scrollen erreichbar.
+- **Bankzugang einrichten:** Im Schritt „Konten übernehmen“ scrollt bei vielen Konten nur die
+  Liste; Gruppe und „Konten übernehmen“ bleiben im Fenster sichtbar.
 - **Umsätze:** Bei einer Kategorie zeigen die Tage in der Umsatzliste keinen Saldo mehr, nur die
   Tagessumme. Der Saldo der Konten passte dort nicht zu den gezeigten Buchungen.
 - **Suche und Regeln:** Die Hilfe zur Suchsyntax nennt jetzt auch `AND`, `OR` und `NOT`; sie
@@ -25,3 +27,8 @@ Nothing inside an HTML comment is published.
 - **Suche und Regeln:** Die Felder gibt es jetzt auch mit englischen Namen: `counterparty:`,
   `purpose:`, `account:`, `category:` (`cat:`), `amount:`, `date:` und `is:new`, ebenso die
   Zeiträume (`today`, `lastmonth`, `-30d`, `-1y` …).
+- **Regeln:** Nach „Regel anlegen“ wird neben der Abfrage auch die gewählte Kategorie
+  zurückgesetzt.
+- **Bankzugang einrichten:** Der Schritt „TAN-Verfahren wählen“ erklärt jetzt, wozu die Auswahl
+  dient, kennzeichnet das empfohlene Verfahren und sagt, wann die Bank nach einem Gerät oder einer
+  Freigabe fragt.
