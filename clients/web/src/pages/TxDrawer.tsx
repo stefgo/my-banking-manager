@@ -141,6 +141,9 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                         )}
                         {tx.remittance && party && row("Verwendungszweck", tx.remittance)}
                         {tx.bookingText && row("Umsatzart", tx.bookingText)}
+                        {tx.reference && row("Referenz", <span className="mono">{tx.reference}</span>)}
+                        {tx.mandateId && row("Mandat", <span className="mono">{tx.mandateId}</span>)}
+                        {tx.creditorId && row("Gläubiger-ID", <span className="mono">{tx.creditorId}</span>)}
                         {row("Buchungstag", tx.status === "pending" ? `${dateText(tx.bookingDate)} · noch nicht gebucht` : dateText(tx.bookingDate))}
                         {tx.valueDate && tx.valueDate !== tx.bookingDate && row("Wertstellung", dateText(tx.valueDate))}
                         {row("Konto", account?.name ?? "")}
@@ -155,6 +158,7 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                                     </button>
                                 </>,
                             )}
+                        {tx.counterpartyBic && row("BIC", <span className="mono">{tx.counterpartyBic}</span>)}
                         {row("Herkunft", tx.source === "manual" ? "von Hand erfasst" : tx.source === "import" ? "CSV-Import" : "Abruf von der Bank")}
                         {tx.counterTransactionId &&
                             row(

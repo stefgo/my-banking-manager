@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { initial } from "./0001-initial.js";
 import { unread } from "./0002-unread.js";
 import { bookingDetails } from "./0003-booking-details.js";
+import { importFormats } from "./0004-import-formats.js";
 import { applyMigration } from "./index.js";
 
 const columns = (db: Database.Database, table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
@@ -137,6 +138,35 @@ describe("0003-booking-details", () => {
         `);
         applyMigration(db, bookingDetails);
         expect(db.prepare("SELECT booking_text AS t, ultimate_party AS u FROM transactions").get()).toEqual({ t: "", u: "" });
+        db.close();
+    });
+});
+
+describe("0004-import-formats", () => {
+    it("adds the details, taking them from what was kept of a bank fetch only", () => {
+        const db = new Database(":memory:");
+        db.pragma("foreign_keys = ON");
+        applyMigration(db, initial);
+        applyMigration(db, unread);
+        applyMigration(db, bookingDetails);
+        db.exec(`
+            INSERT INTO accounts (id, kind, name, icon, color, position, created_at) VALUES (1, 'giro', 'Giro', 'landmark', 'blue', 0, '2026-01-01T00:00:00Z');
+            INSERT INTO transactions (id, account_id, booking_date, amount, status, first_seen_at, source, end_to_end_id, raw) VALUES
+                (1, 1, '2026-01-02', -100, 'booked', '2026-01-02T00:00:00Z', 'bank', 'E2E-1', '{"mandateId":"M1","creditorId":"C1","counterpartyBic":"BYLADEM1001","bankReference":"B1"}'),
+                (2, 1, '2026-01-03', -100, 'booked', '2026-01-03T00:00:00Z', 'bank', 'NOTPROVIDED', '{"mandateId":null}'),
+                (3, 1, '2026-01-04', -100, 'booked', '2026-01-04T00:00:00Z', 'bank', NULL, 'kein JSON'),
+                (4, 1, '2026-01-05', -100, 'booked', '2026-01-05T00:00:00Z', 'import', 'E2E-4', '{"mandateId":"M4"}');
+        `);
+        applyMigration(db, importFormats);
+        const rows = db.prepare("SELECT reference AS r, mandate_id AS m, creditor_id AS c, counterparty_bic AS b FROM transactions ORDER BY id").all();
+        expect(rows).toEqual([
+            { r: "E2E-1", m: "M1", c: "C1", b: "BYLADEM1001" },
+            { r: "", m: "", c: "", b: "" },
+            { r: "", m: "", c: "", b: "" },
+            { r: "", m: "", c: "", b: "" },
+        ]);
+        db.exec("INSERT INTO import_formats (name, definition, created_at, updated_at) VALUES ('Format', '{}', 'x', 'x')");
+        expect(() => db.exec("INSERT INTO import_formats (name, definition, created_at, updated_at) VALUES ('FORMAT', '{}', 'x', 'x')")).toThrow();
         db.close();
     });
 });

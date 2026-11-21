@@ -39,6 +39,7 @@ const TOPIC_KEYS: Record<Topic, string[][]> = {
     categories: [["categories"]],
     rules: [["rules"]],
     imports: [["imports"]],
+    importFormats: [["import-formats"]],
     users: [["users"]],
     devices: [["devices"]],
     activity: [["activity"]],
@@ -76,6 +77,7 @@ export const useUsers = () => useQuery({ queryKey: ["users"], queryFn: () => cal
 export const useDevices = () => useQuery({ queryKey: ["devices"], queryFn: () => call(routes.listDevices) });
 export const useActivity = () => useQuery({ queryKey: ["activity"], queryFn: () => call(routes.activity, { query: { limit: 200 } }) });
 export const useImports = () => useQuery({ queryKey: ["imports"], queryFn: () => call(routes.listImports) });
+export const useImportFormats = () => useQuery({ queryKey: ["import-formats"], queryFn: () => call(routes.listImportFormats) });
 export const usePayees = () => useQuery({ queryKey: ["payees"], queryFn: () => call(routes.payees, { query: {} }) });
 
 // ---------- Transfers ----------

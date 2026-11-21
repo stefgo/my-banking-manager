@@ -3,6 +3,7 @@ import { formatSignedCents, routes, todayIso } from "@mbm/shared";
 import { handle, type AppContext } from "../http/route.js";
 import * as accounts from "../services/accounts.js";
 import * as categories from "../services/categories.js";
+import * as importFormats from "../services/importFormats.js";
 import * as imports from "../services/imports.js";
 import * as orders from "../services/orders.js";
 import * as profile from "../services/profile.js";
@@ -264,21 +265,42 @@ export function registerDataRoutes(app: FastifyInstance, ctx: AppContext): void 
 
     // ---------- CSV import ----------
 
-    handle(app, ctx, routes.importPreview, ({ db, params, body }) => imports.previewImport(db, params.id, body.content, body.columns));
+    handle(app, ctx, routes.importPreview, ({ db, params, body }) => imports.previewImport(db, params.id, body.content, { columns: body.columns, format: body.format }));
 
     handle(app, ctx, routes.importCommit, ({ db, actor, params, body }) => {
         const result = db.transaction(() =>
-            imports.commitImport(db, params.id, body.fileName, body.content, body.columns, actor.userId, body.createCategories, body.overwriteCategories),
+            imports.commitImport(db, params.id, body.fileName, body.content, { columns: body.columns, format: body.format }, actor.userId, body.createCategories, body.overwriteCategories),
         )();
         const created = result.createdCategories ? `, ${result.createdCategories} Kategorien angelegt` : "";
         const changed = result.recategorized ? `, ${result.recategorized} Kategorien geändert` : "";
         const filled = result.bookingTextsFilled ? `, ${result.bookingTextsFilled} Umsatzarten ergänzt` : "";
-        logActivity(db, actor, "import", accounts.getAccount(db, params.id).name, `${body.fileName}: ${result.imported} neu, ${result.skipped} schon vorhanden${created}${changed}${filled}`);
+        const details = result.detailsFilled ? `, ${result.detailsFilled} Details ergänzt` : "";
+        logActivity(db, actor, "import", accounts.getAccount(db, params.id).name, `${body.fileName}: ${result.imported} neu, ${result.skipped} schon vorhanden${created}${changed}${filled}${details}`);
         events.changed("accounts", "transactions", "categories", "imports", "activity", "unread");
         return result;
     });
 
     handle(app, ctx, routes.listImports, ({ db }) => imports.listImports(db));
+
+    handle(app, ctx, routes.listImportFormats, ({ db }) => importFormats.listImportFormats(db));
+
+    handle(app, ctx, routes.createImportFormat, ({ db, body }) => {
+        const format = importFormats.createImportFormat(db, body);
+        events.changed("importFormats");
+        return format;
+    });
+
+    handle(app, ctx, routes.updateImportFormat, ({ db, params, body }) => {
+        const format = importFormats.updateImportFormat(db, params.id, body);
+        events.changed("importFormats");
+        return format;
+    });
+
+    handle(app, ctx, routes.deleteImportFormat, ({ db, params }) => {
+        importFormats.deleteImportFormat(db, params.id);
+        events.changed("importFormats");
+        return OK;
+    });
 
     handle(app, ctx, routes.undoImport, ({ db, actor, params }) => {
         const r = db.transaction(() => imports.undoImport(db, params.id))();

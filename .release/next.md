@@ -12,8 +12,18 @@ Nothing inside an HTML comment is published.
 
 ### Neu
 
-- Der CSV-Import übernimmt die Umsatzart. Bei vorhandenen Umsätzen ergänzt er sie, wenn sie noch
-  fehlt, und überschreibt nie eine vorhandene.
+- Der CSV-Import arbeitet mit **Importformaten**: Du legst Trennzeichen und Trennwörter in bis zu
+  fünf Stufen fest, ordnest die Teile den Feldern zu und speicherst das Format. Die Standardformate
+  „MoneyMoney (CSV)“ und „Sparkasse CSV-CAMT“ sind dabei und werden anhand der Kopfzeile erkannt.
+- Umsätze zeigen jetzt auch Referenz, Mandat, Gläubiger-ID und BIC, aus dem Bankabruf wie aus dem
+  Import.
+- Der CSV-Import übernimmt die Umsatzart. Bei vorhandenen Umsätzen ergänzt er sie und die neuen
+  Angaben, wenn sie noch fehlen, und überschreibt nie vorhandene.
+
+### Wichtig beim Update
+
+- Das Format „MoneyMoney (CSV)“ speichert als Verwendungszweck nur den freien Text. Regeln, die dort
+  nach Text wie `Umsatzart: Lastschrift` suchen, greifen bei neu importierten Umsätzen nicht mehr.
 
 ### Geändert
 

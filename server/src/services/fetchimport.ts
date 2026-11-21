@@ -22,6 +22,12 @@ import { markNew, markNewFor } from "./unread.js";
 
 const norm = (s: string | null | undefined): string => (s ?? "").toLowerCase().replace(/\s+/g, " ").trim();
 
+/** The end-to-end reference to show; banks send "NOTPROVIDED" when there is none. */
+const referenceOf = (t: ConnectorTransaction): string => {
+    const reference = (t.endToEndId ?? "").trim();
+    return reference.toUpperCase() === "NOTPROVIDED" ? "" : reference;
+};
+
 export const fingerprintBase = (t: ConnectorTransaction): string =>
     createHash("sha256")
         .update([t.bookingDate, t.amount, t.counterpartyIban ?? "", norm(t.remittance), t.endToEndId ?? "", t.status].join("|"))
@@ -80,8 +86,8 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
 
         const existing = new Set((db.prepare("SELECT fingerprint FROM transactions WHERE account_id = ? AND fingerprint IS NOT NULL").all(accountId) as { fingerprint: string }[]).map((r) => r.fingerprint));
         const insertTx = db.prepare(
-            `INSERT INTO transactions (account_id, fingerprint, booking_date, value_date, amount, currency, counterparty_name, ultimate_party, counterparty_iban, remittance, end_to_end_id, booking_text, status, raw, first_seen_at, source, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bank', ?)`,
+            `INSERT INTO transactions (account_id, fingerprint, booking_date, value_date, amount, currency, counterparty_name, ultimate_party, counterparty_iban, remittance, end_to_end_id, booking_text, reference, mandate_id, creditor_id, counterparty_bic, status, raw, first_seen_at, source, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bank', ?)`,
         );
         const rawOf = (t: ConnectorTransaction) => JSON.stringify({ bookingText: t.bookingText, mandateId: t.mandateId, creditorId: t.creditorId, bankReference: t.bankReference, counterpartyBic: t.counterpartyBic });
         const insertCat = db.prepare("INSERT INTO transaction_categories (transaction_id, category_id, amount, source, rule_id) VALUES (?, ?, ?, ?, ?)");
@@ -90,7 +96,7 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
         let newBooked = 0;
         const insert = (t: ConnectorTransaction, fp: string, carried: OldPending | undefined) => {
             const id = Number(
-                insertTx.run(accountId, fp, t.bookingDate, t.valueDate, t.amount, t.currency, t.counterpartyName, t.ultimateParty, t.counterpartyIban, t.remittance, t.endToEndId, t.bookingText, t.status, rawOf(t), now, userId)
+                insertTx.run(accountId, fp, t.bookingDate, t.valueDate, t.amount, t.currency, t.counterpartyName, t.ultimateParty, t.counterpartyIban, t.remittance, t.endToEndId, t.bookingText, referenceOf(t), t.mandateId ?? "", t.creditorId ?? "", t.counterpartyBic ?? "", t.status, rawOf(t), now, userId)
                     .lastInsertRowid,
             );
             if (carried?.category_id) insertCat.run(id, carried.category_id, t.amount, carried.category_source ?? "manual", null);

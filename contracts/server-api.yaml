@@ -27,6 +27,284 @@ components:
         - error
         - message
       additionalProperties: false
+    ImportFormatDefinition:
+      type: object
+      properties:
+        version:
+          type: number
+          const: 1
+        file:
+          type: object
+          properties:
+            encoding:
+              type: string
+              enum:
+                - auto
+                - utf-8
+                - windows-1252
+            delimiter:
+              type: string
+              minLength: 1
+              maxLength: 10
+              description: Column delimiter, or "auto"
+            quote:
+              anyOf:
+                - type: string
+                  enum:
+                    - '"'
+                    - "'"
+                - type: "null"
+            headerLine:
+              anyOf:
+                - type: string
+                  const: auto
+                - type: string
+                  const: none
+                - type: integer
+                  minimum: 1
+                  maximum: 1000
+              description: Number of the header among the lines with content
+          required:
+            - encoding
+            - delimiter
+            - quote
+            - headerLine
+          additionalProperties: false
+        steps:
+          maxItems: 5
+          type: array
+          items:
+            oneOf:
+              - type: object
+                properties:
+                  id:
+                    type: string
+                    pattern: ^[A-Za-z][A-Za-z0-9_-]{0,39}$
+                  input:
+                    $ref: "#/components/schemas/ImportFormatValueRef"
+                  type:
+                    type: string
+                    const: separator
+                  separator:
+                    type: string
+                    minLength: 1
+                    maxLength: 40
+                    description: Fixed text that splits the value
+                  parts:
+                    minItems: 1
+                    maxItems: 20
+                    type: array
+                    items:
+                      type: string
+                      pattern: ^[A-Za-z][A-Za-z0-9_-]{0,39}$
+                    description: Names of the pieces, in order
+                required:
+                  - id
+                  - input
+                  - type
+                  - separator
+                  - parts
+                additionalProperties: false
+              - type: object
+                properties:
+                  id:
+                    type: string
+                    pattern: ^[A-Za-z][A-Za-z0-9_-]{0,39}$
+                  input:
+                    $ref: "#/components/schemas/ImportFormatValueRef"
+                  type:
+                    type: string
+                    const: keywords
+                  prefix:
+                    type: string
+                    maxLength: 20
+                    description: Fixed text before a keyword; not needed at the start of the value
+                  suffix:
+                    type: string
+                    maxLength: 20
+                    description: Fixed text after a keyword
+                  keywords:
+                    minItems: 1
+                    maxItems: 30
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        text:
+                          type: string
+                          minLength: 1
+                          maxLength: 60
+                        part:
+                          type: string
+                          pattern: ^[A-Za-z][A-Za-z0-9_-]{0,39}$
+                      required:
+                        - text
+                        - part
+                      additionalProperties: false
+                required:
+                  - id
+                  - input
+                  - type
+                  - prefix
+                  - suffix
+                  - keywords
+                additionalProperties: false
+        fields:
+          type: object
+          properties:
+            bookingDate:
+              minItems: 1
+              maxItems: 8
+              type: array
+              items:
+                $ref: "#/components/schemas/ImportFormatValueRef"
+            valueDate:
+              minItems: 1
+              maxItems: 8
+              type: array
+              items:
+                $ref: "#/components/schemas/ImportFormatValueRef"
+            amount:
+              minItems: 1
+              maxItems: 8
+              type: array
+              items:
+                $ref: "#/components/schemas/ImportFormatValueRef"
+            counterpartyName:
+              minItems: 1
+              maxItems: 8
+              type: array
+              items:
+                $ref: "#/components/schemas/ImportFormatValueRef"
+            counterpartyIban:
+              minItems: 1
+              maxItems: 8
+              type: array
+              items:
+                $ref: "#/components/schemas/ImportFormatValueRef"
+            counterpartyBic:
+              minItems: 1
+              maxItems: 8
+              type: array
+              items:
+                $ref: "#/components/schemas/ImportFormatValueRef"
+            remittance:
+              minItems: 1
+              maxItems: 8
+              type: array
+              items:
+                $ref: "#/components/schemas/ImportFormatValueRef"
+            bookingText:
+              minItems: 1
+              maxItems: 8
+              type: array
+              items:
+                $ref: "#/components/schemas/ImportFormatValueRef"
+            reference:
+              minItems: 1
+              maxItems: 8
+              type: array
+              items:
+                $ref: "#/components/schemas/ImportFormatValueRef"
+            mandateId:
+              minItems: 1
+              maxItems: 8
+              type: array
+              items:
+                $ref: "#/components/schemas/ImportFormatValueRef"
+            creditorId:
+              minItems: 1
+              maxItems: 8
+              type: array
+              items:
+                $ref: "#/components/schemas/ImportFormatValueRef"
+            status:
+              minItems: 1
+              maxItems: 8
+              type: array
+              items:
+                $ref: "#/components/schemas/ImportFormatValueRef"
+            category:
+              minItems: 1
+              maxItems: 8
+              type: array
+              items:
+                $ref: "#/components/schemas/ImportFormatValueRef"
+          additionalProperties: false
+        values:
+          type: object
+          properties:
+            dateOrder:
+              type: string
+              enum:
+                - auto
+                - dmy
+                - mdy
+                - ymd
+            decimalSeparator:
+              type: string
+              enum:
+                - auto
+                - ","
+                - .
+            categorySeparator:
+              type: string
+              minLength: 1
+              maxLength: 10
+              description: Separator of category paths, or "auto"
+            pendingWords:
+              maxItems: 10
+              type: array
+              items:
+                type: string
+                minLength: 1
+                maxLength: 40
+              description: Words in the status that mark a pending booking; empty for the usual ones
+          required:
+            - dateOrder
+            - decimalSeparator
+            - categorySeparator
+            - pendingWords
+          additionalProperties: false
+      required:
+        - version
+        - file
+        - steps
+        - fields
+        - values
+      additionalProperties: false
+    ImportFormatValueRef:
+      anyOf:
+        - type: object
+          properties:
+            column:
+              type: string
+              minLength: 1
+              maxLength: 120
+          required:
+            - column
+          additionalProperties: false
+        - type: object
+          properties:
+            columnIndex:
+              type: integer
+              minimum: 0
+              maximum: 499
+          required:
+            - columnIndex
+          additionalProperties: false
+        - type: object
+          properties:
+            step:
+              type: string
+              pattern: ^[A-Za-z][A-Za-z0-9_-]{0,39}$
+            part:
+              type: string
+              pattern: ^[A-Za-z][A-Za-z0-9_-]{0,39}$
+          required:
+            - step
+            - part
+          additionalProperties: false
 paths:
   /api/status:
     get:
@@ -3769,6 +4047,15 @@ paths:
                           type: string
                         bookingText:
                           type: string
+                        reference:
+                          type: string
+                        mandateId:
+                          type: string
+                        creditorId:
+                          type: string
+                        counterpartyBic:
+                          type: string
+                          description: BIC of the counterparty; "" if none
                         status:
                           type: string
                           enum:
@@ -3824,6 +4111,10 @@ paths:
                         - counterpartyIban
                         - remittance
                         - bookingText
+                        - reference
+                        - mandateId
+                        - creditorId
+                        - counterpartyBic
                         - status
                         - source
                         - importId
@@ -3959,6 +4250,15 @@ paths:
                     type: string
                   bookingText:
                     type: string
+                  reference:
+                    type: string
+                  mandateId:
+                    type: string
+                  creditorId:
+                    type: string
+                  counterpartyBic:
+                    type: string
+                    description: BIC of the counterparty; "" if none
                   status:
                     type: string
                     enum:
@@ -4014,6 +4314,10 @@ paths:
                   - counterpartyIban
                   - remittance
                   - bookingText
+                  - reference
+                  - mandateId
+                  - creditorId
+                  - counterpartyBic
                   - status
                   - source
                   - importId
@@ -4129,6 +4433,15 @@ paths:
                     type: string
                   bookingText:
                     type: string
+                  reference:
+                    type: string
+                  mandateId:
+                    type: string
+                  creditorId:
+                    type: string
+                  counterpartyBic:
+                    type: string
+                    description: BIC of the counterparty; "" if none
                   status:
                     type: string
                     enum:
@@ -4184,6 +4497,10 @@ paths:
                   - counterpartyIban
                   - remittance
                   - bookingText
+                  - reference
+                  - mandateId
+                  - creditorId
+                  - counterpartyBic
                   - status
                   - source
                   - importId
@@ -4469,6 +4786,15 @@ paths:
                     type: string
                   bookingText:
                     type: string
+                  reference:
+                    type: string
+                  mandateId:
+                    type: string
+                  creditorId:
+                    type: string
+                  counterpartyBic:
+                    type: string
+                    description: BIC of the counterparty; "" if none
                   status:
                     type: string
                     enum:
@@ -4524,6 +4850,10 @@ paths:
                   - counterpartyIban
                   - remittance
                   - bookingText
+                  - reference
+                  - mandateId
+                  - creditorId
+                  - counterpartyBic
                   - status
                   - source
                   - importId
@@ -6310,6 +6640,7 @@ paths:
                   type: string
                   maxLength: 20000000
                 columns:
+                  description: Plain column assignment; ignored when `format` is given
                   type: object
                   properties:
                     date:
@@ -6355,6 +6686,34 @@ paths:
                           minimum: 0
                           maximum: 9007199254740991
                         - type: "null"
+                    reference:
+                      default: null
+                      anyOf:
+                        - type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        - type: "null"
+                    mandateId:
+                      default: null
+                      anyOf:
+                        - type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        - type: "null"
+                    creditorId:
+                      default: null
+                      anyOf:
+                        - type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        - type: "null"
+                    counterpartyBic:
+                      default: null
+                      anyOf:
+                        - type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        - type: "null"
                     status:
                       anyOf:
                         - type: integer
@@ -6376,6 +6735,9 @@ paths:
                     - purpose
                     - status
                     - category
+                format:
+                  description: How to read the file; without it and without `columns` the format is chosen by the header
+                  $ref: "#/components/schemas/ImportFormatDefinition"
                 createCategories:
                   description: Create the categories the file names but that do not exist yet
                   type: boolean
@@ -6443,6 +6805,34 @@ paths:
                             minimum: 0
                             maximum: 9007199254740991
                           - type: "null"
+                      reference:
+                        default: null
+                        anyOf:
+                          - type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          - type: "null"
+                      mandateId:
+                        default: null
+                        anyOf:
+                          - type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          - type: "null"
+                      creditorId:
+                        default: null
+                        anyOf:
+                          - type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          - type: "null"
+                      counterpartyBic:
+                        default: null
+                        anyOf:
+                          - type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          - type: "null"
                       status:
                         anyOf:
                           - type: integer
@@ -6463,9 +6853,22 @@ paths:
                       - iban
                       - purpose
                       - bookingText
+                      - reference
+                      - mandateId
+                      - creditorId
+                      - counterpartyBic
                       - status
                       - category
                     additionalProperties: false
+                    description: Columns assigned directly; a field fed by a step has none
+                  format:
+                    description: The format the preview was made with
+                    $ref: "#/components/schemas/ImportFormatDefinition"
+                  formatKey:
+                    description: The stored format chosen by the header; null for the automatic column assignment or a format sent with the request
+                    type:
+                      - string
+                      - "null"
                   rows:
                     type: array
                     items:
@@ -6499,6 +6902,17 @@ paths:
                         fillsBookingText:
                           type: boolean
                           description: Duplicate without a kind of booking that takes the one of the file
+                        reference:
+                          type: string
+                        mandateId:
+                          type: string
+                        creditorId:
+                          type: string
+                        counterpartyBic:
+                          type: string
+                        fillsDetails:
+                          type: boolean
+                          description: Duplicate with an empty reference, mandate, creditor id or BIC that takes the one of the file
                         pending:
                           type: boolean
                         categoryId:
@@ -6548,6 +6962,11 @@ paths:
                         - purpose
                         - bookingText
                         - fillsBookingText
+                        - reference
+                        - mandateId
+                        - creditorId
+                        - counterpartyBic
+                        - fillsDetails
                         - pending
                         - categoryId
                         - newCategory
@@ -6585,7 +7004,7 @@ paths:
                         type: integer
                         minimum: -9007199254740991
                         maximum: 9007199254740991
-                        description: Duplicates whose empty kind of booking the file fills in
+                        description: Duplicates with an empty kind of booking or detail the file fills in
                     required:
                       - new
                       - duplicate
@@ -6596,6 +7015,8 @@ paths:
                 required:
                   - header
                   - columns
+                  - format
+                  - formatKey
                   - rows
                   - newCategories
                   - counts
@@ -6637,6 +7058,7 @@ paths:
                   type: string
                   maxLength: 20000000
                 columns:
+                  description: Plain column assignment; ignored when `format` is given
                   type: object
                   properties:
                     date:
@@ -6682,6 +7104,34 @@ paths:
                           minimum: 0
                           maximum: 9007199254740991
                         - type: "null"
+                    reference:
+                      default: null
+                      anyOf:
+                        - type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        - type: "null"
+                    mandateId:
+                      default: null
+                      anyOf:
+                        - type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        - type: "null"
+                    creditorId:
+                      default: null
+                      anyOf:
+                        - type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        - type: "null"
+                    counterpartyBic:
+                      default: null
+                      anyOf:
+                        - type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        - type: "null"
                     status:
                       anyOf:
                         - type: integer
@@ -6703,6 +7153,9 @@ paths:
                     - purpose
                     - status
                     - category
+                format:
+                  description: How to read the file; without it and without `columns` the format is chosen by the header
+                  $ref: "#/components/schemas/ImportFormatDefinition"
                 createCategories:
                   description: Create the categories the file names but that do not exist yet
                   type: boolean
@@ -6750,6 +7203,16 @@ paths:
                     minimum: -9007199254740991
                     maximum: 9007199254740991
                     description: Bookings already stored whose empty kind of booking came from the file
+                  detailsFilled:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                    description: Bookings already stored with an empty reference, mandate, creditor id or BIC that came from the file
+                  filled:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                    description: Bookings already stored that got a kind of booking, a detail or both
                 required:
                   - importId
                   - imported
@@ -6758,6 +7221,8 @@ paths:
                   - createdCategories
                   - recategorized
                   - bookingTextsFilled
+                  - detailsFilled
+                  - filled
                 additionalProperties: false
         default:
           description: Error
@@ -6839,6 +7304,218 @@ paths:
     delete:
       operationId: undoImport
       summary: "Delete an import: its remaining bookings and the record"
+      tags:
+        - Import
+      security:
+        - session: []
+        - device: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            exclusiveMinimum: 0
+            maximum: 9007199254740991
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                required:
+                  - ok
+                additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/import-formats:
+    get:
+      operationId: listImportFormats
+      summary: "Import formats: those of the app and own ones"
+      tags:
+        - Import
+      security:
+        - session: []
+        - device: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    key:
+                      type: string
+                      description: builtin:… for a format of the app, custom:<id> for an own one
+                    id:
+                      anyOf:
+                        - type: integer
+                          exclusiveMinimum: 0
+                          maximum: 9007199254740991
+                        - type: "null"
+                      description: Id of an own format; null for a format of the app
+                    name:
+                      type: string
+                    builtin:
+                      type: boolean
+                    definition:
+                      $ref: "#/components/schemas/ImportFormatDefinition"
+                  required:
+                    - key
+                    - id
+                    - name
+                    - builtin
+                    - definition
+                  additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createImportFormat
+      summary: Save an own import format
+      tags:
+        - Import
+      security:
+        - session: []
+        - device: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 80
+                definition:
+                  $ref: "#/components/schemas/ImportFormatDefinition"
+              required:
+                - name
+                - definition
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  key:
+                    type: string
+                    description: builtin:… for a format of the app, custom:<id> for an own one
+                  id:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                    description: Id of an own format; null for a format of the app
+                  name:
+                    type: string
+                  builtin:
+                    type: boolean
+                  definition:
+                    $ref: "#/components/schemas/ImportFormatDefinition"
+                required:
+                  - key
+                  - id
+                  - name
+                  - builtin
+                  - definition
+                additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/import-formats/{id}:
+    patch:
+      operationId: updateImportFormat
+      summary: Change an own import format
+      tags:
+        - Import
+      security:
+        - session: []
+        - device: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            exclusiveMinimum: 0
+            maximum: 9007199254740991
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 80
+                definition:
+                  $ref: "#/components/schemas/ImportFormatDefinition"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  key:
+                    type: string
+                    description: builtin:… for a format of the app, custom:<id> for an own one
+                  id:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                    description: Id of an own format; null for a format of the app
+                  name:
+                    type: string
+                  builtin:
+                    type: boolean
+                  definition:
+                    $ref: "#/components/schemas/ImportFormatDefinition"
+                required:
+                  - key
+                  - id
+                  - name
+                  - builtin
+                  - definition
+                additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    delete:
+      operationId: deleteImportFormat
+      summary: Delete an own import format
       tags:
         - Import
       security:
