@@ -1,3 +1,58 @@
+## [0.3.0](https://github.com/stefgo/my-banking-manager/compare/v0.2.0...v0.3.0) (2026-11-21)
+
+### Neu
+
+- Der CSV-Import arbeitet mit **Importformaten**: Du legst Trennzeichen und Trennwörter in bis zu
+  fünf Stufen fest, ordnest die Teile den Feldern zu und speicherst das Format. Die Standardformate
+  „MoneyMoney (CSV)“ und „Sparkasse CSV-CAMT“ sind dabei und werden anhand der Kopfzeile erkannt.
+  Formate bearbeitest du auch direkt unter Einstellungen → Importe, mit oder ohne Beispieldatei.
+  Alle Bereiche des Editors sind dabei zu Beginn aufgeklappt, und ein Standardformat übernimmst du
+  mit „Als neues Format speichern“. Die Beispielzeile zeigt alle Spalten der Datei und daneben das
+  Ergebnis des Imports.
+- Der Import ist jetzt eine eigene, übersichtliche Seite mit den Schritten Datei, Format, Konto und
+  Prüfen. Ein erkanntes Format ist vorgewählt und wird von dir bestätigt. Beim Prüfen filterst und
+  durchsuchst du die Zeilen und wählst einzeln, was du übernimmst. Bei abweichenden Kategorien und
+  zu ergänzenden Angaben siehst du den aktuellen Wert neben dem aus der Datei und ob der Import ihn
+  übernimmt.
+- Umsätze zeigen jetzt auch Referenz, Mandat, Gläubiger-ID und BIC, aus dem Bankabruf wie aus dem
+  Import.
+- Der CSV-Import übernimmt die Umsatzart. Bei vorhandenen Umsätzen ergänzt er sie und die neuen
+  Angaben, wenn sie noch fehlen, und überschreibt nie vorhandene.
+
+### Wichtig beim Update
+
+- Das Format „MoneyMoney (CSV)“ speichert als Verwendungszweck nur den freien Text. Regeln, die dort
+  nach Text wie `Umsatzart: Lastschrift` suchen, greifen bei neu importierten Umsätzen nicht mehr.
+
+### Geändert
+
+- Das Menü eines Bankkontos ist aufgeräumt: „Importieren“ und „Vom Bankzugang lösen“ stehen dort
+  nicht mehr. Importieren geht weiter über Einstellungen → Importe oder die Befehlspalette, das
+  Lösen über Einstellungen → Konten.
+- Das Menü der Online-Dokumentation ist übersichtlicher: Gruppen und Einträge sind klar abgesetzt,
+  die geöffnete Seite ist hervorgehoben, und die Seiten stehen in einer sinnvolleren Reihenfolge.
+  „Betrieb im Detail“ heißt jetzt „Technische Details“.
+
+### Behoben
+
+- Die Details eines Umsatzes schließen sich jetzt, wenn du die Seite verlässt.
+- Der CSV-Import hält Spalten wie „Umsatzart“ oder „Buchungstext“ nicht mehr für Betrag oder Datum.
+
+### Features
+
+* **import:** Beispielzeile zeigt alle Spalten als einfache Liste ([e0268a3](https://github.com/stefgo/my-banking-manager/commit/e0268a311d8027eea4a2598f28dbd0392a16e6f5))
+* **import:** Format-Editor mit offenen Karten und allen Spalten ([c737cb5](https://github.com/stefgo/my-banking-manager/commit/c737cb53dd3246462d801bdd1b2f99bf9e8fbbdc))
+* **import:** Import als eigene Seite und Formate in den Einstellungen ([3746db5](https://github.com/stefgo/my-banking-manager/commit/3746db52067ef433a53c7012f9c26ec097bdcad9))
+* **import:** Importformate mit Stufen und Standardformaten ([767ffc1](https://github.com/stefgo/my-banking-manager/commit/767ffc17e60e9b353055c691253680b0b2e971e8))
+* **import:** Umsatzart aus CSV-Dateien übernehmen ([ba1c76a](https://github.com/stefgo/my-banking-manager/commit/ba1c76aa6cb43fbb10e8f6ecb81a57b0623a0bbe))
+* **import:** Vier klare Schritte und Zeilenauswahl beim Prüfen ([5de0502](https://github.com/stefgo/my-banking-manager/commit/5de05027f53b6e5ad504bed252d4536f1e01166e))
+* **import:** Vorher und Nachher beim Prüfen anzeigen ([55b1c91](https://github.com/stefgo/my-banking-manager/commit/55b1c91289263a3d8518ef7f5bd20ef54300394d))
+* **konten:** Menü von Bankkonten aufräumen ([19eb4c8](https://github.com/stefgo/my-banking-manager/commit/19eb4c8feadc8373d4262d1d7a36e61be65540c8))
+
+### Bug Fixes
+
+* **umsätze:** Details schließen sich beim Verlassen der Seite ([65d7d09](https://github.com/stefgo/my-banking-manager/commit/65d7d09335a59870dc9aa10f6bccfd225ef0d635))
+
 ## [0.2.0](https://github.com/stefgo/my-banking-manager/compare/v0.1.0...v0.2.0) (2026-11-21)
 
 ### Verbessert
