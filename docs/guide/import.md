@@ -6,9 +6,9 @@ Offline-Konto.
 
 ## So geht es
 
-1. Im Menü eines Kontos **Importieren …** wählen, unter **Einstellungen → Importe** auf
-   **CSV importieren** klicken (dann wählst du das Konto im Dialog) oder in der Befehlspalette
-   ++cmd+k++ nach „Importieren“ suchen.
+1. Unter **Einstellungen → Importe** auf **CSV importieren** klicken (dann wählst du das Konto im
+   Dialog) oder in der Befehlspalette ++cmd+k++ nach „Importieren“ suchen. Bei einem Offline-Konto
+   geht es auch über **Importieren …** in seinem Menü.
 2. Die Datei in den Dialog ziehen oder auswählen. MBM liest UTF-8 und Windows-1252 und Dateien bis
    20 MB.
 3. **Spalten prüfen:** MBM erkennt die Spalten gängiger Exporte (zum Beispiel Sparkasse CSV-CAMT,

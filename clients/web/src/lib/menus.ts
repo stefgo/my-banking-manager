@@ -1,7 +1,7 @@
 // Menus of accounts and groups: the same entries in the sidebar tree (right click, "…") and in
 // the header of the transaction list.
 
-import { ArrowDown, ArrowUp, CheckCheck, Coins, FileUp, FolderPlus, MoveRight, NotebookPen, Palette, Pencil, Plus, Scale, Trash2, Unlink } from "lucide-react";
+import { ArrowDown, ArrowUp, CheckCheck, Coins, FileUp, FolderPlus, MoveRight, NotebookPen, Palette, Pencil, Plus, Scale, Trash2 } from "lucide-react";
 import { routes, type Account, type AccountGroup } from "@mbm/shared";
 import { call } from "./api";
 import type { useAction } from "./queries";
@@ -52,18 +52,13 @@ export function accountMenu(a: Account, action: Action, openStyle: () => void, o
         { label: "Symbol und Farbe …", icon: Palette, run: openStyle },
         { label: "Infos bearbeiten …", icon: NotebookPen, run: () => ui.open({ kind: "info", target: "account", id: a.id }) },
         ...orderEntries(order),
-        ...(order ? [{ separator: true }] : []),
         ...(offline
             ? [
+                  ...(order ? [{ separator: true }] : []),
                   { label: "Buchung erfassen", icon: Plus, run: () => ui.open({ kind: "booking", accountId: a.id }) },
                   { label: "Saldo abgleichen", icon: Scale, run: () => ui.open({ kind: "reconcile", accountId: a.id }) },
                   { label: "Anfangssaldo ändern …", icon: Coins, run: () => ui.open({ kind: "openingBalance", accountId: a.id }) },
-              ]
-            : []),
-        { label: "Importieren …", icon: FileUp, run: () => ui.open({ kind: "import", accountId: a.id }) },
-        ...(a.connectionId !== null ? [{ separator: true }, { label: "Vom Bankzugang lösen …", icon: Unlink, run: () => ui.open({ kind: "detachAccount", accountId: a.id }) }] : []),
-        ...(offline
-            ? [
+                  { label: "Importieren …", icon: FileUp, run: () => ui.open({ kind: "import", accountId: a.id }) },
                   { separator: true },
                   {
                       label: "Konto löschen",

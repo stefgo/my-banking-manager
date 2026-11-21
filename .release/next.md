@@ -15,6 +15,12 @@ Nothing inside an HTML comment is published.
 - Der CSV-Import übernimmt die Umsatzart. Bei vorhandenen Umsätzen ergänzt er sie, wenn sie noch
   fehlt, und überschreibt nie eine vorhandene.
 
+### Geändert
+
+- Das Menü eines Bankkontos ist aufgeräumt: „Importieren“ und „Vom Bankzugang lösen“ stehen dort
+  nicht mehr. Importieren geht weiter über Einstellungen → Importe oder die Befehlspalette, das
+  Lösen über Einstellungen → Konten.
+
 ### Behoben
 
 - Die Details eines Umsatzes schließen sich jetzt, wenn du die Seite verlässt.
