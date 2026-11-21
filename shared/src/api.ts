@@ -121,6 +121,10 @@ export const routes = {
     importCommit: r({ method: "POST", path: "/api/accounts/:id/import", summary: "Import a CSV file; duplicates are skipped", tag: "Import", access: "user", params: IdParam, body: B.ImportRequest, response: B.ImportResult }),
     listImports: r({ method: "GET", path: "/api/imports", summary: "Past imports", tag: "Import", access: "user", response: List(B.ImportRecord) }),
     undoImport: r({ method: "DELETE", path: "/api/imports/:id", summary: "Delete an import: its remaining bookings and the record", tag: "Import", access: "user", params: IdParam, response: Ok }),
+    listImportFormats: r({ method: "GET", path: "/api/import-formats", summary: "Import formats: those of the app and own ones", tag: "Import", access: "user", response: List(B.ImportFormat) }),
+    createImportFormat: r({ method: "POST", path: "/api/import-formats", summary: "Save an own import format", tag: "Import", access: "user", body: B.CreateImportFormatRequest, response: B.ImportFormat }),
+    updateImportFormat: r({ method: "PATCH", path: "/api/import-formats/:id", summary: "Change an own import format", tag: "Import", access: "user", params: IdParam, body: B.UpdateImportFormatRequest, response: B.ImportFormat }),
+    deleteImportFormat: r({ method: "DELETE", path: "/api/import-formats/:id", summary: "Delete an own import format", tag: "Import", access: "user", params: IdParam, response: Ok }),
     // ---------- Bank accesses ----------
     searchBanks: r({ method: "GET", path: "/api/banks", summary: "Search the bank directory of the Bundesbank by bank code, BIC or name", tag: "Banks", access: "user", query: K.BankSearchQuery, response: List(K.BankDirectoryEntry) }),
     bankDirectory: r({ method: "GET", path: "/api/bank-directory", summary: "State of the bank directory and of its daily update from bundesbank.de", tag: "Banks", access: "user", response: K.BankDirectoryStatus }),

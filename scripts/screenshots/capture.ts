@@ -162,6 +162,7 @@ const ANSWERS: Partial<Record<keyof typeof routes, Answer>> = {
     listDevices: () => fx.devices,
     activity: () => fx.activity,
     listImports: () => fx.imports,
+    listImportFormats: () => fx.importFormats,
     listConnections: () => fx.connections,
     lastOfferedAccounts: () => fx.offeredAccounts,
     connectorStatus: () => fx.connectorStatus.map((c) => ({ ...c, version: VERSION })),

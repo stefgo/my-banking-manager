@@ -2,6 +2,7 @@ import { z } from "zod";
 import { Cents, ColorKeySchema as ColorKey, IconKeySchema as IconKey, Id, IsoDate, Name, Timestamp } from "./common.js";
 import { AccountScope, TxRange } from "./profile.js";
 import { IMPORT_FIELDS } from "../csv.js";
+import { FORMAT_FIELDS, FORMAT_MAX_STEPS, formatIssues } from "../importFormat.js";
 import { parseTxQuery } from "../txquery.js";
 
 // ---------- Own information on accounts, groups and categories ----------
@@ -140,6 +141,13 @@ export const Transaction = z.object({
     remittance: z.string(),
     /** Booking text of the bank, e.g. "Kartenzahlung", "Lastschrift"; "" if none. */
     bookingText: z.string(),
+    /** End-to-end reference of the booking; "" if none. Never used to link a transfer. */
+    reference: z.string(),
+    /** SEPA mandate of a direct debit; "" if none. */
+    mandateId: z.string(),
+    /** SEPA creditor identifier of a direct debit; "" if none. */
+    creditorId: z.string(),
+    counterpartyBic: z.string().describe("BIC of the counterparty; \"\" if none"),
     status: TxStatus,
     source: TxSource,
     importId: Id.nullable(),
@@ -378,14 +386,89 @@ export const ApplyRulesResponse = z.object({ changed: z.number().int() });
 
 export const ColumnMapSchema = z.object({
     ...(Object.fromEntries(IMPORT_FIELDS.map((f) => [f, z.number().int().min(0).nullable()])) as Record<(typeof IMPORT_FIELDS)[number], z.ZodNullable<z.ZodNumber>>),
-    // Added later: column maps of existing API callers do not name it
+    // Added later: column maps of existing API callers do not name them
     bookingText: z.number().int().min(0).nullable().default(null),
+    reference: z.number().int().min(0).nullable().default(null),
+    mandateId: z.number().int().min(0).nullable().default(null),
+    creditorId: z.number().int().min(0).nullable().default(null),
+    counterpartyBic: z.number().int().min(0).nullable().default(null),
 });
+
+const FormatId = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,39}$/, "Kennung: Buchstaben, Ziffern, - und _, beginnend mit einem Buchstaben");
+
+/** Where a value comes from: a column by name or position, or a part of an earlier step. */
+export const FormatValueRef = z.union([
+    z.strictObject({ column: z.string().min(1).max(120) }),
+    z.strictObject({ columnIndex: z.number().int().min(0).max(499) }),
+    z.strictObject({ step: FormatId, part: FormatId }),
+]).meta({ id: "ImportFormatValueRef" });
+export type FormatValueRef = z.infer<typeof FormatValueRef>;
+
+const FormatSeparatorStep = z.strictObject({
+    id: FormatId,
+    input: FormatValueRef,
+    type: z.literal("separator"),
+    separator: z.string().min(1).max(40).describe("Fixed text that splits the value"),
+    parts: z.array(FormatId).min(1).max(20).describe("Names of the pieces, in order"),
+});
+
+const FormatKeywordsStep = z.strictObject({
+    id: FormatId,
+    input: FormatValueRef,
+    type: z.literal("keywords"),
+    prefix: z.string().max(20).describe("Fixed text before a keyword; not needed at the start of the value"),
+    suffix: z.string().max(20).describe("Fixed text after a keyword"),
+    keywords: z.array(z.strictObject({ text: z.string().min(1).max(60), part: FormatId })).min(1).max(30),
+});
+
+export const FormatStep = z.discriminatedUnion("type", [FormatSeparatorStep, FormatKeywordsStep]);
+export type FormatStep = z.infer<typeof FormatStep>;
+
+/** How a file is read and taken apart. Keys and fixed values are English; texts are as in the file. */
+export const ImportFormatDefinition = z
+    .strictObject({
+        version: z.literal(1),
+        file: z.strictObject({
+            encoding: z.enum(["auto", "utf-8", "windows-1252"]),
+            delimiter: z.string().min(1).max(10).describe("Column delimiter, or \"auto\""),
+            quote: z.enum(["\"", "'"]).nullable(),
+            headerLine: z.union([z.literal("auto"), z.literal("none"), z.number().int().min(1).max(1000)]).describe("Number of the header among the lines with content"),
+        }),
+        steps: z.array(FormatStep).max(FORMAT_MAX_STEPS),
+        fields: z.strictObject(
+            Object.fromEntries(FORMAT_FIELDS.map((f) => [f, z.array(FormatValueRef).min(1).max(8).optional()])) as Record<(typeof FORMAT_FIELDS)[number], z.ZodOptional<z.ZodArray<typeof FormatValueRef>>>,
+        ),
+        values: z.strictObject({
+            dateOrder: z.enum(["auto", "dmy", "mdy", "ymd"]),
+            decimalSeparator: z.enum(["auto", ",", "."]),
+            categorySeparator: z.string().min(1).max(10).describe("Separator of category paths, or \"auto\""),
+            pendingWords: z.array(z.string().min(1).max(40)).max(10).describe("Words in the status that mark a pending booking; empty for the usual ones"),
+        }),
+    })
+    .superRefine((def, ctx) => {
+        for (const message of formatIssues(def as ImportFormatDefinition)) ctx.addIssue({ code: "custom", message });
+    })
+    .meta({ id: "ImportFormatDefinition" });
+export type ImportFormatDefinition = z.infer<typeof ImportFormatDefinition>;
+
+export const ImportFormat = z.object({
+    key: z.string().describe("builtin:… for a format of the app, custom:<id> for an own one"),
+    id: Id.nullable().describe("Id of an own format; null for a format of the app"),
+    name: z.string(),
+    builtin: z.boolean(),
+    definition: ImportFormatDefinition,
+});
+export type ImportFormat = z.infer<typeof ImportFormat>;
+
+const FormatName = z.string().trim().min(1, "Bitte einen Namen eingeben").max(80, "Name: höchstens 80 Zeichen");
+export const CreateImportFormatRequest = z.object({ name: FormatName, definition: ImportFormatDefinition });
+export const UpdateImportFormatRequest = z.object({ name: FormatName.optional(), definition: ImportFormatDefinition.optional() });
 
 export const ImportRequest = z.object({
     fileName: z.string().max(255),
     content: z.string().max(20_000_000),
-    columns: ColumnMapSchema.optional(),
+    columns: ColumnMapSchema.optional().describe("Plain column assignment; ignored when `format` is given"),
+    format: ImportFormatDefinition.optional().describe("How to read the file; without it and without `columns` the format is chosen by the header"),
     createCategories: z.boolean().optional().describe("Create the categories the file names but that do not exist yet"),
     overwriteCategories: z.boolean().optional().describe("Give bookings already stored the category the file names where it differs; split bookings stay as they are"),
 });
@@ -399,6 +482,11 @@ export const ImportPreviewRow = z.object({
     purpose: z.string(),
     bookingText: z.string().describe("Kind of booking the file names (\"Lastschrift\" …)"),
     fillsBookingText: z.boolean().describe("Duplicate without a kind of booking that takes the one of the file"),
+    reference: z.string(),
+    mandateId: z.string(),
+    creditorId: z.string(),
+    counterpartyBic: z.string(),
+    fillsDetails: z.boolean().describe("Duplicate with an empty reference, mandate, creditor id or BIC that takes the one of the file"),
     pending: z.boolean(),
     categoryId: Id.nullable().describe("Category the row gets; for a duplicate the category the file names"),
     newCategory: z.string().nullable().describe("Category named by the file that does not exist yet (\"Parent › Child › …\")"),
@@ -413,7 +501,9 @@ export const ImportPreviewRow = z.object({
 
 export const ImportPreview = z.object({
     header: z.array(z.string()),
-    columns: ColumnMapSchema,
+    columns: ColumnMapSchema.describe("Columns assigned directly; a field fed by a step has none"),
+    format: ImportFormatDefinition.describe("The format the preview was made with"),
+    formatKey: z.string().nullable().describe("The stored format chosen by the header; null for the automatic column assignment or a format sent with the request"),
     rows: z.array(ImportPreviewRow),
     newCategories: z.array(z.string()).describe("Missing categories named by the new rows and the duplicates with a differing category"),
     counts: z.object({
@@ -421,7 +511,7 @@ export const ImportPreview = z.object({
         duplicate: z.number().int(),
         invalid: z.number().int(),
         differs: z.number().int().describe("Duplicates with a differing category"),
-        filled: z.number().int().describe("Duplicates whose empty kind of booking the file fills in"),
+        filled: z.number().int().describe("Duplicates with an empty kind of booking or detail the file fills in"),
     }),
 });
 export type ImportPreview = z.infer<typeof ImportPreview>;
@@ -434,6 +524,8 @@ export const ImportResult = z.object({
     createdCategories: z.number().int(),
     recategorized: z.number().int().describe("Bookings already stored that got the category of the file"),
     bookingTextsFilled: z.number().int().describe("Bookings already stored whose empty kind of booking came from the file"),
+    detailsFilled: z.number().int().describe("Bookings already stored with an empty reference, mandate, creditor id or BIC that came from the file"),
+    filled: z.number().int().describe("Bookings already stored that got a kind of booking, a detail or both"),
 });
 
 export const ImportRecord = z.object({

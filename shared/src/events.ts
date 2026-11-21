@@ -9,6 +9,7 @@ export const Topic = z.enum([
     "categories",
     "rules",
     "imports",
+    "importFormats",
     "users",
     "devices",
     "activity",

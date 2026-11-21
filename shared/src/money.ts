@@ -12,11 +12,14 @@ export function formatSignedCents(cents: number): string {
     return (cents > 0 ? "+" : cents < 0 ? "−" : "") + eur.format(Math.abs(cents) / 100);
 }
 
+/** The decimal separator of an amount; "auto" tells it from the form of the number. */
+export type DecimalSeparator = "auto" | "," | ".";
+
 /**
  * Reads an amount as people and banks write it: "1.234,56", "-12,3", "12.30", "1,234.56",
  * "−5 €", "(12,00)". Returns cents, or null when the text is no amount.
  */
-export function parseAmount(input: string): number | null {
+export function parseAmount(input: string, decimal: DecimalSeparator = "auto"): number | null {
     let s = input.trim().replace(/[\s\u00a0€]|EUR/gi, "").replace(/[−–]/g, "-");
     if (!s) return null;
     let negative = false;
@@ -37,7 +40,11 @@ export function parseAmount(input: string): number | null {
     const lastComma = s.lastIndexOf(",");
     const lastDot = s.lastIndexOf(".");
     let decimalSep: string | null = null;
-    if (lastComma >= 0 && lastDot >= 0) {
+    if (decimal !== "auto") {
+        // A fixed decimal separator appears once at most; the other one groups thousands
+        if (s.indexOf(decimal) !== s.lastIndexOf(decimal)) return null;
+        decimalSep = s.includes(decimal) ? decimal : null;
+    } else if (lastComma >= 0 && lastDot >= 0) {
         decimalSep = lastComma > lastDot ? "," : ".";
     } else if (lastComma >= 0) {
         // "12,5" or "12,50" is a decimal comma; "1,234" alone is ambiguous and read as German too

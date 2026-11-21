@@ -12,10 +12,27 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 type Json = Record<string, unknown>;
 
+/** Schemas with a `meta({ id })`: listed once under components, referenced from the routes. */
+const named = new Map<string, unknown>();
+
+const toComponentRefs = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(toComponentRefs);
+    if (typeof node !== "object" || node === null) return node;
+    return Object.fromEntries(
+        Object.entries(node).map(([k, v]) => [k, k === "$ref" && typeof v === "string" ? v.replace("#/$defs/", "#/components/schemas/") : toComponentRefs(v)]),
+    );
+};
+
 const schema = (s: z.ZodType, io: "input" | "output"): Json => {
     const json = z.toJSONSchema(s, { io, unrepresentable: "any", target: "draft-2020-12" }) as Json;
     delete json.$schema;
-    return json;
+    for (const [id, def] of Object.entries((json.$defs ?? {}) as Json)) {
+        const component = toComponentRefs(def);
+        if (named.has(id) && JSON.stringify(named.get(id)) !== JSON.stringify(component)) throw new Error(`Schema ${id} differs between input and output.`);
+        named.set(id, component);
+    }
+    delete json.$defs;
+    return toComponentRefs(json) as Json;
 };
 
 function parameters(def: { path: string; params?: z.ZodType; query?: z.ZodType }): Json[] {
@@ -68,6 +85,7 @@ for (const [name, def] of Object.entries(routes) as [string, RouteDef][]) {
     const paths = serverDoc.paths as Record<string, Json>;
     paths[p] = { ...(paths[p] ?? {}), [def.method.toLowerCase()]: operation(name, def, { tags: [def.tag], security }, "#/components/schemas/ApiError") };
 }
+for (const id of [...named.keys()].sort()) ((serverDoc.components as Json).schemas as Json)[id] = named.get(id);
 
 // ---------- Connector API ----------
 

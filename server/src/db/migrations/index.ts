@@ -2,6 +2,7 @@ import type Database from "better-sqlite3-multiple-ciphers";
 import { initial } from "./0001-initial.js";
 import { unread } from "./0002-unread.js";
 import { bookingDetails } from "./0003-booking-details.js";
+import { importFormats } from "./0004-import-formats.js";
 
 export interface Migration {
     name: string;
@@ -15,7 +16,7 @@ export interface Migration {
 
 // One file per migration. Each runs once, in this order, inside a transaction. Never change one
 // that shipped; add the next file and list it here.
-export const migrations: Migration[] = [initial, unread, bookingDetails];
+export const migrations: Migration[] = [initial, unread, bookingDetails, importFormats];
 
 /** Runs one migration inside a transaction. */
 export function applyMigration(db: Database.Database, m: Migration): void {

@@ -25,7 +25,8 @@ oder mit **Alle als gelesen markieren** im Menü eines Kontos.
 
 Ein Klick auf einen Umsatz öffnet die Details daneben: Kategorie (mit der Angabe, ob eine Regel
 oder du sie gesetzt hast), Verwendungszweck, Umsatzart der Bank (etwa „Kartenzahlung“ oder
-„Lastschrift“), Daten, Konto und Herkunft.
+„Lastschrift“), Referenz, Mandat, Gläubiger-ID, Daten, Konto, IBAN, BIC und Herkunft, soweit die
+Bank oder die [importierte Datei](import.md#umsatzart-und-weitere-angaben) sie nennt.
 
 Bei Kartenzahlungen meldet die Bank als Gegenseite oft nur den Abwickler, etwa eine Landesbank, und
 den Händler als **abweichenden Empfänger**. MBM zeigt dann in Liste und Titel den Händler. In den

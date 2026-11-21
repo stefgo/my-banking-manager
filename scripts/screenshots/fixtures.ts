@@ -11,6 +11,7 @@
 // the same from run to run.
 
 import {
+    BUILTIN_IMPORT_FORMATS,
     addDaysIso,
     ibanProblem,
     CARD_CONFIGS,
@@ -202,6 +203,10 @@ function book(b: Booking): Transaction | null {
         counterpartyIban: b.iban ?? null,
         remittance: b.remittance,
         bookingText: bank ? bookingTextOf(b, seedAccount.kind) : "",
+        reference: "",
+        mandateId: "",
+        creditorId: "",
+        counterpartyBic: "",
         status: b.pending ? "pending" : "booked",
         source: bank ? "bank" : "manual",
         importId: null,
@@ -690,6 +695,8 @@ export function payees() {
 }
 
 // ---------- Imports and activity ----------
+
+export const importFormats = BUILTIN_IMPORT_FORMATS.map((f) => ({ key: f.key, id: null, name: f.name, builtin: true, definition: f.definition }));
 
 export const imports = [
     { id: 1, accountId: CASH, fileName: "kassenbuch-2026.csv", importedAt: at("2026-05-02", "17:52:00"), userName: "Alex", rows: 48, imported: 46, skipped: 2, remaining: 46 },

@@ -1,8 +1,8 @@
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Check, FileUp, ShieldCheck } from "lucide-react";
-import { IMPORT_FIELD_LABELS, IMPORT_FIELDS, routes, type ColumnMap, type ImportPreview } from "@mbm/shared";
+import { routes, type ImportFormatDefinition, type ImportPreview } from "@mbm/shared";
 import { call, errorText } from "../lib/api";
-import { useAccounts, useAction, useCategoryIndex } from "../lib/queries";
+import { useAccounts, useAction, useCategoryIndex, useImportFormats } from "../lib/queries";
 import { categoryPath } from "../lib/tree";
 import { dateText, fmtSigned, plural } from "../lib/format";
 import { ui } from "../lib/ui";
@@ -13,11 +13,20 @@ import { fieldProps, focusFirstError } from "../lib/fields";
 import { Picker, PickerButton } from "../components/pickers";
 import { accountPickItems } from "../components/pickItems";
 import { decodeCsv } from "../lib/decode";
+import { FormatFieldGrid, ImportFormatEditor } from "./ImportFormatEditor";
 
 type Row = ImportPreview["rows"][number];
+type LoadedFile = { name: string; content: string; buffer: ArrayBuffer };
+
+/** Choice in the format list: the automatic assignment, or a format changed for this import. */
+const AUTO = "auto";
+const ADJUSTED = "adjusted";
 
 /** A stored booking whose file names another category. */
 const differs = (r: Row): boolean => r.categoryState === "differs";
+
+/** A stored booking that takes details from the file. */
+const fills = (r: Row): boolean => r.fillsBookingText || r.fillsDetails;
 
 /** Imports a CSV file; without `accountId` the account is chosen first. */
 export function ImportDialog({ accountId: initial }: { accountId?: number }) {
@@ -28,9 +37,12 @@ export function ImportDialog({ accountId: initial }: { accountId?: number }) {
     const [accountError, setAccountError] = useState<string | undefined>();
     const account = accounts.find((a) => a.id === accountId);
     const { index } = useCategoryIndex();
-    const [file, setFile] = useState<{ name: string; content: string } | null>(null);
+    const formats = useImportFormats().data ?? [];
+    const [file, setFile] = useState<LoadedFile | null>(null);
     const [preview, setPreview] = useState<ImportPreview | null>(null);
-    const [columns, setColumns] = useState<ColumnMap | undefined>(undefined);
+    const [format, setFormat] = useState<ImportFormatDefinition | undefined>(undefined);
+    const [choice, setChoice] = useState(AUTO);
+    const [editing, setEditing] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
     const [over, setOver] = useState(false);
@@ -40,19 +52,23 @@ export function ImportDialog({ accountId: initial }: { accountId?: number }) {
 
     // Only the answer to the latest request counts: an earlier one may arrive after it
     const latest = useRef(0);
-    const load = async (f: { name: string; content: string }, cols: ColumnMap | undefined, acc: number) => {
+    // Without a format the server picks one by the header. A format that does not fit leaves the
+    // last preview in place, so another one can be chosen.
+    const load = async (f: LoadedFile, requested: { definition: ImportFormatDefinition; key: string } | null, acc: number) => {
         const request = ++latest.current;
         setBusy(true);
         setError("");
         try {
-            const p = await call(routes.importPreview, { params: { id: acc }, body: { fileName: f.name, content: f.content, columns: cols } });
+            const content = decodeCsv(f.buffer, requested?.definition.file.encoding ?? "auto");
+            const p = await call(routes.importPreview, { params: { id: acc }, body: { fileName: f.name, content, format: requested?.definition } });
             if (request !== latest.current) return;
+            setFile({ ...f, content });
             setPreview(p);
-            setColumns(p.columns);
+            setFormat(p.format);
+            setChoice(requested?.key ?? p.formatKey ?? AUTO);
         } catch (err) {
             if (request !== latest.current) return;
             setError(errorText(err));
-            setPreview(null);
         } finally {
             if (request === latest.current) setBusy(false);
         }
@@ -65,25 +81,26 @@ export function ImportDialog({ accountId: initial }: { accountId?: number }) {
             return;
         }
         if (f.size > 20_000_000) return setError("Die Datei ist größer als 20 MB.");
-        const content = decodeCsv(await f.arrayBuffer());
-        const next = { name: f.name, content };
+        const buffer = await f.arrayBuffer();
+        const next = { name: f.name, content: decodeCsv(buffer), buffer };
         setFile(next);
-        await load(next, undefined, accountId);
+        await load(next, null, accountId);
     };
 
     const commit = async () => {
         if (!file || accountId === undefined) return;
-        const r = await action.run(() => call(routes.importCommit, { params: { id: accountId }, body: { fileName: file.name, content: file.content, columns, createCategories: create, overwriteCategories: overwrite } }), {
+        const r = await action.run(() => call(routes.importCommit, { params: { id: accountId }, body: { fileName: file.name, content: file.content, format, createCategories: create, overwriteCategories: overwrite } }), {
             topics: ["accounts", "transactions", "categories", "imports"],
             ok: (res) =>
                 `${plural(res.imported, "Umsatz", "Umsätze")} importiert${res.skipped ? ` · ${res.skipped} übersprungen` : ""}` +
                 (res.createdCategories ? ` · ${plural(res.createdCategories, "Kategorie", "Kategorien")} angelegt` : "") +
                 (res.recategorized ? ` · ${plural(res.recategorized, "Kategorie", "Kategorien")} geändert` : "") +
-                (res.bookingTextsFilled ? ` · ${plural(res.bookingTextsFilled, "Umsatzart", "Umsatzarten")} ergänzt` : ""),
+                (res.filled ? ` · ${plural(res.filled, "Umsatz", "Umsätze")} ergänzt` : ""),
         });
         if (r) ui.close();
     };
 
+    const decode = useCallback((encoding: ImportFormatDefinition["file"]["encoding"]) => (file ? decodeCsv(file.buffer, encoding) : ""), [file]);
     const fresh = preview?.counts.new ?? 0;
     const filled = preview?.counts.filled ?? 0;
     const rows = preview?.rows ?? [];
@@ -104,19 +121,19 @@ export function ImportDialog({ accountId: initial }: { accountId?: number }) {
     const rowState = (r: Row): string => {
         if (r.state === "invalid") return "unlesbar";
         if (r.state === "new") return r.pending ? "neu · vorgemerkt" : "neu";
-        if (r.categoryState === "split") return r.fillsBookingText ? "aufgeteilt, bleibt · Umsatzart wird ergänzt" : "aufgeteilt, bleibt";
-        if (!differs(r)) return r.fillsBookingText ? "Umsatzart wird ergänzt" : "schon vorhanden";
+        if (r.categoryState === "split") return fills(r) ? "aufgeteilt, bleibt · Angaben werden ergänzt" : "aufgeteilt, bleibt";
+        if (!differs(r)) return fills(r) ? "Angaben werden ergänzt" : "schon vorhanden";
         const category = overwrite && (r.categoryId !== null || (create && r.newCategory)) ? "Kategorie wird geändert" : "Kategorie abweichend";
-        return r.fillsBookingText ? `${category} · Umsatzart wird ergänzt` : category;
+        return fills(r) ? `${category} · Angaben werden ergänzt` : category;
     };
     const duplicates = preview?.counts.duplicate ?? 0;
-    const duplicateChanges = [changes ? `bei ${changes} davon wird die Kategorie geändert` : "", filled ? `bei ${filled} davon wird die Umsatzart ergänzt` : ""].filter(Boolean).join(", ");
+    const duplicateChanges = [changes ? `bei ${changes} davon wird die Kategorie geändert` : "", filled ? `bei ${filled} davon werden Angaben ergänzt` : ""].filter(Boolean).join(", ");
     const differingNote = !changes && differing.length ? ` (${differing.length} mit abweichender Kategorie)` : "";
     const duplicateText = duplicates ? ` · ${duplicates} schon vorhanden, ${duplicateChanges || "werden übersprungen"}${differingNote}` : "";
     const actionText = [
         fresh ? `${plural(fresh, "Umsatz", "Umsätze")} importieren` : "",
         changes ? `${plural(changes, "Kategorie", "Kategorien")} ändern` : "",
-        filled ? `${plural(filled, "Umsatzart", "Umsatzarten")} ergänzen` : "",
+        filled ? `${plural(filled, "Umsatz", "Umsätze")} ergänzen` : "",
     ]
         .filter(Boolean)
         .join(", ");
@@ -166,6 +183,18 @@ export function ImportDialog({ accountId: initial }: { accountId?: number }) {
                         Die Datei wird nur gelesen, nicht gespeichert. Schon vorhandene Umsätze werden übersprungen.
                     </p>
                 </>
+            ) : editing && file && format ? (
+                <ImportFormatEditor
+                    initial={format}
+                    choice={choice}
+                    formats={formats}
+                    decode={decode}
+                    onCancel={() => setEditing(false)}
+                    onApply={(definition, key) => {
+                        setEditing(false);
+                        if (accountId !== undefined) void load(file, { definition, key: key ?? ADJUSTED }, accountId);
+                    }}
+                />
             ) : (
                 <>
                     <div className="note">
@@ -174,33 +203,48 @@ export function ImportDialog({ accountId: initial }: { accountId?: number }) {
                             <b>{file?.name}</b> · {plural(preview.rows.length, "Zeile", "Zeilen")}
                         </span>
                     </div>
-                    <div className="imp-map">
-                        {IMPORT_FIELDS.map((f) => (
-                            <label className="field" key={f}>
-                                <span className="flabel">{IMPORT_FIELD_LABELS[f]}</span>
-                                <select
-                                    className="inp inp-sm"
-                                    value={columns?.[f] ?? -1}
-                                    onChange={(e) => {
-                                        const v = Number(e.target.value);
-                                        const next = { ...columns!, [f]: v < 0 ? null : v };
-                                        setColumns(next);
-                                        if (file && accountId !== undefined) void load(file, next, accountId);
-                                    }}
-                                >
-                                    <option value={-1}>— nicht zuordnen —</option>
-                                    {preview.header.map((h, i) => <option key={i} value={i}>{h || `Spalte ${i + 1}`}</option>)}
-                                </select>
-                            </label>
-                        ))}
+                    <div className="imp-format">
+                        <label className="field">
+                            <span className="flabel">Format</span>
+                            <select
+                                className="inp inp-sm"
+                                value={choice}
+                                onChange={(e) => {
+                                    if (!file || accountId === undefined) return;
+                                    const picked = formats.find((x) => x.key === e.target.value);
+                                    void load(file, picked ? { definition: picked.definition, key: picked.key } : null, accountId);
+                                }}
+                            >
+                                <option value={AUTO}>Automatisch erkennen</option>
+                                {choice === ADJUSTED && <option value={ADJUSTED}>Angepasst für diesen Import</option>}
+                                <optgroup label="Standardformate">
+                                    {formats.filter((x) => x.builtin).map((x) => <option key={x.key} value={x.key}>{x.name}</option>)}
+                                </optgroup>
+                                {formats.some((x) => !x.builtin) && (
+                                    <optgroup label="Eigene Formate">
+                                        {formats.filter((x) => !x.builtin).map((x) => <option key={x.key} value={x.key}>{x.name}</option>)}
+                                    </optgroup>
+                                )}
+                            </select>
+                        </label>
+                        <button type="button" className="btn btn-sm btn-ghost" onClick={() => setEditing(true)}>Format bearbeiten …</button>
                     </div>
+                    {format && (
+                        <FormatFieldGrid
+                            def={format}
+                            header={preview.header}
+                            onChange={(next) => {
+                                if (file && accountId !== undefined) void load(file, { definition: next, key: ADJUSTED }, accountId);
+                            }}
+                        />
+                    )}
                     <div className="imp-prev">
                         {preview.rows.map((r) => (
-                            <div key={r.line} className={`imp-row ${differs(r) ? "diff" : r.state === "duplicate" && !r.fillsBookingText ? "dup" : r.state === "invalid" ? "bad" : ""}`} title={r.error ?? undefined}>
+                            <div key={r.line} className={`imp-row ${differs(r) ? "diff" : r.state === "duplicate" && !fills(r) ? "dup" : r.state === "invalid" ? "bad" : ""}`} title={r.error ?? undefined}>
                                 <span>{r.date ? dateText(r.date) : "?"}</span>
                                 <span>
                                     {r.name || "—"}
-                                    <small>{rowCategory(r)}{r.purpose}</small>
+                                    <small>{rowCategory(r)}{[r.bookingText, r.purpose].filter(Boolean).join(" · ")}</small>
                                 </span>
                                 <span className="amt">{r.amount !== null ? fmtSigned(r.amount) : "?"}</span>
                                 <small>{rowState(r)}</small>
@@ -239,7 +283,8 @@ export function ImportDialog({ accountId: initial }: { accountId?: number }) {
                                 setBusy(false);
                                 setPreview(null);
                                 setFile(null);
-                                setColumns(undefined);
+                                setFormat(undefined);
+                                setChoice(AUTO);
                                 setCreateCategories(false);
                                 setOverwriteCategories(false);
                             }}
