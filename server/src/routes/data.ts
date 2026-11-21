@@ -269,13 +269,14 @@ export function registerDataRoutes(app: FastifyInstance, ctx: AppContext): void 
 
     handle(app, ctx, routes.importCommit, ({ db, actor, params, body }) => {
         const result = db.transaction(() =>
-            imports.commitImport(db, params.id, body.fileName, body.content, { columns: body.columns, format: body.format }, actor.userId, body.createCategories, body.overwriteCategories),
+            imports.commitImport(db, params.id, body.fileName, body.content, { columns: body.columns, format: body.format }, actor.userId, body.createCategories, body.overwriteCategories, body.excludeLines),
         )();
         const created = result.createdCategories ? `, ${result.createdCategories} Kategorien angelegt` : "";
         const changed = result.recategorized ? `, ${result.recategorized} Kategorien geändert` : "";
         const filled = result.bookingTextsFilled ? `, ${result.bookingTextsFilled} Umsatzarten ergänzt` : "";
         const details = result.detailsFilled ? `, ${result.detailsFilled} Details ergänzt` : "";
-        logActivity(db, actor, "import", accounts.getAccount(db, params.id).name, `${body.fileName}: ${result.imported} neu, ${result.skipped} schon vorhanden${created}${changed}${filled}${details}`);
+        const excluded = result.excluded ? `, ${result.excluded} abgewählt` : "";
+        logActivity(db, actor, "import", accounts.getAccount(db, params.id).name, `${body.fileName}: ${result.imported} neu, ${result.skipped} schon vorhanden${created}${changed}${filled}${details}${excluded}`);
         events.changed("accounts", "transactions", "categories", "imports", "activity", "unread");
         return result;
     });
@@ -283,6 +284,8 @@ export function registerDataRoutes(app: FastifyInstance, ctx: AppContext): void 
     handle(app, ctx, routes.listImports, ({ db }) => imports.listImports(db));
 
     handle(app, ctx, routes.listImportFormats, ({ db }) => importFormats.listImportFormats(db));
+
+    handle(app, ctx, routes.detectImportFormat, ({ db, body }) => imports.detectImportFormat(db, body.content));
 
     handle(app, ctx, routes.createImportFormat, ({ db, body }) => {
         const format = importFormats.createImportFormat(db, body);

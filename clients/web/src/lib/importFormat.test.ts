@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BUILTIN_IMPORT_FORMATS, type ImportFormatDefinition, type ImportPreview } from "@mbm/shared";
-import { copyName, emptyFormat, fieldsSummary, fileSummary, formatColumns, formatProblem, matchesFilter, newStep, partName, pruneRefs, replaceStep, reviewCounts, sourceKey, sourceOptions, stepsSummary } from "./importFormat";
+import { copyName, emptyFormat, fieldsSummary, fileSummary, formatColumns, formatProblem, matchesFilter, matchesSearch, newStep, NO_CHOICE, partName, pruneRefs, replaceStep, reviewCounts, reviewOutcome, rowSelectable, sourceKey, sourceOptions, stepsSummary } from "./importFormat";
 
 type Row = ImportPreview["rows"][number];
 
@@ -111,6 +111,52 @@ describe("filter of the review", () => {
     });
 
     it("counts per filter", () => {
-        expect(reviewCounts(rows)).toEqual({ changes: 5, new: 1, fill: 2, differs: 2, duplicate: 1, invalid: 1 });
+        expect(reviewCounts(rows)).toEqual({ changes: 5, new: 1, fill: 2, differs: 2, duplicate: 1, invalid: 1, all: 6 });
+    });
+
+    it("shows every row with the filter for all", () => {
+        expect(lines("all")).toEqual([1, 2, 3, 4, 5, 6]);
+    });
+});
+
+describe("search in the review", () => {
+    const r = row({ name: "Bäckerei Müller", purpose: "Brötchen", iban: "DE02120300000000202051", reference: "REF-77" });
+
+    it("finds name, purpose, IBAN and reference without case and accents", () => {
+        for (const text of ["backerei", "MULLER", "brotchen", "de0212", "ref-77", "  "]) expect(matchesSearch(r, text)).toBe(true);
+        expect(matchesSearch(r, "Metzgerei")).toBe(false);
+    });
+
+    it("finds an IBAN typed with spaces", () => {
+        expect(matchesSearch(r, "DE02 1203 0000")).toBe(true);
+    });
+});
+
+describe("choice of rows in the review", () => {
+    const fresh = row({ line: 1, state: "new", newCategory: "Neu A" });
+    const other = row({ line: 2, state: "new", newCategory: "Neu B" });
+    const fill = row({ line: 3, state: "duplicate", fillsDetails: true });
+    const same = row({ line: 4, state: "duplicate" });
+    const differs = row({ line: 5, state: "duplicate", categoryState: "differs", categoryId: 7 });
+    const bad = row({ line: 6, state: "invalid", error: "x" });
+    const all = [fresh, other, fill, same, differs, bad];
+
+    it("offers only rows that change something", () => {
+        expect(all.filter((x) => rowSelectable(x, false)).map((x) => x.line)).toEqual([1, 2, 3]);
+        expect(all.filter((x) => rowSelectable(x, true)).map((x) => x.line)).toEqual([1, 2, 3, 5]);
+    });
+
+    it("takes everything that changes something by default", () => {
+        expect(reviewOutcome(all, NO_CHOICE)).toMatchObject({ fresh: 2, fills: 1, changes: 0, affected: 3, leftOut: 0, missing: ["Neu A", "Neu B"] });
+    });
+
+    it("counts only the rows still selected", () => {
+        const outcome = reviewOutcome(all, { ...NO_CHOICE, excluded: new Set([2, 3]), createCategories: true });
+        expect(outcome).toMatchObject({ fresh: 1, fills: 0, affected: 1, leftOut: 2, missing: ["Neu A"], create: true });
+    });
+
+    it("overwrites only selected differing rows", () => {
+        expect(reviewOutcome(all, { ...NO_CHOICE, overwriteCategories: true })).toMatchObject({ overwrite: true, changes: 1, affected: 4 });
+        expect(reviewOutcome(all, { ...NO_CHOICE, overwriteCategories: true, excluded: new Set([5]) })).toMatchObject({ overwrite: false, changes: 0, affected: 3, leftOut: 1 });
     });
 });

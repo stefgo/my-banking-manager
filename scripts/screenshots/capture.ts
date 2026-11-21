@@ -125,7 +125,10 @@ const SHOTS: Shot[] = [
         themes: ["dark"],
         prepare: async (page) => {
             await page.locator('.imp-file input[type="file"]').setInputFiles(importSample);
-            await page.locator(".rv-tiles").waitFor();
+            await page.locator(".wb-nav").waitFor();
+            await page.getByRole("button", { name: "Weiter", exact: true }).click();
+            await page.getByRole("button", { name: "Weiter zur Prüfung" }).click();
+            await page.locator(".rv-filter").waitFor();
         },
     },
     {
@@ -185,6 +188,7 @@ const ANSWERS: Partial<Record<keyof typeof routes, Answer>> = {
     activity: () => fx.activity,
     listImports: () => fx.imports,
     listImportFormats: () => fx.importFormats,
+    detectImportFormat: () => ({ format: fx.importPreview.format, formatKey: fx.importPreview.formatKey }),
     importPreview: () => fx.importPreview,
     listConnections: () => fx.connections,
     lastOfferedAccounts: () => fx.offeredAccounts,

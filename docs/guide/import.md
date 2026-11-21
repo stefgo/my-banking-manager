@@ -8,22 +8,30 @@ Offline-Konto.
 
 Unter **Einstellungen → Importe** klickst du auf **CSV importieren**. Alternativ suchst du in der
 Befehlspalette ++cmd+k++ nach „Importieren“ oder wählst bei einem Offline-Konto **Importieren …** in
-seinem Menü. Der Import läuft dann auf einer eigenen Seite in drei Schritten:
+seinem Menü. Der Import läuft dann auf einer eigenen Seite in vier Schritten:
 
-1. **Datei:** Konto wählen und die Datei hineinziehen oder auswählen. MBM liest UTF-8 und
-   Windows-1252 und Dateien bis 20 MB.
-2. **Format:** MBM wählt anhand der Kopfzeile ein passendes [Importformat](#importformate). Erkennt
-   es eines, geht es direkt weiter zu „Prüfen“. Sonst ordnest du hier die Spalten zu. Über
-   **Anpassen** kommst du jederzeit zu diesem Schritt zurück.
-3. **Prüfen:** Die Kacheln zeigen, wie viele Zeilen *neu*, zu *ergänzen*, *abweichend*, schon
-   *vorhanden* oder *unlesbar* sind. Ein Klick auf eine Kachel filtert die Liste, ein Klick auf eine
-   Zeile zeigt ihre Details. Anfangs siehst du nur Zeilen, die etwas ändern oder unlesbar sind.
+1. **Datei:** Die Datei hineinziehen oder auswählen. MBM liest UTF-8 und Windows-1252 und Dateien
+   bis 20 MB.
+2. **Format:** MBM schlägt anhand der Kopfzeile ein passendes [Importformat](#importformate) vor und
+   sagt dir, ob es eines erkannt hat. Du bestätigst es, wählst ein anderes oder ordnest die Spalten
+   selbst zu.
+3. **Konto:** Das Konto, in das importiert wird. Startest du den Import bei einem Konto, ist es
+   schon gewählt.
+4. **Prüfen:** Die Filterleiste zeigt, wie viele Zeilen *neu*, zu *ergänzen*, *abweichend*, schon
+   *vorhanden* oder *unlesbar* sind. Die Suche findet Gegenseite, Verwendungszweck, IBAN und
+   Referenz, ein Klick auf eine Zeile zeigt ihre Details. Anfangs siehst du nur die Zeilen, die etwas
+   ändern oder unlesbar sind.
 
-Mit **Umsätze übernehmen** schließt du den Import ab.
+Mit den Kästchen wählst du, was du übernimmst. Anfangs ist alles gewählt, was etwas ändert. Eine
+abgewählte Zeile ändert nichts: kein neuer Umsatz, keine Ergänzung und keine neue Kategorie. Mit
+**Umsätze übernehmen** schließt du den Import ab.
 
-![Import, Schritt Prüfen: Kacheln und Liste der Zeilen](../assets/screenshots/import-pruefen-dark.png)
+Mit **Zurück** oder einem Klick auf einen erledigten Schritt gehst du zurück. Deine Auswahl bleibt
+erhalten, solange Datei, Format und Konto gleich bleiben.
 
-*Der Schritt „Prüfen“: Die Kacheln filtern die Liste.*
+![Import, Schritt Prüfen: Filter, Suche und Liste der Zeilen](../assets/screenshots/import-pruefen-dark.png)
+
+*Der Schritt „Prüfen“: filtern, suchen und Zeilen auswählen.*
 
 ## Doppelte Umsätze
 

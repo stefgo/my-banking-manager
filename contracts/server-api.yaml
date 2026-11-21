@@ -6744,6 +6744,14 @@ paths:
                 overwriteCategories:
                   description: Give bookings already stored the category the file names where it differs; split bookings stay as they are
                   type: boolean
+                excludeLines:
+                  description: Rows of the file (`line` of the preview) that change nothing; only for the import itself
+                  maxItems: 1000000
+                  type: array
+                  items:
+                    type: integer
+                    minimum: 1
+                    maximum: 9007199254740991
               required:
                 - fileName
                 - content
@@ -7162,6 +7170,14 @@ paths:
                 overwriteCategories:
                   description: Give bookings already stored the category the file names where it differs; split bookings stay as they are
                   type: boolean
+                excludeLines:
+                  description: Rows of the file (`line` of the preview) that change nothing; only for the import itself
+                  maxItems: 1000000
+                  type: array
+                  items:
+                    type: integer
+                    minimum: 1
+                    maximum: 9007199254740991
               required:
                 - fileName
                 - content
@@ -7213,6 +7229,11 @@ paths:
                     minimum: -9007199254740991
                     maximum: 9007199254740991
                     description: Bookings already stored that got a kind of booking, a detail or both
+                  excluded:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                    description: Rows that would have changed something but were left out
                 required:
                   - importId
                   - imported
@@ -7223,6 +7244,7 @@ paths:
                   - bookingTextsFilled
                   - detailsFilled
                   - filled
+                  - excluded
                 additionalProperties: false
         default:
           description: Error
@@ -7439,6 +7461,53 @@ paths:
                   - name
                   - builtin
                   - definition
+                additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/import-formats/detect:
+    post:
+      operationId: detectImportFormat
+      summary: Choose the format for a CSV file by its header
+      tags:
+        - Import
+      security:
+        - session: []
+        - device: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                  maxLength: 20000000
+              required:
+                - content
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  format:
+                    description: The format to read the file with
+                    $ref: "#/components/schemas/ImportFormatDefinition"
+                  formatKey:
+                    description: The stored format chosen by the header; null for the automatic column assignment
+                    type:
+                      - string
+                      - "null"
+                required:
+                  - format
+                  - formatKey
                 additionalProperties: false
         default:
           description: Error

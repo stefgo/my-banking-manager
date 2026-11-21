@@ -126,6 +126,9 @@ function chooseFormat(db: Db, content: string, selection: ImportSelection): { fo
     return { format: formatFromColumns(guessColumns(header), header), formatKey: null };
 }
 
+/** The format for a file by its header, before an account is chosen. */
+export const detectImportFormat = (db: Db, content: string): { format: ImportFormatDefinition; formatKey: string | null } => chooseFormat(db, content, {});
+
 function plan(db: Db, accountId: number, content: string, selection: ImportSelection): { header: string[]; columns: ColumnMap; format: ImportFormatDefinition; formatKey: string | null; rows: Planned[] } {
     requireAccount(db, accountId);
     const { format, formatKey } = chooseFormat(db, content, selection);
@@ -292,10 +295,15 @@ export function commitImport(
     userId: number | null,
     createCategories = false,
     overwriteCategories = false,
-): { importId: number; imported: number; skipped: number; invalid: number; createdCategories: number; recategorized: number; bookingTextsFilled: number; detailsFilled: number; filled: number } {
+    excludeLines: readonly number[] = [],
+): { importId: number; imported: number; skipped: number; invalid: number; createdCategories: number; recategorized: number; bookingTextsFilled: number; detailsFilled: number; filled: number; excluded: number } {
+    // Left out only after the plan: each stored booking still covers its one equal row of the file
     const p = plan(db, accountId, content, selection);
-    const fresh = p.rows.filter((r) => r.state === "new");
-    const differing = overwriteCategories ? p.rows.filter((r) => r.categoryState === "differs") : [];
+    const left = new Set(excludeLines);
+    const kept = p.rows.filter((r) => !left.has(r.line));
+    const excluded = p.rows.filter((r) => left.has(r.line) && (r.state === "new" || r.fillsBookingText || r.fillsDetails || (overwriteCategories && r.categoryState === "differs"))).length;
+    const fresh = kept.filter((r) => r.state === "new");
+    const differing = overwriteCategories ? kept.filter((r) => r.categoryState === "differs") : [];
     let createdCategories = 0;
     if (createCategories) {
         // The file decides over the rules for the categories it names
@@ -348,7 +356,7 @@ export function commitImport(
     // Only an empty kind of booking is filled in, one already stored stays
     const fillBookingText = db.prepare("UPDATE transactions SET booking_text = ? WHERE id = ? AND booking_text = ''");
     let bookingTextsFilled = 0;
-    for (const r of p.rows) {
+    for (const r of kept) {
         if (r.fillsBookingText && r.storedId !== null) bookingTextsFilled += fillBookingText.run(r.bookingText, r.storedId).changes;
     }
     // The same for the details; a value from a file never becomes the end-to-end ID of a transfer
@@ -361,11 +369,11 @@ export function commitImport(
          WHERE id = ?`,
     );
     let detailsFilled = 0;
-    for (const r of p.rows) {
+    for (const r of kept) {
         if (r.fillsDetails && r.storedId !== null) detailsFilled += fillDetails.run(r.reference, r.mandateId, r.creditorId, r.counterpartyBic, r.storedId).changes;
     }
-    const filled = p.rows.filter((r) => r.storedId !== null && (r.fillsBookingText || r.fillsDetails)).length;
-    return { importId, imported: fresh.length, skipped, invalid, createdCategories, recategorized, bookingTextsFilled, detailsFilled, filled };
+    const filled = kept.filter((r) => r.storedId !== null && (r.fillsBookingText || r.fillsDetails)).length;
+    return { importId, imported: fresh.length, skipped, invalid, createdCategories, recategorized, bookingTextsFilled, detailsFilled, filled, excluded };
 }
 
 export function listImports(db: Db): ImportRecord[] {
