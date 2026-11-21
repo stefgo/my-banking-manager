@@ -165,8 +165,12 @@ export function Choice<T extends string>({
     );
 }
 
-/** Symbol and colour chooser. `inheritColor` offers "wie Hauptkategorie". */
+/**
+ * Symbol and colour chooser. `inheritColor` offers "wie Hauptkategorie". `side="right"` suits rows
+ * in a tall list: beside its anchor the popover can shift vertically to stay in the window.
+ */
 export function StylePicker({
+    side = "bottom",
     trigger,
     name,
     kindName,
@@ -177,6 +181,7 @@ export function StylePicker({
     open,
     onOpenChange,
 }: {
+    side?: "bottom" | "right";
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
     trigger: ReactNode;
@@ -201,7 +206,7 @@ export function StylePicker({
             {/* Controlled from a menu: the symbol is only the anchor, a click on it does not open */}
             {open === undefined ? <Popover.Trigger asChild>{trigger}</Popover.Trigger> : <Popover.Anchor asChild>{trigger}</Popover.Anchor>}
             <Popover.Portal>
-                <Popover.Content className="pop-content" align="start" sideOffset={6} collisionPadding={12}>
+                <Popover.Content className="pop-content" side={side} align="start" sideOffset={6} collisionPadding={12}>
                     <div className="pop sty" role="dialog" aria-label="Symbol und Farbe">
                         <div className="sty-head">
                             <Tile icon={icon} color={eff} size={20} />

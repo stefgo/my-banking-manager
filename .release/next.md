@@ -41,3 +41,5 @@ Nothing inside an HTML comment is published.
 - **Bankzugang einrichten:** Der Schritt „TAN-Verfahren wählen“ erklärt jetzt, wozu die Auswahl
   dient, kennzeichnet das empfohlene Verfahren und sagt, wann die Bank nach einem Gerät oder einer
   Freigabe fragt.
+- **Symbol und Farbe:** Das Fenster bleibt immer ganz im Browserfenster. In der Seitenleiste öffnet
+  es sich jetzt neben dem Symbol statt darunter.

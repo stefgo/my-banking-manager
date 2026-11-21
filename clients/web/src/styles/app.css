@@ -904,7 +904,7 @@ button.ctx-ic:hover, button.ctx-ic:focus-visible { box-shadow: inset 0 0 0 1.5px
 .grp-row > span:nth-child(2) { min-width: 0; }
 
 /* Symbol and colour chooser */
-.pop.sty { width: 344px; max-height: min(560px, 80vh); grid-template-rows: auto auto auto minmax(0, 1fr); }
+.pop.sty { width: 344px; max-height: min(560px, 80vh, var(--radix-popover-content-available-height, 80vh)); grid-template-rows: auto auto auto minmax(0, 1fr); }
 .sty-head { display: flex; align-items: center; gap: 12px; padding: 14px 14px 10px; }
 .sty-head .acc-ic { width: 40px; height: 40px; border-radius: 12px; }
 .sty-head b { display: block; font-size: 14px; font-weight: 600; }
