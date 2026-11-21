@@ -15,7 +15,8 @@ Offline-Konto.
    DKB, ING, PayPal und verbreiteter Finanzprogramme) selbst. Passt eine Zuordnung nicht, änderst
    du sie in der Vorschau.
 4. **Vorschau ansehen:** Jede Zeile ist *neu*, *doppelt* oder *ungültig* (mit Grund). Nur neue
-   Zeilen werden übernommen.
+   Zeilen werden übernommen; bei doppelten kannst du die Kategorie aus der Datei übernehmen
+   ([abweichende Kategorien](#abweichende-kategorien)).
 5. **Importieren.**
 
 ## Doppelte Umsätze
@@ -30,11 +31,24 @@ aufbereiten. So kannst du dieselbe Datei auch zweimal importieren, ohne etwas do
 Hat die Datei eine Kategorie-Spalte (etwa `Wohnen\Miete`), übernimmt MBM sie. Fehlende Kategorien
 legt es auf Wunsch an. Zeilen ohne Kategorie laufen durch die [Regeln](kategorien-regeln.md#regeln).
 
+### Abweichende Kategorien
+
+Nennt die Datei bei einem Umsatz, den es schon gibt, eine andere Kategorie, zeigt die Vorschau
+„Kategorie abweichend“ und darunter `bisher: … → Datei: …`. Unten im Dialog wählst du
+**Kategorie bei … vorhandenen Umsätzen überschreiben**; dann bekommen diese Umsätze die Kategorie
+aus der Datei, als hättest du sie von Hand vergeben. Regeln ändern sie danach nicht mehr.
+
+- Fehlt die Kategorie der Datei noch, wird sie nur übernommen, wenn du auch **Fehlende Kategorien
+  anlegen** wählst.
+- Aufgeteilte Buchungen bleiben, wie sie sind („aufgeteilt, bleibt“).
+- Zeilen ohne Kategorie in der Datei ändern nichts.
+
 ## Rückgängig machen
 
 Unter **Einstellungen → Importe** steht jeder Import mit Datei, Zeitpunkt, Benutzer und Anzahl;
 über **CSV importieren** startest du dort auch einen neuen.
-„Rückgängig“ löscht die Umsätze dieses Imports, die noch da sind.
+„Rückgängig“ löscht die Umsätze dieses Imports, die noch da sind. Kategorien, die der Import bei
+vorhandenen Umsätzen geändert hat, bleiben geändert.
 
 ![Einstellungen, Importe: ein Import mit Datei und Anzahl](../assets/screenshots/einstellungen-importe-dark.png)
 

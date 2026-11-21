@@ -717,14 +717,14 @@ describe("CSV import", () => {
         // One equal booking already exists: only the second baker row is new
         await api("POST", `/api/accounts/${cash.id}/transactions`, { bookingDate: "2026-10-02", amount: -1250, counterpartyName: "BÄCKEREI HUBER", remittance: "Brot, Umsatzart: Lastschrift" });
         const preview = await api<ImportPreview>("POST", `/api/accounts/${cash.id}/import/preview`, { fileName: "x.csv", content: CSV });
-        expect(preview.body.counts).toEqual({ new: 2, duplicate: 1, invalid: 1 });
+        expect(preview.body.counts).toEqual({ new: 2, duplicate: 1, invalid: 1, differs: 0 });
         const rent = (await api<CategoryList>("GET", "/api/categories")).body.items.find((c) => c.name === "Miete")!;
         expect(preview.body.rows[0]!.categoryId).toBe(rent.id);
 
         const result = await api<{ importId: number; imported: number }>("POST", `/api/accounts/${cash.id}/import`, { fileName: "x.csv", content: CSV });
         expect(result.body).toMatchObject({ imported: 2, skipped: 1, invalid: 1 });
         const again = await api<ImportPreview>("POST", `/api/accounts/${cash.id}/import/preview`, { fileName: "x.csv", content: CSV });
-        expect(again.body.counts).toEqual({ new: 0, duplicate: 3, invalid: 1 });
+        expect(again.body.counts).toEqual({ new: 0, duplicate: 3, invalid: 1, differs: 0 });
 
         await api("DELETE", `/api/imports/${result.body.importId}`);
         expect((await api<TransactionList>("GET", "/api/transactions?range=all")).body.count).toBe(1);
@@ -849,6 +849,76 @@ describe("CSV import", () => {
         expect(named("Hobby").parentId).toBeNull();
         expect(named("Rad").parentId).toBe(named("Hobby").id);
         expect(named("Ersatzteile").parentId).toBe(named("Rad").id);
+    });
+
+    it("shows differing categories of stored bookings and overwrites them only when asked", async () => {
+        const { api } = await setUpSignedIn(t);
+        const acc = (await api<Account>("POST", "/api/accounts", { name: "Kasse" })).body;
+        const cats = (await api<CategoryList>("GET", "/api/categories")).body.items;
+        const rent = cats.find((c) => c.name === "Miete")!;
+        const market = cats.find((c) => c.name === "Supermarkt")!;
+        const book = async (date: string, amount: number, name: string, categoryId: number | null) =>
+            (await api<Transaction>("POST", `/api/accounts/${acc.id}/transactions`, { bookingDate: date, amount, counterpartyName: name, categoryId })).body.id;
+        const same = await book("2026-10-01", -95000, "Hausverwaltung", rent.id);
+        const other = await book("2026-10-02", -1250, "Bäckerei", rent.id);
+        const none = await book("2026-10-03", -2000, "Markt", null);
+        const split = await book("2026-10-04", -3000, "Kaufhaus", market.id);
+        const missing = await book("2026-10-05", -500, "Giro", null);
+        const plain = await book("2026-10-06", -700, "Kiosk", rent.id);
+        // Split bookings have no route yet: two shares straight in the database
+        const db = t.vault.database;
+        db.prepare("UPDATE transaction_categories SET amount = -1000 WHERE transaction_id = ?").run(split);
+        db.prepare("INSERT INTO transaction_categories (transaction_id, category_id, amount, source) VALUES (?, ?, -2000, 'manual')").run(split, rent.id);
+        const file = [
+            "Datum;Kategorie;Name;Betrag",
+            "01.10.2026;Wohnen\\Miete;Hausverwaltung;-950,00",
+            "02.10.2026;Supermarkt;Bäckerei;-12,50",
+            "03.10.2026;Supermarkt;Markt;-20,00",
+            "04.10.2026;Supermarkt;Kaufhaus;-30,00",
+            "05.10.2026;Tierheim;Giro;-5,00",
+            "06.10.2026;;Kiosk;-7,00",
+            "07.10.2026;Supermarkt;Neu;-1,00",
+        ].join("\n");
+
+        const preview = (await api<ImportPreview>("POST", `/api/accounts/${acc.id}/import/preview`, { fileName: "x.csv", content: file })).body;
+        expect(preview.counts).toEqual({ new: 1, duplicate: 6, invalid: 0, differs: 3 });
+        expect(preview.rows.map((r) => r.categoryState)).toEqual(["same", "differs", "differs", "split", "differs", null, null]);
+        expect(preview.rows.map((r) => r.storedCategoryId)).toEqual([rent.id, rent.id, null, null, null, rent.id, null]);
+        expect(preview.rows[1]!.categoryId).toBe(market.id);
+        expect(preview.rows[4]).toMatchObject({ categoryId: null, newCategory: "Tierheim" });
+        expect(preview.newCategories).toEqual(["Tierheim"]);
+
+        const categoryOf = (id: number) => db.prepare("SELECT category_id AS categoryId, source FROM transaction_categories WHERE transaction_id = ? ORDER BY category_id").all(id);
+        const before = [same, other, none, split, missing, plain].map(categoryOf);
+        // Without the option nothing stored changes
+        const first = (await api<{ importId: number; recategorized: number }>("POST", `/api/accounts/${acc.id}/import`, { fileName: "x.csv", content: file })).body;
+        expect(first.recategorized).toBe(0);
+        expect([same, other, none, split, missing, plain].map(categoryOf)).toEqual(before);
+        await api("DELETE", `/api/imports/${first.importId}`);
+
+        // With it, but without creating categories: the missing one stays
+        const second = (await api<{ importId: number; recategorized: number; createdCategories: number }>("POST", `/api/accounts/${acc.id}/import`, { fileName: "x.csv", content: file, overwriteCategories: true })).body;
+        expect(second).toMatchObject({ recategorized: 2, createdCategories: 0 });
+        expect(categoryOf(other)).toEqual([{ categoryId: market.id, source: "manual" }]);
+        expect(categoryOf(none)).toEqual([{ categoryId: market.id, source: "manual" }]);
+        expect(categoryOf(split)).toEqual(before[3]);
+        expect(categoryOf(missing)).toEqual([]);
+        expect(categoryOf(plain)).toEqual(before[5]);
+        // Undoing the import leaves the changed categories
+        await api("DELETE", `/api/imports/${second.importId}`);
+        expect(categoryOf(other)).toEqual([{ categoryId: market.id, source: "manual" }]);
+
+        const third = (await api<{ recategorized: number; createdCategories: number }>("POST", `/api/accounts/${acc.id}/import`, {
+            fileName: "x.csv",
+            content: file,
+            overwriteCategories: true,
+            createCategories: true,
+        })).body;
+        expect(third).toMatchObject({ recategorized: 1, createdCategories: 1 });
+        const created = (await api<CategoryList>("GET", "/api/categories")).body.items.find((c) => c.name === "Tierheim")!;
+        expect(categoryOf(missing)).toEqual([{ categoryId: created.id, source: "manual" }]);
+        const log = (await api<ActivityEntry[]>("GET", "/api/activity")).body;
+        expect(log.find((e) => e.action === "import")?.details).toBe("x.csv: 1 neu, 6 schon vorhanden, 1 Kategorien angelegt, 1 Kategorien geändert");
     });
 
     it("counts imported bookings of any date into the balance, starting from the opening balance", async () => {

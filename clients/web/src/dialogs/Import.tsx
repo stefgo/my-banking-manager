@@ -14,6 +14,11 @@ import { Picker, PickerButton } from "../components/pickers";
 import { accountPickItems } from "../components/pickItems";
 import { decodeCsv } from "../lib/decode";
 
+type Row = ImportPreview["rows"][number];
+
+/** A stored booking whose file names another category. */
+const differs = (r: Row): boolean => r.categoryState === "differs";
+
 /** Imports a CSV file; without `accountId` the account is chosen first. */
 export function ImportDialog({ accountId: initial }: { accountId?: number }) {
     const accountsData = useAccounts().data;
@@ -30,6 +35,7 @@ export function ImportDialog({ accountId: initial }: { accountId?: number }) {
     const [error, setError] = useState("");
     const [over, setOver] = useState(false);
     const [createCategories, setCreateCategories] = useState(false);
+    const [overwriteCategories, setOverwriteCategories] = useState(false);
     const action = useAction();
 
     // Only the answer to the latest request counts: an earlier one may arrive after it
@@ -67,22 +73,46 @@ export function ImportDialog({ accountId: initial }: { accountId?: number }) {
 
     const commit = async () => {
         if (!file || accountId === undefined) return;
-        const r = await action.run(() => call(routes.importCommit, { params: { id: accountId }, body: { fileName: file.name, content: file.content, columns, createCategories: create } }), {
+        const r = await action.run(() => call(routes.importCommit, { params: { id: accountId }, body: { fileName: file.name, content: file.content, columns, createCategories: create, overwriteCategories: overwrite } }), {
             topics: ["accounts", "transactions", "categories", "imports"],
             ok: (res) =>
                 `${plural(res.imported, "Umsatz", "Umsätze")} importiert${res.skipped ? ` · ${res.skipped} übersprungen` : ""}` +
-                (res.createdCategories ? ` · ${plural(res.createdCategories, "Kategorie", "Kategorien")} angelegt` : ""),
+                (res.createdCategories ? ` · ${plural(res.createdCategories, "Kategorie", "Kategorien")} angelegt` : "") +
+                (res.recategorized ? ` · ${plural(res.recategorized, "Kategorie", "Kategorien")} geändert` : ""),
         });
         if (r) ui.close();
     };
 
     const fresh = preview?.counts.new ?? 0;
-    const missing = preview?.newCategories ?? [];
+    const rows = preview?.rows ?? [];
+    const differing = rows.filter(differs);
+    const overwrite = overwriteCategories && differing.length > 0;
+    // Missing categories of rows that will be written: new ones, and differing ones when overwritten
+    const missing = [...new Set(rows.filter((r) => r.newCategory && (r.state === "new" || (overwrite && differs(r)))).map((r) => r.newCategory!))];
     const create = createCategories && missing.length > 0;
-    const rowCategory = (r: ImportPreview["rows"][number]): string => {
+    const changes = overwrite ? differing.filter((r) => r.categoryId !== null || (create && r.newCategory)).length : 0;
+    const blocked = overwrite && differing.length > changes;
+    const fileCategory = (r: Row): string => (r.categoryId ? categoryPath(index, r.categoryId) : `${r.newCategory} (${create ? "neu" : "fehlt"})`);
+    const rowCategory = (r: Row): string => {
+        if (differs(r)) return `bisher: ${r.storedCategoryId ? categoryPath(index, r.storedCategoryId) : "ohne Kategorie"} → Datei: ${fileCategory(r)} · `;
+        if (r.state === "duplicate") return "";
         if (create && r.newCategory) return `neu: ${r.newCategory} · `;
         return r.categoryId ? `${categoryPath(index, r.categoryId)} · ` : "";
     };
+    const rowState = (r: Row): string => {
+        if (r.state === "invalid") return "unlesbar";
+        if (r.state === "new") return r.pending ? "neu · vorgemerkt" : "neu";
+        if (r.categoryState === "split") return "aufgeteilt, bleibt";
+        if (!differs(r)) return "schon vorhanden";
+        return overwrite && (r.categoryId !== null || (create && r.newCategory)) ? "Kategorie wird geändert" : "Kategorie abweichend";
+    };
+    const duplicates = preview?.counts.duplicate ?? 0;
+    const duplicateText = !duplicates
+        ? ""
+        : changes
+          ? ` · ${duplicates} schon vorhanden, bei ${changes} davon wird die Kategorie geändert`
+          : ` · ${duplicates} schon vorhanden, werden übersprungen${differing.length ? ` (${differing.length} mit abweichender Kategorie)` : ""}`;
+    const actionText = [fresh ? `${plural(fresh, "Umsatz", "Umsätze")} importieren` : "", changes ? `${plural(changes, "Kategorie", "Kategorien")} ändern` : ""].filter(Boolean).join(", ");
 
     return (
         <Modal title={`Umsätze importieren${account ? ` · ${account.name}` : ""}`} onClose={() => ui.close()} wide={!!preview}>
@@ -159,14 +189,14 @@ export function ImportDialog({ accountId: initial }: { accountId?: number }) {
                     </div>
                     <div className="imp-prev">
                         {preview.rows.map((r) => (
-                            <div key={r.line} className={`imp-row ${r.state === "duplicate" ? "dup" : r.state === "invalid" ? "bad" : ""}`} title={r.error ?? undefined}>
+                            <div key={r.line} className={`imp-row ${differs(r) ? "diff" : r.state === "duplicate" ? "dup" : r.state === "invalid" ? "bad" : ""}`} title={r.error ?? undefined}>
                                 <span>{r.date ? dateText(r.date) : "?"}</span>
                                 <span>
                                     {r.name || "—"}
                                     <small>{rowCategory(r)}{r.purpose}</small>
                                 </span>
                                 <span className="amt">{r.amount !== null ? fmtSigned(r.amount) : "?"}</span>
-                                <small>{r.state === "duplicate" ? "schon vorhanden" : r.state === "invalid" ? "unlesbar" : r.pending ? "neu · vorgemerkt" : "neu"}</small>
+                                <small>{rowState(r)}</small>
                             </div>
                         ))}
                     </div>
@@ -179,12 +209,19 @@ export function ImportDialog({ accountId: initial }: { accountId?: number }) {
                             </span>
                         </label>
                     )}
+                    {differing.length > 0 && (
+                        <label className="check-row">
+                            <input type="checkbox" checked={overwriteCategories} onChange={(e) => setOverwriteCategories(e.target.checked)} />
+                            <span>Kategorie bei {plural(differing.length, "vorhandenem Umsatz", "vorhandenen Umsätzen")} überschreiben</span>
+                        </label>
+                    )}
                     {error && <Hint tone="bad">{error}</Hint>}
                     <p className="hint">
                         {fresh} neu
-                        {preview.counts.duplicate ? ` · ${preview.counts.duplicate} schon vorhanden, werden übersprungen` : ""}
+                        {duplicateText}
                         {preview.counts.invalid ? ` · ${preview.counts.invalid} unlesbar` : ""}.{" "}
                         {create ? "Kategorien kommen aus der Datei, fehlende werden angelegt; sonst greifen die Regeln." : "Kategorien kommen aus der Datei oder von den Regeln."}
+                        {blocked ? " Fehlende Kategorien vorhandener Umsätze werden nur mit „Fehlende Kategorien anlegen“ übernommen." : ""}
                     </p>
                     <div className="actions">
                         <button
@@ -197,12 +234,13 @@ export function ImportDialog({ accountId: initial }: { accountId?: number }) {
                                 setFile(null);
                                 setColumns(undefined);
                                 setCreateCategories(false);
+                                setOverwriteCategories(false);
                             }}
                         >
                             Andere Datei
                         </button>
-                        <Button className="btn-primary" busy={action.pending} disabled={!fresh || busy} icon={Check} onClick={() => void commit()}>
-                            {plural(fresh, "Umsatz", "Umsätze")} importieren
+                        <Button className="btn-primary" busy={action.pending} disabled={(!fresh && !changes) || busy} icon={Check} onClick={() => void commit()}>
+                            {actionText || `${plural(0, "Umsatz", "Umsätze")} importieren`}
                         </Button>
                     </div>
                 </>

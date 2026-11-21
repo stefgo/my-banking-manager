@@ -376,6 +376,7 @@ export const ImportRequest = z.object({
     content: z.string().max(20_000_000),
     columns: ColumnMapSchema.optional(),
     createCategories: z.boolean().optional().describe("Create the categories the file names but that do not exist yet"),
+    overwriteCategories: z.boolean().optional().describe("Give bookings already stored the category the file names where it differs; split bookings stay as they are"),
 });
 
 export const ImportPreviewRow = z.object({
@@ -386,9 +387,14 @@ export const ImportPreviewRow = z.object({
     iban: z.string().nullable(),
     purpose: z.string(),
     pending: z.boolean(),
-    categoryId: Id.nullable(),
+    categoryId: Id.nullable().describe("Category the row gets; for a duplicate the category the file names"),
     newCategory: z.string().nullable().describe("Category named by the file that does not exist yet (\"Parent › Child › …\")"),
     state: z.enum(["new", "duplicate", "invalid"]),
+    storedCategoryId: Id.nullable().describe("Duplicate: the category of the booking already stored"),
+    categoryState: z
+        .enum(["same", "differs", "split"])
+        .nullable()
+        .describe("Duplicate whose file names a category: same as the stored booking, differs from it, or the stored booking is split (never overwritten)"),
     error: z.string().nullable(),
 });
 
@@ -396,8 +402,8 @@ export const ImportPreview = z.object({
     header: z.array(z.string()),
     columns: ColumnMapSchema,
     rows: z.array(ImportPreviewRow),
-    newCategories: z.array(z.string()).describe("Missing categories named by the new rows of the file"),
-    counts: z.object({ new: z.number().int(), duplicate: z.number().int(), invalid: z.number().int() }),
+    newCategories: z.array(z.string()).describe("Missing categories named by the new rows and the duplicates with a differing category"),
+    counts: z.object({ new: z.number().int(), duplicate: z.number().int(), invalid: z.number().int(), differs: z.number().int().describe("Duplicates with a differing category") }),
 });
 export type ImportPreview = z.infer<typeof ImportPreview>;
 
@@ -407,6 +413,7 @@ export const ImportResult = z.object({
     skipped: z.number().int(),
     invalid: z.number().int(),
     createdCategories: z.number().int(),
+    recategorized: z.number().int().describe("Bookings already stored that got the category of the file"),
 });
 
 export const ImportRecord = z.object({

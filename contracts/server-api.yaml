@@ -6345,6 +6345,9 @@ paths:
                 createCategories:
                   description: Create the categories the file names but that do not exist yet
                   type: boolean
+                overwriteCategories:
+                  description: Give bookings already stored the category the file names where it differs; split bookings stay as they are
+                  type: boolean
               required:
                 - fileName
                 - content
@@ -6456,6 +6459,7 @@ paths:
                               exclusiveMinimum: 0
                               maximum: 9007199254740991
                             - type: "null"
+                          description: Category the row gets; for a duplicate the category the file names
                         newCategory:
                           description: Category named by the file that does not exist yet ("Parent › Child › …")
                           type:
@@ -6467,6 +6471,22 @@ paths:
                             - new
                             - duplicate
                             - invalid
+                        storedCategoryId:
+                          anyOf:
+                            - type: integer
+                              exclusiveMinimum: 0
+                              maximum: 9007199254740991
+                            - type: "null"
+                          description: "Duplicate: the category of the booking already stored"
+                        categoryState:
+                          anyOf:
+                            - type: string
+                              enum:
+                                - same
+                                - differs
+                                - split
+                            - type: "null"
+                          description: "Duplicate whose file names a category: same as the stored booking, differs from it, or the stored booking is split (never overwritten)"
                         error:
                           type:
                             - string
@@ -6482,13 +6502,15 @@ paths:
                         - categoryId
                         - newCategory
                         - state
+                        - storedCategoryId
+                        - categoryState
                         - error
                       additionalProperties: false
                   newCategories:
                     type: array
                     items:
                       type: string
-                    description: Missing categories named by the new rows of the file
+                    description: Missing categories named by the new rows and the duplicates with a differing category
                   counts:
                     type: object
                     properties:
@@ -6504,10 +6526,16 @@ paths:
                         type: integer
                         minimum: -9007199254740991
                         maximum: 9007199254740991
+                      differs:
+                        type: integer
+                        minimum: -9007199254740991
+                        maximum: 9007199254740991
+                        description: Duplicates with a differing category
                     required:
                       - new
                       - duplicate
                       - invalid
+                      - differs
                     additionalProperties: false
                 required:
                   - header
@@ -6615,6 +6643,9 @@ paths:
                 createCategories:
                   description: Create the categories the file names but that do not exist yet
                   type: boolean
+                overwriteCategories:
+                  description: Give bookings already stored the category the file names where it differs; split bookings stay as they are
+                  type: boolean
               required:
                 - fileName
                 - content
@@ -6646,12 +6677,18 @@ paths:
                     type: integer
                     minimum: -9007199254740991
                     maximum: 9007199254740991
+                  recategorized:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                    description: Bookings already stored that got the category of the file
                 required:
                   - importId
                   - imported
                   - skipped
                   - invalid
                   - createdCategories
+                  - recategorized
                 additionalProperties: false
         default:
           description: Error
