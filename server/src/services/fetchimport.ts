@@ -15,7 +15,7 @@ import { createHash } from "node:crypto";
 import type { ConnectorBalance, ConnectorTransaction } from "@mbm/shared";
 import type { Db } from "../db/database.js";
 import { activeRules, firstMatch } from "./rules.js";
-import { queryTargets } from "./querytarget.js";
+import { queryTargets, type QueryRow } from "./querytarget.js";
 import { counterDefaultCategoryId } from "./transactions.js";
 import { linkBookedTransfers } from "./transfers.js";
 import { markNew, markNewFor } from "./unread.js";
@@ -80,17 +80,18 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
 
         const existing = new Set((db.prepare("SELECT fingerprint FROM transactions WHERE account_id = ? AND fingerprint IS NOT NULL").all(accountId) as { fingerprint: string }[]).map((r) => r.fingerprint));
         const insertTx = db.prepare(
-            `INSERT INTO transactions (account_id, fingerprint, booking_date, value_date, amount, currency, counterparty_name, counterparty_iban, remittance, end_to_end_id, status, raw, first_seen_at, source, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bank', ?)`,
+            `INSERT INTO transactions (account_id, fingerprint, booking_date, value_date, amount, currency, counterparty_name, ultimate_party, counterparty_iban, remittance, end_to_end_id, booking_text, status, raw, first_seen_at, source, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bank', ?)`,
         );
+        const rawOf = (t: ConnectorTransaction) => JSON.stringify({ bookingText: t.bookingText, mandateId: t.mandateId, creditorId: t.creditorId, bankReference: t.bankReference, counterpartyBic: t.counterpartyBic });
         const insertCat = db.prepare("INSERT INTO transaction_categories (transaction_id, category_id, amount, source, rule_id) VALUES (?, ?, ?, ?, ?)");
 
         const newIds: number[] = [];
         let newBooked = 0;
         const insert = (t: ConnectorTransaction, fp: string, carried: OldPending | undefined) => {
-            const raw = JSON.stringify({ bookingText: t.bookingText, mandateId: t.mandateId, creditorId: t.creditorId, bankReference: t.bankReference, counterpartyBic: t.counterpartyBic });
             const id = Number(
-                insertTx.run(accountId, fp, t.bookingDate, t.valueDate, t.amount, t.currency, t.counterpartyName, t.counterpartyIban, t.remittance, t.endToEndId, t.status, raw, now, userId).lastInsertRowid,
+                insertTx.run(accountId, fp, t.bookingDate, t.valueDate, t.amount, t.currency, t.counterpartyName, t.ultimateParty, t.counterpartyIban, t.remittance, t.endToEndId, t.bookingText, t.status, rawOf(t), now, userId)
+                    .lastInsertRowid,
             );
             if (carried?.category_id) insertCat.run(id, carried.category_id, t.amount, carried.category_source ?? "manual", null);
             if (carried) markNewFor(db, id, carried.unreadBy);
@@ -146,8 +147,8 @@ function categorize(db: Db, ids: number[]): void {
     if (ids.length === 0) return;
     const uncategorized = (id: number) => !db.prepare("SELECT 1 FROM transaction_categories WHERE transaction_id = ?").get(id);
     const rows = db
-        .prepare(`SELECT id, account_id, booking_date, amount, counterparty_name, counterparty_iban, remittance, NULL AS category_id FROM transactions WHERE id IN (${ids.map(() => "?").join(",")})`)
-        .all(...ids) as { id: number; account_id: number; booking_date: string; amount: number; counterparty_name: string; counterparty_iban: string | null; remittance: string; category_id: null }[];
+        .prepare(`SELECT id, account_id, booking_date, amount, counterparty_name, ultimate_party, counterparty_iban, remittance, NULL AS category_id FROM transactions WHERE id IN (${ids.map(() => "?").join(",")})`)
+        .all(...ids) as (QueryRow & { id: number })[];
     const rules = activeRules(db);
     const target = queryTargets(db);
     const insertCat = db.prepare("INSERT INTO transaction_categories (transaction_id, category_id, amount, source, rule_id) VALUES (?, ?, ?, ?, ?)");

@@ -25,8 +25,10 @@ interface TxRow {
     value_date: string | null;
     amount: number;
     counterparty_name: string;
+    ultimate_party: string;
     counterparty_iban: string | null;
     remittance: string;
+    booking_text: string;
     status: "booked" | "pending";
     source: "bank" | "manual" | "import";
     import_id: number | null;
@@ -56,8 +58,10 @@ export const toTransaction = (r: TxRow): Transaction => ({
     amount: r.amount,
     currency: "EUR",
     counterpartyName: r.counterparty_name,
+    ultimateParty: r.ultimate_party,
     counterpartyIban: r.counterparty_iban,
     remittance: r.remittance,
+    bookingText: r.booking_text,
     status: r.status,
     source: r.source,
     importId: r.import_id,

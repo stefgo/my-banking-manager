@@ -3,7 +3,7 @@ import type { Transaction } from "@mbm/shared";
 import { buildRows, listOrder } from "./rows";
 
 const tx = (id: number, date: string, amount: number, status: "booked" | "pending" = "booked"): Transaction => ({
-    id, accountId: 1, bookingDate: date, valueDate: date, amount, currency: "EUR", counterpartyName: `T${id}`, counterpartyIban: null,
+    id, accountId: 1, bookingDate: date, valueDate: date, amount, currency: "EUR", counterpartyName: `T${id}`, ultimateParty: "", counterpartyIban: null, bookingText: "",
     remittance: "", status, source: "manual", importId: null, counterTransactionId: null, categoryId: null, categorySource: null, createdAt: "", unread: false,
 });
 

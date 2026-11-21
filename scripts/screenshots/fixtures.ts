@@ -174,6 +174,16 @@ interface Booking {
     iban?: string | null;
     pending?: boolean;
     counterOf?: number;
+    /** Booking text of the bank; by default guessed from the booking. */
+    bookingText?: string;
+}
+
+function bookingTextOf(b: Booking, kind: string): string {
+    if (b.bookingText) return b.bookingText;
+    if (kind === "credit_card") return "Kartenumsatz";
+    if (b.amount > 0) return "Gutschrift";
+    if (b.category === "Umbuchung") return "Überweisung";
+    return b.remittance.includes("Kartenzahlung") ? "Kartenzahlung" : "Lastschrift";
 }
 
 function book(b: Booking): Transaction | null {
@@ -188,8 +198,10 @@ function book(b: Booking): Transaction | null {
         amount: b.amount,
         currency: "EUR",
         counterpartyName: b.name,
+        ultimateParty: "",
         counterpartyIban: b.iban ?? null,
         remittance: b.remittance,
+        bookingText: bank ? bookingTextOf(b, seedAccount.kind) : "",
         status: b.pending ? "pending" : "booked",
         source: bank ? "bank" : "manual",
         importId: null,
@@ -328,6 +340,7 @@ function targetOf(t: Transaction) {
     const a = accounts.find((x) => x.id === t.accountId)!;
     return toTxQueryTarget({
         counterparty: t.counterpartyName,
+        ultimateParty: t.ultimateParty,
         remittance: t.remittance,
         iban: t.counterpartyIban,
         amount: t.amount,

@@ -10,6 +10,7 @@ export interface QueryRow {
     booking_date: string;
     amount: number;
     counterparty_name: string;
+    ultimate_party: string;
     counterparty_iban: string | null;
     remittance: string;
     category_id: number | null;
@@ -59,6 +60,7 @@ export function queryTargets(db: Db): (row: QueryRow) => TxQueryTarget {
     return (r) =>
         toTxQueryTarget({
             counterparty: r.counterparty_name,
+            ultimateParty: r.ultimate_party,
             remittance: r.remittance,
             iban: r.counterparty_iban,
             amount: r.amount,

@@ -314,6 +314,7 @@ function GroupRow({ node, depth, index, count, parentId, groups, accounts, searc
                             <Ic icon={ChevronDown} size={14} />
                         </button>
                         <StylePicker
+                            side="right"
                             open={styleOpen}
                             onOpenChange={setStyleOpen}
                             trigger={<span role="button" tabIndex={-1} style={{ display: "grid" }}><Tile icon={g.icon} color={g.color} /></span>}
@@ -386,6 +387,7 @@ function AccountRow({ account: a, depth, index, count, parentId, groups, account
                     {/* With groups around, the symbol lines up with theirs behind the toggle */}
                     {groups.length > 0 && <span className="tw ph" aria-hidden="true" />}
                     <StylePicker
+                        side="right"
                         open={styleOpen}
                         onOpenChange={setStyleOpen}
                         trigger={<span role="button" tabIndex={-1} title={a.kind === "offline" ? "Offline-Konto, ohne Abruf" : undefined} style={{ display: "grid" }}><Tile icon={a.icon} color={a.color} /></span>}
@@ -594,6 +596,7 @@ function CategoryRow({ c, idx, depth, position, count, search }: { c: Category; 
                             <Ic icon={ChevronDown} size={14} />
                         </button>
                         <StylePicker
+                            side="right"
                             open={styleOpen}
                             onOpenChange={setStyleOpen}
                             trigger={<span role="button" tabIndex={-1} style={{ display: "grid" }}><CatTile idx={idx} id={c.id} /></span>}

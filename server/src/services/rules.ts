@@ -54,7 +54,7 @@ interface TxRow extends QueryRow {
 }
 
 /** Bookings as rules see them: never with a category, since rules only give one to bookings without. */
-const TX_FOR_RULES = "SELECT t.id, t.account_id, t.booking_date, t.amount, t.counterparty_name, t.counterparty_iban, t.remittance, NULL AS category_id FROM transactions t";
+const TX_FOR_RULES = "SELECT t.id, t.account_id, t.booking_date, t.amount, t.counterparty_name, t.ultimate_party, t.counterparty_iban, t.remittance, NULL AS category_id FROM transactions t";
 
 /** Bookings the rule's query matches, whether it is active or not. */
 const countHits = (rule: RuleLike, txs: TxQueryTarget[]): number => {
@@ -165,6 +165,7 @@ export function previewRules(db: Db, ruleId?: number): RulePreview {
             bookingDate: row.booking_date,
             amount: row.amount,
             counterpartyName: row.counterparty_name,
+            ultimateParty: row.ultimate_party,
             remittance: row.remittance,
             categoryId: rule.categoryId,
             ruleId: rule.id,

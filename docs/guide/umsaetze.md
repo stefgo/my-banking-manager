@@ -24,7 +24,13 @@ oder mit **Alle als gelesen markieren** im Menü eines Kontos.
 ## Details eines Umsatzes
 
 Ein Klick auf einen Umsatz öffnet die Details daneben: Kategorie (mit der Angabe, ob eine Regel
-oder du sie gesetzt hast), Verwendungszweck, Daten, Konto und Herkunft.
+oder du sie gesetzt hast), Verwendungszweck, Umsatzart der Bank (etwa „Kartenzahlung“ oder
+„Lastschrift“), Daten, Konto und Herkunft.
+
+Bei Kartenzahlungen meldet die Bank als Gegenseite oft nur den Abwickler, etwa eine Landesbank, und
+den Händler als **abweichenden Empfänger**. MBM zeigt dann in Liste und Titel den Händler. In den
+Details steht der Abwickler als „Kontoinhaber“, ihm gehört die IBAN. Die Suche mit `gegenseite:` und
+Regeln finden den Umsatz unter beiden Namen.
 
 ![Die Details eines Umsatzes neben der Liste](../assets/screenshots/umsatz-details-dark.png)
 
@@ -56,7 +62,7 @@ Das ⓘ daneben zeigt die ganze Syntax.
 | `NICHT paypal` · `-paypal` | ohne dieses Wort |
 | `"rewe markt"` | genau diese Zeichenfolge |
 | `Test*strasse` · `M??er` | `*` beliebig viele, `?` genau ein Zeichen |
-| `gegenseite:rewe` · `zweck:miete` · `iban:DE89*` | nur in diesem Feld |
+| `gegenseite:rewe` · `zweck:miete` · `iban:DE89*` | nur in diesem Feld (Gegenseite: auch der abweichende Empfänger) |
 | `konto:giro` · `kategorie:Wohnen` | Konto oder Gruppe, Kategorie samt Unterkategorien |
 | `ist:neu` | nur neue Umsätze |
 | `>50` · `<=12,99` · `<-100` | Betrag; negativ heißt Ausgabe |

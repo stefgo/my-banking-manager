@@ -1053,6 +1053,9 @@ paths:
                                     - pending
                                 counterpartyName:
                                   type: string
+                                ultimateParty:
+                                  default: ""
+                                  type: string
                                 counterpartyIban:
                                   type:
                                     - string
@@ -1088,6 +1091,7 @@ paths:
                                 - currency
                                 - status
                                 - counterpartyName
+                                - ultimateParty
                                 - counterpartyIban
                                 - counterpartyBic
                                 - remittance
@@ -1298,6 +1302,9 @@ paths:
                                     - pending
                                 counterpartyName:
                                   type: string
+                                ultimateParty:
+                                  default: ""
+                                  type: string
                                 counterpartyIban:
                                   type:
                                     - string
@@ -1333,6 +1340,7 @@ paths:
                                 - currency
                                 - status
                                 - counterpartyName
+                                - ultimateParty
                                 - counterpartyIban
                                 - counterpartyBic
                                 - remittance

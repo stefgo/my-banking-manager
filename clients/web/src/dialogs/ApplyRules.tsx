@@ -4,7 +4,7 @@ import { routes, type RulePreview } from "@mbm/shared";
 import { call } from "../lib/api";
 import { useAccounts, useAction, useCategoryIndex } from "../lib/queries";
 import { categoryPath } from "../lib/tree";
-import { dateText, plural } from "../lib/format";
+import { dateText, partyName, plural } from "../lib/format";
 import { ui } from "../lib/ui";
 import { Amt, Hint, Modal, Button } from "../components/common";
 import { CatTile } from "../components/icons";
@@ -68,7 +68,7 @@ export function ApplyRulesDialog({ ruleId, created, preview }: { ruleId?: number
                             <input type="checkbox" checked={picked.has(m.transactionId)} onChange={() => toggle(m.transactionId)} />
                             <span>{dateText(m.bookingDate)}</span>
                             <span>
-                                {m.counterpartyName || "—"}
+                                {partyName(m) || "—"}
                                 <small>
                                     {accountName.get(m.accountId) ?? "Konto"}
                                     {m.remittance && ` · ${m.remittance}`}

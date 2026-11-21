@@ -68,6 +68,8 @@ export interface TxQueryTarget {
 
 export interface TxQueryInput {
     counterparty: string;
+    /** Ultimate party (e.g. the shop of a card payment); `gegenseite:` finds either name. */
+    ultimateParty?: string;
     remittance: string;
     iban: string | null;
     /** Cents, signed. */
@@ -89,7 +91,7 @@ const compact = (s: string | null) => foldText(s ?? "").replace(/ /g, "");
 
 export function toTxQueryTarget(t: TxQueryInput): TxQueryTarget {
     return {
-        counterparty: foldText(t.counterparty),
+        counterparty: foldText(t.ultimateParty ? `${t.ultimateParty} / ${t.counterparty}` : t.counterparty),
         remittance: foldText(t.remittance),
         iban: compact(t.iban),
         amountText: foldText(formatCents(Math.abs(t.amount))),

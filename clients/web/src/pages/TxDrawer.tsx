@@ -7,7 +7,7 @@ import { useAccounts, useAction, useCategoryIndex, useGroups, useRules, useTrans
 import { useStartTransfer } from "../lib/transfer";
 import { ruleCovers, ruleTarget } from "../lib/querytarget";
 import { categoryColor, categoryPath } from "../lib/tree";
-import { dateText, fmtSigned } from "../lib/format";
+import { dateText, fmtSigned, partyName } from "../lib/format";
 import { reviewRules } from "../lib/rules";
 import { copyText } from "../lib/clipboard";
 import { markTxs } from "../lib/unread";
@@ -58,7 +58,8 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
     const account = accounts.find((a) => a.id === tx.accountId);
     const offline = accounts.filter((a) => a.kind === "offline" && a.id !== tx.accountId);
     const c = tx.categoryId !== null ? index.byId.get(tx.categoryId) : undefined;
-    const name = tx.counterpartyName || tx.remittance || "Umsatz";
+    const party = partyName(tx);
+    const name = party || tx.remittance || "Umsatz";
     const rule: Rule | undefined = tx.categorySource === "rule" ? rules.find((r) => r.categoryId === tx.categoryId && r.active) : undefined;
     const by = tx.categorySource === "rule" ? `über Regel${rule ? ` „${rule.query}“` : ""}` : tx.categorySource === "auto" ? "automatisch erkannt" : tx.categorySource === "manual" ? "von Hand zugeordnet" : "";
 
@@ -66,7 +67,7 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
         const categoryId = v === "none" ? null : Number(v);
         const r = await action.run(() => call(routes.assignCategory, { body: { ids: [tx.id], categoryId } }), { topics: ["transactions", "categories"] });
         // Offer a rule when no active rule covers this booking yet
-        if (r && categoryId !== null && tx.counterpartyName && !ruleCovers(rules, ruleTarget(tx, accounts, groups))) {
+        if (r && categoryId !== null && party && !ruleCovers(rules, ruleTarget(tx, accounts, groups))) {
             setOffer(categoryId);
         }
     };
@@ -138,10 +139,12 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                                 {by && <span className="faint small">{by}</span>}
                             </>,
                         )}
-                        {tx.remittance && tx.counterpartyName && row("Verwendungszweck", tx.remittance)}
+                        {tx.remittance && party && row("Verwendungszweck", tx.remittance)}
+                        {tx.bookingText && row("Umsatzart", tx.bookingText)}
                         {row("Buchungstag", tx.status === "pending" ? `${dateText(tx.bookingDate)} · noch nicht gebucht` : dateText(tx.bookingDate))}
                         {tx.valueDate && tx.valueDate !== tx.bookingDate && row("Wertstellung", dateText(tx.valueDate))}
                         {row("Konto", account?.name ?? "")}
+                        {tx.ultimateParty && tx.counterpartyName && row("Kontoinhaber", tx.counterpartyName)}
                         {tx.counterpartyIban &&
                             row(
                                 "IBAN",
@@ -175,13 +178,13 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                     {offer !== null && (
                         <div className="offer">
                             <span>
-                                <Ic icon={Wand2} size={15} /> Für alle Umsätze von <b>„{tx.counterpartyName}“</b> merken? Neue Umsätze bekommen dann automatisch <b>{categoryPath(index, offer)}</b>.
+                                <Ic icon={Wand2} size={15} /> Für alle Umsätze von <b>„{party}“</b> merken? Neue Umsätze bekommen dann automatisch <b>{categoryPath(index, offer)}</b>.
                             </span>
                             <div className="row">
                                 <button
                                     className="btn btn-sm btn-primary"
                                     onClick={async () => {
-                                        const r = await action.run(() => call(routes.createRule, { body: { query: `gegenseite:${quoteTxQueryValue(tx.counterpartyName)}`, categoryId: offer } }), { topics: ["rules"] });
+                                        const r = await action.run(() => call(routes.createRule, { body: { query: `gegenseite:${quoteTxQueryValue(party)}`, categoryId: offer } }), { topics: ["rules"] });
                                         setOffer(null);
                                         if (r) await reviewRules({ ruleId: r.id, created: true });
                                     }}
