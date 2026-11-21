@@ -56,7 +56,7 @@ function FormatEditor({ format, formats }: { format: ImportFormat | null; format
     };
 
     const copy = async () => {
-        const saved = await action.run(() => call(routes.createImportFormat, { body: { name: copyName(format!.name, formats.map((f) => f.name)), definition: format!.definition } }), { topics: ["importFormats"], ok: "Format kopiert" });
+        const saved = await action.run(() => call(routes.createImportFormat, { body: { name: copyName(format!.name, formats.map((f) => f.name)), definition: format!.definition } }), { topics: ["importFormats"], ok: "Als neues Format gespeichert" });
         if (saved) void navigate({ to: "/import-format", search: { key: saved.key } });
     };
 
@@ -91,7 +91,7 @@ function FormatEditor({ format, formats }: { format: ImportFormat | null; format
                 )}
                 <span className="fmt-head-actions">
                     {readOnly ? (
-                        <Button className="btn-primary" icon={Copy} busy={action.pending} onClick={() => void copy()}>Als eigenes Format kopieren</Button>
+                        <Button className="btn-primary" icon={Copy} busy={action.pending} onClick={() => void copy()}>Als neues Format speichern</Button>
                     ) : (
                         <>
                             <button type="button" className="btn btn-ghost" disabled={!dirty} onClick={discard}>Verwerfen</button>
@@ -100,7 +100,7 @@ function FormatEditor({ format, formats }: { format: ImportFormat | null; format
                     )}
                 </span>
             </div>
-            {readOnly && <Hint>Standardformate sind schreibgeschützt. Kopiere das Format, um es zu ändern.</Hint>}
+            {readOnly && <Hint>Standardformate sind schreibgeschützt. Speichere das Format als neues Format, um es zu ändern.</Hint>}
             {(problem || error) && <Hint tone="bad">{error || problem}</Hint>}
             <FormatWorkbench
                 def={def}

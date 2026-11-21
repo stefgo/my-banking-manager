@@ -36,7 +36,7 @@ aufbereiten. So kannst du dieselbe Datei auch zweimal importieren, ohne etwas do
 
 Ein Format beschreibt, wie MBM eine Datei liest und welcher Wert in welches Feld kommt. Mitgeliefert
 sind die **Standardformate** „MoneyMoney (CSV)“ und „Sparkasse CSV-CAMT“. Sie lassen sich nicht
-ändern, du kannst sie aber als eigenes Format kopieren. Passen mehrere Formate zur Kopfzeile einer
+ändern, du kannst sie aber als neues Format speichern. Passen mehrere Formate zur Kopfzeile einer
 Datei, haben deine eigenen Vorrang.
 
 Formate bearbeitest du an zwei Stellen mit demselben Editor:
@@ -47,18 +47,19 @@ Formate bearbeitest du an zwei Stellen mit demselben Editor:
 - **Beim Import:** Im Schritt „Format“ passt du das Format für diese Datei an. Die Änderung gilt für
   diesen Import, bis du sie speicherst.
 
-Der Editor hat drei Bereiche, von denen immer einer geöffnet ist:
+Der Editor hat drei Bereiche, die zu Beginn alle aufgeklappt sind:
 
 - **Datei lesen:** Spaltentrenner (auch aus mehreren Zeichen) und Kopfzeile. Unter **Erweitert**
   stehen Kodierung, Anführungszeichen, Datumsform, Dezimalzeichen, der Trenner von Kategoriepfaden
   und die Wörter für „vorgemerkt“.
 - **Text zerlegen:** Bis zu fünf Stufen, die aufeinander aufbauen. Eine Stufe liest eine Spalte oder
   einen Teil einer früheren Stufe.
-- **Felder zuordnen:** Welche Spalte oder welcher Teil einer Stufe in welches Feld kommt, mit dem
-  Wert aus der Beispielzeile.
+- **Felder zuordnen:** Welche Spalte oder welcher Teil einer Stufe in welches Feld kommt. Auf
+  schmalen Bildschirmen steht der Wert aus der Beispielzeile direkt daneben.
 
-Daneben zeigt die **Beispielzeile**, was das Format aus einer Zeile der Datei macht. Mit den Pfeilen
-blätterst du durch die Datei.
+Daneben zeigt die **Beispielzeile**, was das Format aus einer Zeile der Datei macht. Unter **Aus der
+Datei** stehen die unveränderten Werte: die zerlegten Spalten direkt, alle anderen zum Aufklappen.
+Unter **Ergebnis** steht, was MBM daraus importiert. Mit den Pfeilen blätterst du durch die Datei.
 
 ![Format-Editor: Einrichtung links, Beispielzeile rechts](../assets/screenshots/importformat-bearbeiten-dark.png)
 

@@ -16,6 +16,9 @@ Nothing inside an HTML comment is published.
   fünf Stufen fest, ordnest die Teile den Feldern zu und speicherst das Format. Die Standardformate
   „MoneyMoney (CSV)“ und „Sparkasse CSV-CAMT“ sind dabei und werden anhand der Kopfzeile erkannt.
   Formate bearbeitest du auch direkt unter Einstellungen → Importe, mit oder ohne Beispieldatei.
+  Alle Bereiche des Editors sind dabei zu Beginn aufgeklappt, und ein Standardformat übernimmst du
+  mit „Als neues Format speichern“. Die Beispielzeile zeigt alle Spalten der Datei und daneben das
+  Ergebnis des Imports.
 - Der Import ist jetzt eine eigene, übersichtliche Seite mit den Schritten Datei, Format und Prüfen.
   Bei einem erkannten Format geht es direkt zur Prüfung, die zuerst nur zeigt, was sich ändert.
 - Umsätze zeigen jetzt auch Referenz, Mandat, Gläubiger-ID und BIC, aus dem Bankabruf wie aus dem

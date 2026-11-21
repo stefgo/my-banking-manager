@@ -976,8 +976,8 @@ button.ctx-ic:hover, button.ctx-ic:focus-visible { box-shadow: inset 0 0 0 1.5px
 .wb-chip.add { border-style: dashed; color: var(--faint); }
 .wb-group { display: grid; gap: 4px; }
 .wb-group h4, .wb-block h4 { color: var(--faint); font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
-.wb-field { display: grid; grid-template-columns: 150px minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 10px; font-size: 13px; }
-.wb-field small { overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.wb-field { display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: center; gap: 10px; font-size: 13px; }
+.wb-field small { display: none; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .wb-field.bad select { border-color: var(--neg); }
 .wb-sample { position: sticky; top: 16px; display: grid; gap: 14px; max-height: calc(100dvh - 32px); overflow-y: auto; }
 .wb-sample .panel-head { align-items: center; margin-bottom: 0; }
@@ -990,7 +990,7 @@ button.ctx-ic:hover, button.ctx-ic:focus-visible { box-shadow: inset 0 0 0 1.5px
 .wb-result { display: grid; margin: 0; }
 .wb-result > div { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--line-soft); font-size: 12.5px; }
 .wb-result > div:last-child { border-bottom: 0; }
-.wb-result dt { color: var(--muted); }
+.wb-result dt { color: var(--muted); overflow-wrap: anywhere; }
 .wb-result dd { margin: 0; overflow-wrap: anywhere; }
 @media (max-width: 860px) {
     .imp-bar { bottom: calc(env(safe-area-inset-bottom, 0px) + 66px); }
@@ -998,6 +998,9 @@ button.ctx-ic:hover, button.ctx-ic:focus-visible { box-shadow: inset 0 0 0 1.5px
 @media (max-width: 1020px) {
     .wb { grid-template-columns: minmax(0, 1fr); }
     .wb-sample { position: static; max-height: none; }
+    /* The sample sits below the cards here, so each field shows its value itself */
+    .wb-field { grid-template-columns: 150px minmax(0, 1fr) minmax(0, 1fr); }
+    .wb-field small { display: block; }
 }
 .fmt-head { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; }
 .fmt-head h1 { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }

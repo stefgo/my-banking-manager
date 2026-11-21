@@ -286,6 +286,11 @@ function SamplePanel({ def, table, row, onRow, sampleName, onPickSample }: { def
     const read = previewParts(table, def, at);
     const result = count ? mapFormatRows({ ...table, rows: [table.rows[at]!] }, def)[0]! : null;
     const inputs = [...new Map(def.steps.filter((s) => !("step" in s.input)).map((s) => [sourceLabel(s.input), s.input])).entries()];
+    const inputColumns = new Set(inputs.map(([, ref]) => ("column" in ref ? table.header.indexOf(ref.column) : "columnIndex" in ref ? ref.columnIndex : -1)));
+    const cells = table.rows[at] ?? [];
+    const otherColumns = table.header
+        .map((name, index) => ({ index, label: name || `Spalte ${index + 1}`, value: (cells[index] ?? "").trim() }))
+        .filter((c) => !inputColumns.has(c.index));
     const shown = RESULT.filter((c) => def.fields[c.field]?.length);
     return (
         <aside className="panel wb-sample" aria-label="Beispielzeile">
@@ -298,7 +303,7 @@ function SamplePanel({ def, table, row, onRow, sampleName, onPickSample }: { def
                 </span>
             </div>
             {sampleName && <p className="faint small wb-file">{sampleName}</p>}
-            {inputs.length > 0 && (
+            {(inputs.length > 0 || otherColumns.length > 0) && (
                 <div className="wb-block">
                     <h4>Aus der Datei</h4>
                     {inputs.map(([label, ref]) => (
@@ -307,6 +312,19 @@ function SamplePanel({ def, table, row, onRow, sampleName, onPickSample }: { def
                             <p className="wb-raw">{read(ref) || "—"}</p>
                         </div>
                     ))}
+                    {otherColumns.length > 0 && (
+                        <details className="wb-more">
+                            <summary>{inputs.length ? "Weitere Spalten" : "Alle Spalten"} ({otherColumns.length})</summary>
+                            <dl className="wb-result">
+                                {otherColumns.map((c) => (
+                                    <div key={c.index}>
+                                        <dt>{c.label}</dt>
+                                        <dd>{c.value || "—"}</dd>
+                                    </div>
+                                ))}
+                            </dl>
+                        </details>
+                    )}
                 </div>
             )}
             <div className="wb-block">
@@ -346,7 +364,7 @@ export function FormatWorkbench({
     sampleName?: string | undefined;
     onPickSample?: ((f: File) => void) | undefined;
 }) {
-    const [open, setOpen] = useState<Section | null>(def.steps.length ? "steps" : "fields");
+    const [closed, setClosed] = useState<ReadonlySet<Section>>(() => new Set());
     const [row, setRow] = useState(0);
     const [extra, setExtra] = useState<string[]>([]);
     const used = formatColumns(def);
@@ -354,7 +372,12 @@ export function FormatWorkbench({
     const update = (next: ImportFormatDefinition) => onChange(pruneRefs(next));
     const setFile = (patch: Partial<ImportFormatDefinition["file"]>) => update({ ...def, file: { ...def.file, ...patch } });
     const setValues = (patch: Partial<ImportFormatDefinition["values"]>) => update({ ...def, values: { ...def.values, ...patch } });
-    const toggle = (s: Section) => setOpen((o) => (o === s ? null : s));
+    const toggle = (s: Section) =>
+        setClosed((current) => {
+            const next = new Set(current);
+            if (!next.delete(s)) next.add(s);
+            return next;
+        });
     const delimiterChoice = DELIMITERS.some((d) => d.value === def.file.delimiter) ? def.file.delimiter : "custom";
     const headerChoice = typeof def.file.headerLine === "number" ? "line" : def.file.headerLine;
     const example = (field: FormatField): string => {
@@ -366,7 +389,7 @@ export function FormatWorkbench({
     return (
         <div className="wb">
             <div className="wb-main">
-                <SectionCard title="Datei lesen" summary={fileSummary(def)} open={open === "file"} onToggle={() => toggle("file")}>
+                <SectionCard title="Datei lesen" summary={fileSummary(def)} open={!closed.has("file")} onToggle={() => toggle("file")}>
                     <fieldset disabled={readOnly}>
                         <div className="wb-row">
                             <SelectSetting label="Spaltentrenner" value={delimiterChoice} options={[...DELIMITERS, { value: "custom", label: "Eigener Text" }]} onChange={(v) => setFile({ delimiter: v === "custom" ? "~" : v })} />
@@ -409,7 +432,7 @@ export function FormatWorkbench({
                     </fieldset>
                 </SectionCard>
 
-                <SectionCard title="Text zerlegen" summary={stepsSummary(def)} open={open === "steps"} onToggle={() => toggle("steps")}>
+                <SectionCard title="Text zerlegen" summary={stepsSummary(def)} open={!closed.has("steps")} onToggle={() => toggle("steps")}>
                     <fieldset disabled={readOnly}>
                         <p className="hint">Eine Stufe zerlegt eine Spalte oder den Teil einer früheren Stufe. Was keinem Feld zugeordnet ist, bleibt im Teil „Rest“.</p>
                         {def.steps.map((step, i) => (
@@ -431,7 +454,7 @@ export function FormatWorkbench({
                     </fieldset>
                 </SectionCard>
 
-                <SectionCard title="Felder zuordnen" summary={fieldsSummary(def)} open={open === "fields"} onToggle={() => toggle("fields")}>
+                <SectionCard title="Felder zuordnen" summary={fieldsSummary(def)} open={!closed.has("fields")} onToggle={() => toggle("fields")}>
                     <fieldset disabled={readOnly}>
                         {FIELD_GROUPS.map((group) => (
                             <div className="wb-group" key={group.label}>
