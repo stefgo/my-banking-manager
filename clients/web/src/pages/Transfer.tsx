@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog as RDialog } from "radix-ui";
@@ -34,6 +34,7 @@ import { bicToSend, blzOfIban, checkTransfer, emptyForm, isRunning, newRequestId
 import { ui, useUi, type TransferDraft } from "../lib/ui";
 import { Amt, Button, Empty, NoBankAccess, Switch } from "../components/common";
 import { Field } from "../components/form";
+import { StepList } from "../components/import/StepList";
 import { Ic, Tile } from "../components/icons";
 import { BankText } from "../components/BankText";
 import { Picker } from "../components/pickers";
@@ -177,21 +178,7 @@ function NoAccounts({ hasLogin }: { hasLogin: boolean }) {
     );
 }
 
-function Steps({ at }: { at: number }) {
-    return (
-        <ol className="steps tf" aria-label="Schritte">
-            {STEPS.map((s, i) => (
-                <Fragment key={s}>
-                    {i > 0 && <li className="step-sep" aria-hidden="true" />}
-                    <li className={`step ${i < at ? "done" : i === at ? "on" : ""}`} aria-current={i === at ? "step" : undefined}>
-                        <span className="n">{i < at ? <Ic icon={Check} size={13} /> : i + 1}</span>
-                        {s}
-                    </li>
-                </Fragment>
-            ))}
-        </ol>
-    );
-}
+const Steps = ({ at }: { at: number }) => <StepList steps={STEPS} at={at} />;
 
 // ---------- Enter and check ----------
 

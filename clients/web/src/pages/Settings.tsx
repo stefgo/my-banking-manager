@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Check, Copy, FileUp, Lock, Pencil, Plus, ShieldCheck, Trash2, Undo2, Wand2 } from "lucide-react";
+import { Check, Copy, Eye, FileUp, Lock, Pencil, Plus, ShieldCheck, Trash2, Undo2, Wand2 } from "lucide-react";
 import { CLIENT_LABELS, ClientKind, routes, Theme, type Me } from "@mbm/shared";
 import { settingsRoute } from "../router";
 import { SETTINGS_TABS } from "../lib/settingsTabs";
@@ -10,6 +10,7 @@ import { useConnectorStatus } from "../lib/bank";
 import { dateTime, plural } from "../lib/format";
 import { codeProblem, fieldProps, focusFirstError, type FieldErrors } from "../lib/fields";
 import { copyName } from "../lib/importFormat";
+import { openImport } from "../lib/importNav";
 import { confirmDeleteAccount } from "../lib/menus";
 import { reviewRules } from "../lib/rules";
 import { THEME_LABELS } from "../lib/theme";
@@ -51,7 +52,7 @@ export function SettingsPage() {
                 )}
                 {tab === "imports" && (
                     <div className="head-actions">
-                        <button className="btn btn-primary" onClick={() => ui.open({ kind: "import" })}>
+                        <button className="btn btn-primary" onClick={() => openImport()}>
                             <Ic icon={FileUp} size={16} />
                             CSV importieren
                         </button>
@@ -141,7 +142,7 @@ function AccountsTab() {
                                     </button>
                                     <Amt cents={a.balance} />
                                     <span className="cc-acc-actions">
-                                        <button className="mini" aria-label={`Buchungen in „${a.name}“ importieren`} title="Buchungen importieren …" onClick={() => ui.open({ kind: "import", accountId: a.id })}>
+                                        <button className="mini" aria-label={`Buchungen in „${a.name}“ importieren`} title="Buchungen importieren …" onClick={() => openImport(a.id)}>
                                             <Ic icon={FileUp} size={15} />
                                         </button>
                                         <button className="mini" aria-label={`„${a.name}“ löschen`} title="Konto löschen …" disabled={action.pending} onClick={() => confirmDeleteAccount(a, action)}>
@@ -636,83 +637,69 @@ function ImportsTab() {
     );
 }
 
-/** Formats of the app and own ones. Editing a format needs a file, so it happens in the import dialog. */
+/** Formats of the app and own ones; editing happens on a page of its own, with or without a file. */
 function ImportFormatsPanel() {
     const formatsQuery = useImportFormats();
     const formats = formatsQuery.data ?? [];
     const action = useAction();
-    const [renaming, setRenaming] = useState<{ id: number; name: string } | null>(null);
-    const rename = async () => {
-        if (!renaming?.name.trim()) return;
-        const { id, name } = renaming;
-        if (await action.succeeds(() => call(routes.updateImportFormat, { params: { id }, body: { name: name.trim() } }), { topics: ["importFormats"], ok: "Format umbenannt" })) setRenaming(null);
-    };
+    const navigate = useNavigate();
+    const open = (key: string) => void navigate({ to: "/import-format", search: { key } });
     return (
         <section className="panel">
-            <div className="panel-head"><h3>Importformate</h3></div>
+            <div className="panel-head">
+                <h3>Importformate</h3>
+                <button className="btn btn-sm" onClick={() => open("new")}>
+                    <Ic icon={Plus} size={14} />
+                    Neues Format
+                </button>
+            </div>
             {formatsQuery.isPending && <SkeletonRows rows={2} plain />}
             <div className="row-list">
                 {formats.map((f) => (
                     <div className="row-item" key={f.key}>
-                        {renaming && renaming.id === f.id ? (
-                            <form
-                                className="fmt-rename"
-                                onSubmit={(e) => {
-                                    e.preventDefault();
-                                    void rename();
+                        <span>
+                            <b>{f.name}</b>
+                            <small>
+                                {f.builtin ? "Standardformat" : "Eigenes Format"} · {f.definition.steps.length ? plural(f.definition.steps.length, "Stufe", "Stufen") : "ohne Zerlegung"}
+                            </small>
+                        </span>
+                        <span className="row-actions">
+                            <button className="btn btn-sm btn-ghost" onClick={() => open(f.key)}>
+                                <Ic icon={f.builtin ? Eye : Pencil} size={14} />
+                                {f.builtin ? "Ansehen" : "Bearbeiten"}
+                            </button>
+                            <button
+                                className="btn btn-sm btn-ghost"
+                                disabled={action.pending}
+                                onClick={async () => {
+                                    const copy = await action.run(() => call(routes.createImportFormat, { body: { name: copyName(f.name, formats.map((x) => x.name)), definition: f.definition } }), {
+                                        topics: ["importFormats"],
+                                        ok: "Format kopiert",
+                                    });
+                                    if (copy) open(copy.key);
                                 }}
                             >
-                                <input className="inp inp-sm" aria-label="Name des Formats" maxLength={80} autoFocus value={renaming.name} onChange={(e) => setRenaming({ ...renaming, name: e.target.value })} />
-                                <button className="btn btn-sm btn-primary" type="submit">Speichern</button>
-                                <button className="btn btn-sm btn-ghost" type="button" onClick={() => setRenaming(null)}>Abbrechen</button>
-                            </form>
-                        ) : (
-                            <>
-                                <span>
-                                    <b>{f.name}</b>
-                                    <small>
-                                        {f.builtin ? "Standardformat" : "Eigenes Format"} · {plural(f.definition.steps.length, "Stufe", "Stufen")}
-                                    </small>
-                                </span>
-                                <span className="row-actions">
-                                    <button
-                                        className="btn btn-sm btn-ghost"
-                                        onClick={() =>
-                                            void action.run(() => call(routes.createImportFormat, { body: { name: copyName(f.name, formats.map((x) => x.name)), definition: f.definition } }), {
-                                                topics: ["importFormats"],
-                                                ok: "Format kopiert",
-                                            })
-                                        }
-                                    >
-                                        <Ic icon={Copy} size={14} />
-                                        Kopieren
-                                    </button>
-                                    {f.id !== null && (
-                                        <>
-                                            <button className="btn btn-sm btn-ghost" onClick={() => setRenaming({ id: f.id!, name: f.name })}>
-                                                <Ic icon={Pencil} size={14} />
-                                                Umbenennen
-                                            </button>
-                                            <button
-                                                className="btn btn-sm btn-ghost"
-                                                onClick={() =>
-                                                    ui.confirm({
-                                                        title: `Format „${f.name}“ löschen?`,
-                                                        text: "Bisherige Importe bleiben erhalten.",
-                                                        confirm: "Format löschen",
-                                                        danger: true,
-                                                        onConfirm: () => action.succeeds(() => call(routes.deleteImportFormat, { params: { id: f.id! } }), { topics: ["importFormats"], ok: "Format gelöscht" }),
-                                                    })
-                                                }
-                                            >
-                                                <Ic icon={Trash2} size={14} />
-                                                Löschen
-                                            </button>
-                                        </>
-                                    )}
-                                </span>
-                            </>
-                        )}
+                                <Ic icon={Copy} size={14} />
+                                Kopieren
+                            </button>
+                            {f.id !== null && (
+                                <button
+                                    className="btn btn-sm btn-ghost"
+                                    onClick={() =>
+                                        ui.confirm({
+                                            title: `Format „${f.name}“ löschen?`,
+                                            text: "Bisherige Importe bleiben erhalten.",
+                                            confirm: "Format löschen",
+                                            danger: true,
+                                            onConfirm: () => action.succeeds(() => call(routes.deleteImportFormat, { params: { id: f.id! } }), { topics: ["importFormats"], ok: "Format gelöscht" }),
+                                        })
+                                    }
+                                >
+                                    <Ic icon={Trash2} size={14} />
+                                    Löschen
+                                </button>
+                            )}
+                        </span>
                     </div>
                 ))}
             </div>

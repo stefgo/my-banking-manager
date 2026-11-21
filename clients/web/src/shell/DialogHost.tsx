@@ -13,7 +13,7 @@ import { ConfirmDialog, Kbd, Modal } from "../components/common";
 import { Ic, Sym } from "../components/icons";
 import { BookingDialog, ReconcileDialog } from "../dialogs/Booking";
 import { CounterBookingDialog } from "../dialogs/CounterBooking";
-import { ImportDialog } from "../dialogs/Import";
+import { openImport } from "../lib/importNav";
 import { ApplyRulesDialog } from "../dialogs/ApplyRules";
 import { InfoDialog } from "../dialogs/InfoDialog";
 import { AddAccountDialog, OpeningBalanceDialog } from "../dialogs/AddAccount";
@@ -49,8 +49,6 @@ export function DialogHost() {
             return <ReconcileDialog accountId={d.accountId} />;
         case "counterBooking":
             return <CounterBookingDialog txId={d.txId} />;
-        case "import":
-            return <ImportDialog accountId={d.accountId} />;
         case "addAccount":
             return <AddAccountDialog offline={d.offline} />;
         case "bankSetup":
@@ -166,7 +164,7 @@ function Palette() {
                                     <Item icon={<Ic icon={Plus} size={17} />} label="Buchung erfassen (Offline-Konto)" kbd={keyText("booking")} onSelect={() => run(() => openBooking())} />
                                     <Item icon={<Ic icon={Plus} size={17} />} label="Konto hinzufügen" onSelect={() => run(() => ui.open({ kind: "addAccount" }))} />
                                     {accounts.length > 0 && (
-                                        <Item icon={<Ic icon={FileUp} size={17} />} label="CSV importieren" onSelect={() => run(() => ui.open({ kind: "import", accountId: currentAccount }))} />
+                                        <Item icon={<Ic icon={FileUp} size={17} />} label="CSV importieren" onSelect={() => run(() => openImport(currentAccount))} />
                                     )}
                                     <Item
                                         icon={<Ic icon={Send} size={17} />}

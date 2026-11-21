@@ -6,18 +6,24 @@ Offline-Konto.
 
 ## So geht es
 
-1. Unter **Einstellungen → Importe** auf **CSV importieren** klicken (dann wählst du das Konto im
-   Dialog) oder in der Befehlspalette ++cmd+k++ nach „Importieren“ suchen. Bei einem Offline-Konto
-   geht es auch über **Importieren …** in seinem Menü.
-2. Die Datei in den Dialog ziehen oder auswählen. MBM liest UTF-8 und Windows-1252 und Dateien bis
-   20 MB.
-3. **Format prüfen:** MBM wählt anhand der Kopfzeile ein passendes [Importformat](#importformate).
-   Passt keines, erkennt es die Spalten gängiger Exporte (zum Beispiel DKB, ING und PayPal) selbst.
-   Stimmt eine Zuordnung nicht, änderst du sie in der Vorschau.
-4. **Vorschau ansehen:** Jede Zeile ist *neu*, *doppelt* oder *ungültig* (mit Grund). Nur neue
-   Zeilen werden übernommen; bei doppelten kannst du die Kategorie aus der Datei übernehmen
-   ([abweichende Kategorien](#abweichende-kategorien)).
-5. **Importieren.**
+Unter **Einstellungen → Importe** klickst du auf **CSV importieren**. Alternativ suchst du in der
+Befehlspalette ++cmd+k++ nach „Importieren“ oder wählst bei einem Offline-Konto **Importieren …** in
+seinem Menü. Der Import läuft dann auf einer eigenen Seite in drei Schritten:
+
+1. **Datei:** Konto wählen und die Datei hineinziehen oder auswählen. MBM liest UTF-8 und
+   Windows-1252 und Dateien bis 20 MB.
+2. **Format:** MBM wählt anhand der Kopfzeile ein passendes [Importformat](#importformate). Erkennt
+   es eines, geht es direkt weiter zu „Prüfen“. Sonst ordnest du hier die Spalten zu. Über
+   **Anpassen** kommst du jederzeit zu diesem Schritt zurück.
+3. **Prüfen:** Die Kacheln zeigen, wie viele Zeilen *neu*, zu *ergänzen*, *abweichend*, schon
+   *vorhanden* oder *unlesbar* sind. Ein Klick auf eine Kachel filtert die Liste, ein Klick auf eine
+   Zeile zeigt ihre Details. Anfangs siehst du nur Zeilen, die etwas ändern oder unlesbar sind.
+
+Mit **Umsätze übernehmen** schließt du den Import ab.
+
+![Import, Schritt Prüfen: Kacheln und Liste der Zeilen](../assets/screenshots/import-pruefen-dark.png)
+
+*Der Schritt „Prüfen“: Die Kacheln filtern die Liste.*
 
 ## Doppelte Umsätze
 
@@ -33,17 +39,30 @@ sind die **Standardformate** „MoneyMoney (CSV)“ und „Sparkasse CSV-CAMT“
 ändern, du kannst sie aber als eigenes Format kopieren. Passen mehrere Formate zur Kopfzeile einer
 Datei, haben deine eigenen Vorrang.
 
-In der Vorschau wählst du das Format aus. Über **Format bearbeiten …** stellst du ein:
+Formate bearbeitest du an zwei Stellen mit demselben Editor:
 
-- **Datei:** Kodierung, Spaltentrenner (auch aus mehreren Zeichen), Anführungszeichen, Kopfzeile,
-  Datumsform, Dezimalzeichen und den Trenner von Kategoriepfaden.
-- **Stufen:** Bis zu fünf Zerlegungen, die aufeinander aufbauen. Eine Stufe liest eine Spalte oder
+- **Einstellungen → Importe:** Hier legst du Formate an, bearbeitest, kopierst und löschst sie, auch
+  ohne Datei. Die Spalten trägst du dann unter **Datei lesen** von Hand ein. Mit einer
+  **Beispieldatei** siehst du sofort das Ergebnis. Sie bleibt im Browser und wird nicht gespeichert.
+- **Beim Import:** Im Schritt „Format“ passt du das Format für diese Datei an. Die Änderung gilt für
+  diesen Import, bis du sie speicherst.
+
+Der Editor hat drei Bereiche, von denen immer einer geöffnet ist:
+
+- **Datei lesen:** Spaltentrenner (auch aus mehreren Zeichen) und Kopfzeile. Unter **Erweitert**
+  stehen Kodierung, Anführungszeichen, Datumsform, Dezimalzeichen, der Trenner von Kategoriepfaden
+  und die Wörter für „vorgemerkt“.
+- **Text zerlegen:** Bis zu fünf Stufen, die aufeinander aufbauen. Eine Stufe liest eine Spalte oder
   einen Teil einer früheren Stufe.
-- **Felder:** Welche Spalte oder welcher Teil einer Stufe in welches Feld kommt.
+- **Felder zuordnen:** Welche Spalte oder welcher Teil einer Stufe in welches Feld kommt, mit dem
+  Wert aus der Beispielzeile.
 
-Die Beispielzeilen zeigen jede Änderung sofort. Danach verwendest du das Format nur für diesen
-Import oder speicherst es. Unter **Einstellungen → Importe** kannst du Formate kopieren, umbenennen
-und löschen. Bearbeiten geht im Import-Dialog, weil dafür eine Beispieldatei gebraucht wird.
+Daneben zeigt die **Beispielzeile**, was das Format aus einer Zeile der Datei macht. Mit den Pfeilen
+blätterst du durch die Datei.
+
+![Format-Editor: Einrichtung links, Beispielzeile rechts](../assets/screenshots/importformat-bearbeiten-dark.png)
+
+*Der Format-Editor: links die Einrichtung, rechts das Ergebnis für eine Zeile.*
 
 ### Stufen
 
@@ -75,8 +94,8 @@ Neben Datum, Betrag und Gegenseite übernimmt MBM die **Umsatzart** (etwa „Las
 **Referenz**, das **Mandat**, die **Gläubiger-ID** und die **BIC**. Sie stehen danach in den
 [Details des Umsatzes](umsaetze.md#details-eines-umsatzes).
 
-Fehlt einem vorhandenen Umsatz eine dieser Angaben, ergänzt MBM sie aus der Datei; die Vorschau zeigt
-dann „Angaben werden ergänzt“. So kannst du sie auch für schon importierte Umsätze nachtragen, indem
+Fehlt einem vorhandenen Umsatz eine dieser Angaben, ergänzt MBM sie aus der Datei; die Prüfung zeigt
+dann „ergänzen“. So kannst du sie auch für schon importierte Umsätze nachtragen, indem
 du die Datei noch einmal importierst. Vorhandene Angaben und der Verwendungszweck bleiben dabei
 erhalten.
 
@@ -94,10 +113,10 @@ legt es auf Wunsch an. Zeilen ohne Kategorie laufen durch die [Regeln](kategorie
 
 ### Abweichende Kategorien
 
-Nennt die Datei bei einem Umsatz, den es schon gibt, eine andere Kategorie, zeigt die Vorschau
-„Kategorie abweichend“ und darunter `bisher: … → Datei: …`. Unten im Dialog wählst du
-**Kategorie bei … vorhandenen Umsätzen überschreiben**; dann bekommen diese Umsätze die Kategorie
-aus der Datei, als hättest du sie von Hand vergeben. Regeln ändern sie danach nicht mehr.
+Nennt die Datei bei einem Umsatz, den es schon gibt, eine andere Kategorie, zeigt die Prüfung
+„Kategorie abweichend“; die Details der Zeile nennen beide Kategorien. Unter der Liste wählst du
+**… abweichende Kategorien überschreiben**; dann bekommen diese Umsätze die Kategorie aus der Datei,
+als hättest du sie von Hand vergeben. Regeln ändern sie danach nicht mehr.
 
 - Fehlt die Kategorie der Datei noch, wird sie nur übernommen, wenn du auch **Fehlende Kategorien
   anlegen** wählst.

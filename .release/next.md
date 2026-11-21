@@ -15,6 +15,9 @@ Nothing inside an HTML comment is published.
 - Der CSV-Import arbeitet mit **Importformaten**: Du legst Trennzeichen und Trennwörter in bis zu
   fünf Stufen fest, ordnest die Teile den Feldern zu und speicherst das Format. Die Standardformate
   „MoneyMoney (CSV)“ und „Sparkasse CSV-CAMT“ sind dabei und werden anhand der Kopfzeile erkannt.
+  Formate bearbeitest du auch direkt unter Einstellungen → Importe, mit oder ohne Beispieldatei.
+- Der Import ist jetzt eine eigene, übersichtliche Seite mit den Schritten Datei, Format und Prüfen.
+  Bei einem erkannten Format geht es direkt zur Prüfung, die zuerst nur zeigt, was sich ändert.
 - Umsätze zeigen jetzt auch Referenz, Mandat, Gläubiger-ID und BIC, aus dem Bankabruf wie aus dem
   Import.
 - Der CSV-Import übernimmt die Umsatzart. Bei vorhandenen Umsätzen ergänzt er sie und die neuen

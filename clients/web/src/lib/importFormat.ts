@@ -1,4 +1,7 @@
-import { REST_PART, type FormatStep, type FormatValueRef, type ImportFormatDefinition } from "@mbm/shared";
+import { useDeferredValue, useMemo } from "react";
+import { FORMAT_FIELDS, ImportFormatDefinition, formatIssues, missingColumns, readTable, REST_PART, type CsvTable, type FormatField, type FormatStep, type FormatValueRef, type ImportPreview } from "@mbm/shared";
+import { decodeCsv } from "./decode";
+import { plural } from "./format";
 
 /** A place a value can come from, for the selects of the import dialog. */
 export interface SourceOption {
@@ -55,30 +58,6 @@ export function partName(text: string, taken: Iterable<string>): string {
     for (let n = 2; ; n++) if (!used.has(`${base}-${n}`)) return `${base}-${n}`;
 }
 
-/**
- * Keywords from their texts. A text that stays keeps its part, and so does one edited in its line
- * while the number of lines stays: its field stays assigned while the word is typed.
- */
-export function keywordsFrom(texts: string[], current: { text: string; part: string }[]): { text: string; part: string }[] {
-    const taken = new Set<string>();
-    const lines = [...new Set(texts)];
-    const exact = new Set(current.filter((k) => lines.includes(k.text)).map((k) => k.part));
-    return lines.map((text, i) => {
-        const inLine = lines.length === current.length && !exact.has(current[i]!.part) ? current[i] : undefined;
-        const known = current.find((k) => k.text === text) ?? inLine;
-        const part = known && !taken.has(known.part) ? known.part : partName(text, [...taken, ...current.map((k) => k.part)]);
-        taken.add(part);
-        return { text, part };
-    });
-}
-
-/** Part names from their labels. */
-export function partsFrom(names: string[]): string[] {
-    const out: string[] = [];
-    for (const name of names) out.push(partName(name, out));
-    return out;
-}
-
 /** Puts a changed step in place. Parts renamed in their line take their fields and later steps along. */
 export function replaceStep(def: ImportFormatDefinition, index: number, next: FormatStep): ImportFormatDefinition {
     const before = def.steps[index]!;
@@ -110,6 +89,105 @@ export function newStep(def: ImportFormatDefinition, header: string[]): FormatSt
         suffix: ": ",
         keywords: [{ text: "Stichwort", part: "Stichwort" }],
     };
+}
+
+/** Fields by what they are about, in the order the editor shows them. */
+export const FIELD_GROUPS: { label: string; fields: FormatField[] }[] = [
+    { label: "Pflicht", fields: ["bookingDate", "amount"] },
+    { label: "Gegenseite", fields: ["counterpartyName", "counterpartyIban", "counterpartyBic"] },
+    { label: "Inhalt", fields: ["remittance", "bookingText", "category"] },
+    { label: "Zahlungsdetails", fields: ["reference", "mandateId", "creditorId"] },
+    { label: "Weitere", fields: ["valueDate", "status"] },
+];
+
+/** A format to start from, with nothing assigned yet. */
+export const emptyFormat = (): ImportFormatDefinition => ({
+    version: 1,
+    file: { encoding: "auto", delimiter: ";", quote: "\"", headerLine: 1 },
+    steps: [],
+    fields: {},
+    values: { dateOrder: "auto", decimalSeparator: "auto", categorySeparator: "auto", pendingWords: [] },
+});
+
+/** The columns a format names, for editing it without a file. */
+export function formatColumns(def: ImportFormatDefinition): string[] {
+    const names = new Set<string>();
+    const add = (ref: FormatValueRef) => {
+        if ("column" in ref) names.add(ref.column);
+    };
+    for (const field of FORMAT_FIELDS) for (const ref of def.fields[field] ?? []) add(ref);
+    for (const step of def.steps) add(step.input);
+    return [...names];
+}
+
+const DELIMITER_NAMES: Record<string, string> = { auto: "Trenner automatisch", ";": "Semikolon", ",": "Komma", "\t": "Tabulator", "|": "Senkrechter Strich" };
+
+export function fileSummary(def: ImportFormatDefinition): string {
+    const { delimiter, headerLine } = def.file;
+    const header = headerLine === "auto" ? "Kopfzeile automatisch" : headerLine === "none" ? "ohne Kopfzeile" : `Kopfzeile ${headerLine}`;
+    return `${DELIMITER_NAMES[delimiter] ?? `Trenner „${delimiter}“`} · ${header}`;
+}
+
+export const stepsSummary = (def: ImportFormatDefinition): string => (def.steps.length ? plural(def.steps.length, "Stufe", "Stufen") : "keine Zerlegung");
+
+export const fieldsSummary = (def: ImportFormatDefinition): string => `${FORMAT_FIELDS.filter((f) => def.fields[f]?.length).length} von ${FORMAT_FIELDS.length} zugeordnet`;
+
+/** What keeps a format from being used, in words for the user; "" when it is fine. */
+export function formatProblem(def: ImportFormatDefinition, table: CsvTable | null): string {
+    if (table && !table.header.length) return "Mit diesen Einstellungen steht keine Tabelle in der Datei.";
+    if (table) {
+        const absent = missingColumns(def, table.header);
+        if (absent.length) return `In der Datei fehlt: ${absent.join(", ")}.`;
+    }
+    if (!def.fields.bookingDate?.length || !def.fields.amount?.length) return "Buchungstag und Betrag müssen zugeordnet sein.";
+    if (!ImportFormatDefinition.safeParse(def).success) return formatIssues(def)[0] ?? "Bitte alle Angaben der Stufen ausfüllen.";
+    return "";
+}
+
+/**
+ * The table of a sample file with the file settings of a format. Only these settings read the
+ * file again, and a change of them does not hold up typing.
+ */
+export function useFormatTable(sample: { buffer: ArrayBuffer } | null, file: ImportFormatDefinition["file"]): CsvTable | null {
+    const settings = useDeferredValue(file);
+    return useMemo(() => {
+        if (!sample) return null;
+        if (!settings.delimiter) return { delimiter: "", header: [], rows: [] };
+        return readTable(decodeCsv(sample.buffer, settings.encoding), settings);
+    }, [sample, settings]);
+}
+
+// ---------- The review of an import ----------
+
+type ReviewRow = ImportPreview["rows"][number];
+
+/** What the list of the review shows; `changes` is everything that does something or failed. */
+export type ReviewFilter = "changes" | "new" | "fill" | "differs" | "duplicate" | "invalid";
+
+export const rowFills = (r: ReviewRow): boolean => r.fillsBookingText || r.fillsDetails;
+export const rowDiffers = (r: ReviewRow): boolean => r.categoryState === "differs";
+
+export function matchesFilter(r: ReviewRow, filter: ReviewFilter): boolean {
+    switch (filter) {
+        case "new":
+            return r.state === "new";
+        case "invalid":
+            return r.state === "invalid";
+        case "fill":
+            return rowFills(r);
+        case "differs":
+            return rowDiffers(r);
+        case "duplicate":
+            return r.state === "duplicate" && !rowFills(r) && !rowDiffers(r);
+        case "changes":
+            return r.state !== "duplicate" || rowFills(r) || rowDiffers(r);
+    }
+}
+
+export function reviewCounts(rows: ReviewRow[]): Record<ReviewFilter, number> {
+    const counts: Record<ReviewFilter, number> = { changes: 0, new: 0, fill: 0, differs: 0, duplicate: 0, invalid: 0 };
+    for (const r of rows) for (const f of Object.keys(counts) as ReviewFilter[]) if (matchesFilter(r, f)) counts[f]++;
+    return counts;
 }
 
 /** Drops what points to a step or part that no longer exists. A step falls back to the first column. */

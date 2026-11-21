@@ -7,6 +7,9 @@ import { SETTINGS_TABS, type SettingsTab } from "./lib/settingsTabs";
 import { TransferPage } from "./pages/Transfer";
 import { OrdersPage } from "./pages/Orders";
 import { AccountsPage } from "./pages/Accounts";
+import { ImportPage } from "./pages/Import";
+import { ImportFormatPage } from "./pages/ImportFormat";
+import { registerImportNavigation } from "./lib/importNav";
 import { compactTxSearch, parseTxSearch } from "./lib/search";
 
 const root = createRootRoute({ component: Gate });
@@ -32,11 +35,28 @@ export const settingsRoute = createRoute({
     component: SettingsPage,
 });
 
+export const importRoute = createRoute({
+    getParentRoute: () => root,
+    path: "/import",
+    validateSearch: (raw: Record<string, unknown>): { account?: number } => (Number.isSafeInteger(raw.account) && (raw.account as number) > 0 ? { account: raw.account as number } : {}),
+    component: ImportPage,
+});
+
+export const importFormatRoute = createRoute({
+    getParentRoute: () => root,
+    path: "/import-format",
+    // "new", or the key of a format ("builtin:…", "custom:<id>")
+    validateSearch: (raw: Record<string, unknown>): { key: string } => ({ key: typeof raw.key === "string" && raw.key.length <= 80 ? raw.key : "new" }),
+    component: ImportFormatPage,
+});
+
 export const router = createRouter({
-    routeTree: root.addChildren([overview, transactionsRoute, accountsPage, transfer, orders, settingsRoute]),
+    routeTree: root.addChildren([overview, transactionsRoute, accountsPage, transfer, orders, settingsRoute, importRoute, importFormatRoute]),
     defaultPreload: false,
     scrollRestoration: true,
 });
+
+registerImportNavigation((accountId) => void router.navigate({ to: "/import", search: accountId === undefined ? {} : { account: accountId } }));
 
 declare module "@tanstack/react-router" {
     interface Register {
@@ -51,4 +71,6 @@ export const ROUTE_TITLES: Record<string, string> = {
     "/transfer": "Überweisen",
     "/orders": "Aufträge",
     "/settings": "Einstellungen",
+    "/import": "Importieren",
+    "/import-format": "Importformat",
 };

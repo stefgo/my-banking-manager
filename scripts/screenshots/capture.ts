@@ -57,6 +57,9 @@ interface Shot {
 
 const LEBENSMITTEL = fx.categories.find((c) => c.name === "Lebensmittel")!.id;
 
+/** The invented file the import pictures read. */
+const importSample = { name: "umsaetze-2026.csv", mimeType: "text/csv", buffer: Buffer.from(fx.importSampleCsv) };
+
 const SHOTS: Shot[] = [
     // Pairs for the start page of the documentation
     { name: "uebersicht", route: "/" },
@@ -116,6 +119,25 @@ const SHOTS: Shot[] = [
     { name: "einstellungen-profil", route: "/settings?tab=profile", themes: ["dark"] },
     { name: "einstellungen-sicherheit", route: "/settings?tab=security", themes: ["dark"] },
     { name: "einstellungen-importe", route: "/settings?tab=imports", themes: ["dark"] },
+    {
+        name: "import-pruefen",
+        route: `/import?account=${fx.CASH}`,
+        themes: ["dark"],
+        prepare: async (page) => {
+            await page.locator('.imp-file input[type="file"]').setInputFiles(importSample);
+            await page.locator(".rv-tiles").waitFor();
+        },
+    },
+    {
+        name: "importformat-bearbeiten",
+        route: "/import-format?key=builtin:moneymoney",
+        themes: ["dark"],
+        viewport: { width: WIDTH, height: 980 },
+        prepare: async (page) => {
+            await page.locator('.wb-sample input[type="file"]').setInputFiles(importSample);
+            await page.locator(".wb-nav").waitFor();
+        },
+    },
     { name: "einstellungen-protokoll", route: "/settings?tab=activity", themes: ["dark"] },
     { name: "handy-uebersicht", route: "/", themes: ["dark"], phone: true },
     { name: "handy-umsaetze", route: `/transactions?scope=account:${fx.GIRO}`, themes: ["dark"], phone: true },
@@ -163,6 +185,7 @@ const ANSWERS: Partial<Record<keyof typeof routes, Answer>> = {
     activity: () => fx.activity,
     listImports: () => fx.imports,
     listImportFormats: () => fx.importFormats,
+    importPreview: () => fx.importPreview,
     listConnections: () => fx.connections,
     lastOfferedAccounts: () => fx.offeredAccounts,
     connectorStatus: () => fx.connectorStatus.map((c) => ({ ...c, version: VERSION })),
