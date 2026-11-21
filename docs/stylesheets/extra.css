@@ -21,6 +21,58 @@
     --md-code-font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
+/* Left navigation on wide screens; the phone drawer keeps Material's layout.
+ *
+ * Material sets group titles in grey at the same position as their entries and
+ * marks the current page by text colour alone, which reads as a flat list with
+ * one oddly coloured entry. The active colour uses the darker or lighter brand
+ * tone because #4f7bff is too weak for small text on a white page.
+ */
+.md-sidebar--primary {
+    --mbm-nav-active: var(--md-primary-fg-color--dark);
+}
+[data-md-color-scheme="slate"] .md-sidebar--primary {
+    --mbm-nav-active: var(--md-primary-fg-color--light);
+}
+
+@media screen and (min-width: 76.25em) {
+    /* The site name is already in the header. */
+    .md-sidebar--primary .md-nav--primary > .md-nav__title {
+        display: none;
+    }
+
+    .md-sidebar--primary .md-nav__item--section {
+        margin-top: 1.4em;
+    }
+
+    .md-sidebar--primary .md-nav__item--section > .md-nav__link[for] {
+        font-size: 0.62rem;
+        letter-spacing: 0.02em;
+        color: var(--md-default-fg-color);
+    }
+
+    /* Material pulls this block left; the guide line belongs under the title. */
+    .md-sidebar--primary .md-nav__item--section > .md-nav {
+        margin-inline-start: 0;
+    }
+
+    .md-sidebar--primary .md-nav__item--section > .md-nav > .md-nav__list {
+        margin-top: 0.3em;
+        padding-inline-start: 0.6rem;
+        border-inline-start: 1px solid var(--md-default-fg-color--lightest);
+    }
+
+    /* The shadow extends the tint around the text without moving any entry. */
+    .md-sidebar--primary .md-nav__link--active {
+        --mbm-nav-active-bg: color-mix(in srgb, var(--mbm-nav-active) 13%, transparent);
+        font-weight: 600;
+        color: var(--mbm-nav-active);
+        background: var(--mbm-nav-active-bg);
+        border-radius: 0.15rem;
+        box-shadow: 0 0 0 0.2rem var(--mbm-nav-active-bg);
+    }
+}
+
 /* Screenshots, made by `npm run screenshots` (scripts/screenshots/).
  *
  * Captured at 2x, so `width: 100%` scales them back down. The border keeps a

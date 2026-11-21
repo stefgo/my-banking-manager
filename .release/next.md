@@ -37,6 +37,9 @@ Nothing inside an HTML comment is published.
 - Das Menü eines Bankkontos ist aufgeräumt: „Importieren“ und „Vom Bankzugang lösen“ stehen dort
   nicht mehr. Importieren geht weiter über Einstellungen → Importe oder die Befehlspalette, das
   Lösen über Einstellungen → Konten.
+- Das Menü der Online-Dokumentation ist übersichtlicher: Gruppen und Einträge sind klar abgesetzt,
+  die geöffnete Seite ist hervorgehoben, und die Seiten stehen in einer sinnvolleren Reihenfolge.
+  „Betrieb im Detail“ heißt jetzt „Technische Details“.
 
 ### Behoben
 

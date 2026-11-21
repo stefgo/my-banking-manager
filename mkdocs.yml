@@ -93,16 +93,16 @@ nav:
           - Konfiguration: konfiguration.md
     - Benutzung:
           - Übersicht: guide/uebersicht.md
-          - Umsätze und Suche: guide/umsaetze.md
           - Konten: guide/konten.md
-          - Kategorien und Regeln: guide/kategorien-regeln.md
+          - Umsätze und Suche: guide/umsaetze.md
           - CSV-Import: guide/import.md
+          - Kategorien und Regeln: guide/kategorien-regeln.md
           - Überweisen: guide/ueberweisen.md
           - Aufträge: guide/auftraege.md
           - Einstellungen: guide/einstellungen.md
     - Betrieb:
-          - Sicherheit: sicherheit.md
           - Updates und Backup: updates.md
-          - Betrieb im Detail: operations.md
+          - Sicherheit: sicherheit.md
+          - Technische Details: operations.md
     - Mitmachen:
           - Entwicklung: development.md
