@@ -58,8 +58,8 @@ Der Editor hat drei Bereiche, die zu Beginn alle aufgeklappt sind:
   schmalen Bildschirmen steht der Wert aus der Beispielzeile direkt daneben.
 
 Daneben zeigt die **Beispielzeile**, was das Format aus einer Zeile der Datei macht. Unter **Aus der
-Datei** stehen die unveränderten Werte: die zerlegten Spalten direkt, alle anderen zum Aufklappen.
-Unter **Ergebnis** steht, was MBM daraus importiert. Mit den Pfeilen blätterst du durch die Datei.
+Datei** stehen alle Spalten mit ihren unveränderten Werten, unter **Ergebnis** das, was MBM daraus
+importiert. Mit den Pfeilen blätterst du durch die Datei.
 
 ![Format-Editor: Einrichtung links, Beispielzeile rechts](../assets/screenshots/importformat-bearbeiten-dark.png)
 
