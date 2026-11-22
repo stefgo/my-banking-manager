@@ -8,12 +8,15 @@
 //   get the preset category for counter bookings.
 // - New bookings are new (unread) for every user; the successor of a pending booking stays read
 //   for whoever had read that one.
+// - Imported: a booked booking the bank delivers for the first time takes over an equal booking
+//   from a CSV import (same comparison as the import), which keeps its id, category and read state.
 // - The balance: the account's opening balance is set so that opening balance plus booked
 //   bookings equals the bank's booked balance (balance series and totals keep working).
 
 import { createHash } from "node:crypto";
-import type { ConnectorBalance, ConnectorTransaction } from "@mbm/shared";
+import { duplicateKey, sameCounterparty, type ConnectorBalance, type ConnectorTransaction } from "@mbm/shared";
 import type { Db } from "../db/database.js";
+import { alignBankBalance } from "./accounts.js";
 import { activeRules, firstMatch } from "./rules.js";
 import { queryTargets, type QueryRow } from "./querytarget.js";
 import { counterDefaultCategoryId } from "./transactions.js";
@@ -122,10 +125,43 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
             return match;
         };
 
+        // Bookings from a CSV import, by day and amount; each one stands for one booking of the bank
+        const imported = new Map<string, { id: number; iban: string | null; name: string }[]>();
+        const importedRows = db
+            .prepare("SELECT id, booking_date, amount, counterparty_iban AS iban, counterparty_name AS name FROM transactions WHERE account_id = ? AND source = 'import' ORDER BY id")
+            .all(accountId) as { id: number; booking_date: string; amount: number; iban: string | null; name: string }[];
+        for (const r of importedRows) {
+            const key = duplicateKey(r.booking_date, r.amount);
+            imported.set(key, [...(imported.get(key) ?? []), { id: r.id, iban: r.iban, name: r.name }]);
+        }
+        const takeImported = (t: ConnectorTransaction): number | undefined => {
+            const candidates = imported.get(duplicateKey(t.bookingDate, t.amount)) ?? [];
+            const at = candidates.findIndex((c) => sameCounterparty(c, { iban: t.counterpartyIban, name: t.counterpartyName }));
+            return at < 0 ? undefined : candidates.splice(at, 1)[0]!.id;
+        };
+        // The bank's details win; where it sends nothing, the file's value stays
+        const adoptImported = db.prepare(
+            `UPDATE transactions SET fingerprint = ?, value_date = COALESCE(?, value_date), currency = ?,
+                counterparty_name = COALESCE(NULLIF(?, ''), counterparty_name), ultimate_party = COALESCE(NULLIF(?, ''), ultimate_party),
+                counterparty_iban = COALESCE(?, counterparty_iban), remittance = COALESCE(NULLIF(?, ''), remittance), end_to_end_id = ?,
+                booking_text = COALESCE(NULLIF(?, ''), booking_text), reference = COALESCE(NULLIF(?, ''), reference),
+                mandate_id = COALESCE(NULLIF(?, ''), mandate_id), creditor_id = COALESCE(NULLIF(?, ''), creditor_id),
+                counterparty_bic = COALESCE(NULLIF(?, ''), counterparty_bic), status = 'booked', raw = ?, source = 'bank', import_id = NULL
+             WHERE id = ?`,
+        );
+        const hasCategory = db.prepare("SELECT 1 FROM transaction_categories WHERE transaction_id = ?");
+
         const bookedFps = fingerprints(booked);
         booked.forEach((t, i) => {
             const fp = bookedFps[i]!;
             if (existing.has(fp)) return;
+            const importedId = takeImported(t);
+            if (importedId !== undefined) {
+                adoptImported.run(fp, t.valueDate, t.currency, t.counterpartyName, t.ultimateParty, t.counterpartyIban, t.remittance, t.endToEndId, t.bookingText, referenceOf(t), t.mandateId ?? "", t.creditorId ?? "", t.counterpartyBic ?? "", rawOf(t), importedId);
+                const carried = successorOf(t);
+                if (carried?.category_id && !hasCategory.get(importedId)) insertCat.run(importedId, carried.category_id, t.amount, carried.category_source ?? "manual", null);
+                return;
+            }
             insert(t, fp, successorOf(t));
             newBooked++;
         });
@@ -141,8 +177,7 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
                 `INSERT INTO balances (account_id, amount, currency, booked_at, pending, available, credit_line, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                  ON CONFLICT (account_id) DO UPDATE SET amount = excluded.amount, currency = excluded.currency, booked_at = excluded.booked_at, pending = excluded.pending, available = excluded.available, credit_line = excluded.credit_line, fetched_at = excluded.fetched_at`,
             ).run(accountId, balance.booked, balance.currency, balance.date, balance.pending, balance.available, balance.creditLine, now);
-            const sum = (db.prepare("SELECT COALESCE(SUM(amount), 0) AS s FROM transactions WHERE account_id = ? AND status = 'booked'").get(accountId) as { s: number }).s;
-            db.prepare("UPDATE accounts SET opening_balance = ? WHERE id = ?").run(balance.booked - sum, accountId);
+            alignBankBalance(db, accountId, balance.booked);
         }
         return { newTransactions: newBooked, newIds };
     })();

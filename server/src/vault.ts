@@ -197,7 +197,8 @@ export class Vault {
                 const result = fn({ db: opened.db, fields: opened.cipher, userId, wasLocked: true });
                 if (result.keep) {
                     this.opened = opened;
-                    this.log.info("unlocked");
+                    // The id, not the name: logs are not encrypted
+                    this.log.info({ userId }, "unlocked");
                 } else {
                     Vault.discard(opened);
                 }
@@ -256,7 +257,7 @@ export class Vault {
                 then?.(opened.db, user);
                 if (fresh) {
                     this.opened = fresh;
-                    this.log.info("unlocked with the recovery key");
+                    this.log.info({ userId: user.id }, "unlocked with the recovery key");
                 }
                 return user;
             } catch (err) {

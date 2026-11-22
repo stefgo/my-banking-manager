@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { confirmCode, createTestApp, setUpSignedIn, type TestApp } from "./testing/testApp.js";
 import { startFakeConnector, type FakeConnector } from "./testing/fakeConnector.js";
+import { applyFetch } from "./services/fetchimport.js";
 
 let t: TestApp;
 let fc: FakeConnector;
@@ -87,6 +88,103 @@ describe("taking over accounts", () => {
         const { body } = await api<{ id: number; iban: string | null; cardNumber: string | null }[]>("GET", "/api/accounts");
         expect(body.find((a) => a.id === ids.card)).toMatchObject({ iban: null, cardNumber: "4111000000001234" });
         expect(body.find((a) => a.id === ids.giro)).toMatchObject({ cardNumber: null });
+    });
+});
+
+describe("CSV import into a bank account", () => {
+    const HEAD = "Buchungstag;Betrag;Beguenstigter/Zahlungspflichtiger;Verwendungszweck;Kategorie;Status";
+    const OLD = [HEAD, "01.10.2026;-50,00;Hausverwaltung;Miete;;", "02.10.2026;10,00;Erstattung;Rückzahlung;;"].join("\n");
+    const bank = (booked: number) => ({ externalId: GIRO.externalId!, booked, currency: "EUR", date: "2026-11-20", pending: null, available: null, creditLine: null });
+    const fetched = (txs: unknown[], booked: number | null) => applyFetch(t.vault.database, accountId, txs as never, booked === null ? null : bank(booked), null);
+    const account = async () => (await api<{ id: number; balance: number; transactionCount: number }[]>("GET", "/api/accounts")).body.find((a) => a.id === accountId)!;
+    const importCsv = async (content: string) => (await api<{ importId: number; imported: number; invalid: number }>("POST", `/api/accounts/${accountId}/import`, { fileName: "alt.csv", content })).body;
+    const rowsOf = (amount: number) => t.vault.database.prepare("SELECT id, source, import_id FROM transactions WHERE account_id = ? AND amount = ?").all(accountId, amount) as { id: number; source: string; import_id: number | null }[];
+    const salary = tx({ amount: 20000, counterpartyName: "Muster GmbH", remittance: "Gehalt", ultimateParty: "" });
+    const shop = tx({ bookingDate: "2026-11-12", valueDate: "2026-11-12", amount: -700, counterpartyName: "Laden", remittance: "Einkauf von der Bank", ultimateParty: "", endToEndId: "E2E-1" });
+    let accountId: number;
+
+    beforeEach(async () => {
+        accountId = (await setUpAccess()).ids.giro!;
+        fetched([salary], 100000);
+    });
+
+    it("keeps today's balance and shows the history right away", async () => {
+        await importCsv(OLD);
+        expect(await account()).toMatchObject({ balance: 100000, transactionCount: 3 });
+        const series = (await api<{ points: { date: string; balance: number }[] }>("GET", `/api/stats/series?scope=account:${accountId}&from=2026-09-30&to=2026-10-05`)).body.points;
+        expect(series.find((p) => p.date === "2026-09-30")?.balance).toBe(84000);
+        expect(series.find((p) => p.date === "2026-10-05")?.balance).toBe(80000);
+        fetched([salary], 100000);
+        expect(await account()).toMatchObject({ balance: 100000, transactionCount: 3 });
+    });
+
+    it("keeps today's balance when an import is undone", async () => {
+        const { importId } = await importCsv(OLD);
+        await api("DELETE", `/api/imports/${importId}`);
+        expect(await account()).toMatchObject({ balance: 100000, transactionCount: 1 });
+    });
+
+    it("counts what a fetch without a balance brought in", async () => {
+        fetched([salary, shop], null);
+        expect((await account()).balance).toBe(99300);
+        await importCsv(OLD);
+        expect((await account()).balance).toBe(99300);
+    });
+
+    it("takes over an imported booking when the bank delivers it", async () => {
+        const food = (await api<{ id: number }>("POST", "/api/categories", { name: "Einkauf", parentId: null, icon: "coffee", color: "orange" })).body.id;
+        const { importId } = await importCsv([HEAD, "12.11.2026;-7,00;LADEN;Einkauf;Einkauf;"].join("\n"));
+        const [before] = rowsOf(-700);
+        const result = fetched([salary, shop], 99300);
+        expect(result.newTransactions).toBe(0);
+        expect(rowsOf(-700)).toEqual([{ id: before!.id, source: "bank", import_id: null }]);
+        const stored = t.vault.database.prepare("SELECT t.remittance, t.end_to_end_id AS e2e, tc.category_id AS category FROM transactions t JOIN transaction_categories tc ON tc.transaction_id = t.id WHERE t.id = ?").get(before!.id);
+        expect(stored).toEqual({ remittance: "Einkauf von der Bank", e2e: "E2E-1", category: food });
+        expect((await account()).balance).toBe(99300);
+        // The booking belongs to the bank now, so undoing the import leaves it
+        await api("DELETE", `/api/imports/${importId}`);
+        expect(rowsOf(-700)).toHaveLength(1);
+        expect((await account()).balance).toBe(99300);
+    });
+
+    it("takes over one imported booking per booking of the bank", async () => {
+        await importCsv([HEAD, "12.11.2026;-7,00;Laden;Einkauf;;"].join("\n"));
+        fetched([salary, shop, { ...shop, endToEndId: "E2E-2" }], 98600);
+        expect(rowsOf(-700).map((r) => r.source)).toEqual(["bank", "bank"]);
+        expect((await account()).balance).toBe(98600);
+    });
+
+    it("leaves pending rows of a file to the bank", async () => {
+        const csv = [HEAD, "15.11.2026;-9,90;Kiosk;Snack;;vorgemerkt"].join("\n");
+        const preview = (await api<{ counts: { new: number; invalid: number }; rows: { error: string | null }[] }>("POST", `/api/accounts/${accountId}/import/preview`, { fileName: "v.csv", content: csv })).body;
+        expect(preview.counts).toMatchObject({ new: 0, invalid: 1 });
+        expect(preview.rows[0]?.error).toBe("Vorgemerkte Umsätze kommen bei Bankkonten vom Abruf.");
+        expect(await importCsv(csv)).toMatchObject({ imported: 0, invalid: 1 });
+        expect(await account()).toMatchObject({ balance: 100000, transactionCount: 1 });
+    });
+
+    it("does not let a pending row imported earlier move the balance", async () => {
+        t.vault.database
+            .prepare("INSERT INTO transactions (account_id, booking_date, amount, status, first_seen_at, source) VALUES (?, '2026-11-15', -990, 'pending', '2026-11-16T00:00:00.000Z', 'import')")
+            .run(accountId);
+        fetched([salary], 100000);
+        expect((await account()).balance).toBe(100000);
+    });
+
+    it("adds an import to an account the bank gives no balance for", async () => {
+        t.vault.database.prepare("DELETE FROM balances WHERE account_id = ?").run(accountId);
+        const before = (await account()).balance;
+        await importCsv(OLD);
+        expect((await account()).balance).toBe(before - 4000);
+    });
+
+    it("still takes pending rows into an offline account and counts every booking", async () => {
+        const cash = (await api<{ id: number }>("POST", "/api/accounts", { name: "Bargeld", icon: "banknote", color: "green", groupId: null, openingBalance: 10000 })).body.id;
+        const csv = [HEAD, "01.10.2026;-50,00;Laden;Einkauf;;", "02.10.2026;-5,00;Kiosk;Snack;;vorgemerkt"].join("\n");
+        const result = (await api<{ imported: number }>("POST", `/api/accounts/${cash}/import`, { fileName: "bar.csv", content: csv })).body;
+        expect(result.imported).toBe(2);
+        const accounts = (await api<{ id: number; balance: number }[]>("GET", "/api/accounts")).body;
+        expect(accounts.find((a) => a.id === cash)?.balance).toBe(4500);
     });
 });
 

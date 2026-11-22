@@ -22,9 +22,10 @@ seinem Menü. Der Import läuft dann auf einer eigenen Seite in vier Schritten:
    Referenz, ein Klick auf eine Zeile zeigt ihre Details. Anfangs siehst du nur die Zeilen, die etwas
    ändern oder unlesbar sind.
 
-Mit den Kästchen wählst du, was du übernimmst. Anfangs ist alles gewählt, was etwas ändert. Eine
-abgewählte Zeile ändert nichts: kein neuer Umsatz, keine Ergänzung und keine neue Kategorie. Mit
-**Umsätze übernehmen** schließt du den Import ab.
+Mit den Kästchen wählst du, was du übernimmst. Anfangs sind alle neuen Umsätze und Ergänzungen
+gewählt. Eine [abweichende Kategorie](#abweichende-kategorien) ist nicht gewählt und bleibt, bis du
+sie selbst wählst. Eine abgewählte Zeile ändert nichts: kein neuer Umsatz, keine Ergänzung und keine
+neue Kategorie. Mit **Umsätze übernehmen** schließt du den Import ab.
 
 Mit **Zurück** oder einem Klick auf einen erledigten Schritt gehst du zurück. Deine Auswahl bleibt
 erhalten, solange Datei, Format und Konto gleich bleiben.
@@ -39,6 +40,19 @@ Ein Umsatz gilt als schon vorhanden, wenn Buchungsdatum, Betrag und IBAN der Geg
 sind. Ohne IBAN vergleicht MBM den Namen der Gegenseite, ohne Groß- und Kleinschreibung, Akzente,
 Leer- und Satzzeichen. Der Verwendungszweck zählt nicht, weil Exporte ihn oft unterschiedlich
 aufbereiten. So kannst du dieselbe Datei auch zweimal importieren, ohne etwas doppelt zu haben.
+
+## Saldo bei Bankkonten
+
+Bei einem Bankkonto bleibt der heutige Saldo beim Import und beim Rückgängigmachen auf dem letzten
+Stand der Bank. Ältere Umsätze ändern nur den Saldoverlauf davor. Ein zusätzlicher Abruf ist nicht
+nötig. Fehlen in der Historie Umsätze, weichen die Tage vor dieser Lücke um die fehlenden Beträge ab.
+
+Liefert die Bank später einen Umsatz, der schon aus einer Datei da ist, legt MBM ihn nicht noch
+einmal an. Der vorhandene Umsatz bekommt die Angaben der Bank und behält seine Kategorie. Er gilt ab
+dann als Umsatz der Bank, „Import rückgängig“ entfernt ihn also nicht mehr.
+
+**Vorgemerkte Zeilen** übernimmt MBM bei Bankkonten nicht, weil die Bank sie selbst liefert. Sie
+stehen im Schritt „Prüfen“ unter **Nicht übernehmbar**.
 
 ## Importformate
 
@@ -119,16 +133,31 @@ geschieht nur über den Abruf von der Bank.
 ## Kategorien
 
 Hat die Datei eine Kategorie-Spalte (etwa `Wohnen\Miete`), übernimmt MBM sie. Fehlende Kategorien
-legt es auf Wunsch an. Zeilen ohne Kategorie laufen durch die [Regeln](kategorien-regeln.md#regeln).
+legt es an, wenn du über der Liste **Fehlende Kategorien anlegen** wählst. Neue Zeilen ohne Kategorie
+laufen durch die [Regeln](kategorien-regeln.md#regeln).
+
+Hat ein vorhandener Umsatz noch **keine Kategorie**, zeigt die Prüfung „ergänzen“, und MBM trägt die
+Kategorie aus der Datei ein. Wenn du das nicht möchtest, wählst du die Zeile ab.
 
 ### Abweichende Kategorien
 
-Nennt die Datei bei einem Umsatz, den es schon gibt, eine andere Kategorie, zeigt die Prüfung
-„Kategorie abweichend“. Die Details der Zeile stellen die Kategorie aktuell in MBM und die aus der
-Datei nebeneinander und sagen, ob der Import sie ersetzt. Unter der Liste wählst du
-**… abweichende Kategorien überschreiben**; dann bekommen diese Umsätze die Kategorie aus der Datei,
-als hättest du sie von Hand vergeben. Regeln ändern sie danach nicht mehr.
+Nennt die Datei bei einem Umsatz, den es schon gibt, eine **andere Kategorie**, zeigt die Prüfung
+„Kategorie abweichend“. Solche Zeilen stehen im Filter **Abweichend** und sind anfangs nicht gewählt,
+deine Kategorie bleibt also erhalten.
 
+Die Details einer Zeile stellen die Kategorie aktuell in MBM und die aus der Datei nebeneinander. Um
+sie zu ersetzen, wählst du die Zeile. Für alle angezeigten Zeilen wählst du im Filter **Abweichend**
+oben **Alle angezeigten ersetzen**. In den anderen Filtern ändert „Alle angezeigten“ nie eine
+vorhandene Kategorie.
+
+Ersetzte Kategorien gelten, als hättest du sie von Hand vergeben. Die Zusammenfassung unten nennt,
+wie viele Kategorien der Import ersetzt.
+
+!!! warning "Nicht rückgängig zu machen"
+    Auch wenn du den Import später rückgängig machst, bleibt eine ersetzte Kategorie bestehen.
+
+- Hat eine Zeile eine abweichende Kategorie und zugleich leere Angaben, zeigt ihr Kästchen „teilweise“.
+  In den Details entscheidest du getrennt über **Kategorie ersetzen** und **Angaben ergänzen**.
 - Fehlt die Kategorie der Datei noch, wird sie nur übernommen, wenn du auch **Fehlende Kategorien
   anlegen** wählst.
 - Aufgeteilte Buchungen bleiben, wie sie sind („aufgeteilt, bleibt“).

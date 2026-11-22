@@ -4,9 +4,10 @@
 
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { ContextMenu, DropdownMenu } from "radix-ui";
-import { Check, ChevronDown, GripVertical, MoreHorizontal, NotebookPen, Palette, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronDown, GripVertical, MoreHorizontal, NotebookPen, Palette, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { routes, type Account, type AccountGroup, type AccountScope, type Category } from "@mbm/shared";
 import { call } from "../lib/api";
+import { useIsSyncing } from "../lib/bank";
 import { useAction } from "../lib/queries";
 import { readLocalSetting, useLocalSetting, writeLocalSetting } from "../lib/localSettings";
 import {
@@ -208,6 +209,16 @@ function targetIndex(n: DragNode, parentId: number | null, index: number, pos: "
 
 // ---------- Account tree ----------
 
+/** Shown on a row while a fetch updates its account. */
+function SyncingMark({ label }: { label: string }) {
+    return (
+        <span className="tr-sync" title={label}>
+            <Ic icon={RefreshCw} size={13} className="spin" />
+            <span className="sr-only">{label}</span>
+        </span>
+    );
+}
+
 export function AccountTreeRows({
     nodes,
     depth,
@@ -297,6 +308,8 @@ function GroupRow({ node, depth, index, count, parentId, groups, accounts, searc
     const items = groupMenu(g, action, () => setStyleOpen(true), order);
     const picked = sidebarScope(search);
     const current = picked === key;
+    // A closed group stands in for the accounts it hides
+    const syncing = useIsSyncing(collapsed ? accountsInScope(key, groups, accounts).map((x) => x.id) : []);
     return (
         <>
             <WithContextMenu items={items}>
@@ -333,6 +346,7 @@ function GroupRow({ node, depth, index, count, parentId, groups, accounts, searc
                         )}
                     </span>
                     <span className="tr-end">
+                        {syncing && <SyncingMark label="Konten werden aktualisiert" />}
                         <Amt cents={sumBalance(accountsInScope(key, groups, accounts))} className="tr-sum" />
                         {moveOpen && <MoveTreePicker kind="group" id={g.id} name={g.name} parentId={parentId} groups={groups} onClose={() => setMoveOpen(false)} />}
                         {editing && <MenuButton items={items} tabIndex={-1} />}
@@ -370,6 +384,7 @@ function AccountRow({ account: a, depth, index, count, parentId, groups, account
     const order = useTreeOrder("account", a.id, parentId, index, count, () => setMoveOpen(true));
     // New bookings: on accounts only, never on groups
     const unread = useUnreadByAccount().get(a.id) ?? 0;
+    const syncing = useIsSyncing([a.id]);
     const items = accountMenu(a, action, () => setStyleOpen(true), order, unread);
     const picked = sidebarScope(search);
     return (
@@ -415,6 +430,7 @@ function AccountRow({ account: a, depth, index, count, parentId, groups, account
                     )}
                 </span>
                 <span className="tr-end">
+                    {syncing && <SyncingMark label="Konto wird aktualisiert" />}
                     {!editing && <NewBadge count={unread} />}
                     <Amt cents={a.balance} />
                     {moveOpen && <MoveTreePicker kind="account" id={a.id} name={a.name} parentId={parentId} groups={groups} onClose={() => setMoveOpen(false)} />}

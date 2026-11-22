@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BUILTIN_IMPORT_FORMATS, type ImportFormatDefinition, type ImportPreview } from "@mbm/shared";
-import { categoryChange, copyName, emptyFormat, fieldsSummary, fileSummary, formatColumns, formatProblem, matchesFilter, matchesSearch, newStep, NO_CHOICE, partName, pruneRefs, replaceStep, reviewCounts, reviewOutcome, rowSelectable, sourceKey, sourceOptions, stepsSummary } from "./importFormat";
+import { categoryChange, copyName, emptyFormat, fieldsSummary, fileSummary, formatColumns, formatProblem, matchesFilter, matchesSearch, newStep, NO_CHOICE, partName, pruneRefs, replaceStep, reviewCounts, reviewOutcome, rowCheck, rowSelectable, setRowPart, shownSelection, sourceKey, sourceOptions, stepsSummary, toggleRow, toggleShown } from "./importFormat";
 
 type Row = ImportPreview["rows"][number];
 
@@ -95,27 +95,28 @@ describe("filter of the review", () => {
         row({ line: 4, state: "duplicate", categoryState: "differs" }),
         row({ line: 5, state: "invalid", error: "x" }),
         row({ line: 6, state: "duplicate", fillsBookingText: true, categoryState: "differs" }),
+        row({ line: 7, state: "duplicate", categoryState: "empty", categoryId: 7 }),
     ];
     const lines = (f: Parameters<typeof matchesFilter>[1]) => rows.filter((r) => matchesFilter(r, f)).map((r) => r.line);
 
-    it("shows everything that changes something by default", () => {
-        expect(lines("changes")).toEqual([1, 3, 4, 5, 6]);
+    it("shows what the import does by default, without bare conflicts", () => {
+        expect(lines("changes")).toEqual([1, 3, 5, 6, 7]);
     });
 
     it("sorts rows into the tiles", () => {
         expect(lines("new")).toEqual([1]);
-        expect(lines("fill")).toEqual([3, 6]);
+        expect(lines("fill")).toEqual([3, 6, 7]);
         expect(lines("differs")).toEqual([4, 6]);
         expect(lines("duplicate")).toEqual([2]);
         expect(lines("invalid")).toEqual([5]);
     });
 
     it("counts per filter", () => {
-        expect(reviewCounts(rows)).toEqual({ changes: 5, new: 1, fill: 2, differs: 2, duplicate: 1, invalid: 1, all: 6 });
+        expect(reviewCounts(rows)).toEqual({ changes: 5, new: 1, fill: 3, differs: 2, duplicate: 1, invalid: 1, all: 7 });
     });
 
     it("shows every row with the filter for all", () => {
-        expect(lines("all")).toEqual([1, 2, 3, 4, 5, 6]);
+        expect(lines("all")).toEqual([1, 2, 3, 4, 5, 6, 7]);
     });
 });
 
@@ -139,33 +140,85 @@ describe("choice of rows in the review", () => {
     const same = row({ line: 4, state: "duplicate" });
     const differs = row({ line: 5, state: "duplicate", categoryState: "differs", categoryId: 7 });
     const bad = row({ line: 6, state: "invalid", error: "x" });
-    const all = [fresh, other, fill, same, differs, bad];
+    const empty = row({ line: 7, state: "duplicate", categoryState: "empty", categoryId: 7 });
+    const both = row({ line: 8, state: "duplicate", categoryState: "differs", categoryId: 7, fillsDetails: true });
+    const all = [fresh, other, fill, same, differs, bad, empty, both];
 
-    it("offers only rows that change something", () => {
-        expect(all.filter((x) => rowSelectable(x, false)).map((x) => x.line)).toEqual([1, 2, 3]);
-        expect(all.filter((x) => rowSelectable(x, true)).map((x) => x.line)).toEqual([1, 2, 3, 5]);
+    it("offers only rows with something to decide", () => {
+        expect(all.filter(rowSelectable).map((x) => x.line)).toEqual([1, 2, 3, 5, 7, 8]);
     });
 
-    it("takes everything that changes something by default", () => {
-        expect(reviewOutcome(all, NO_CHOICE)).toMatchObject({ fresh: 2, fills: 1, changes: 0, affected: 3, leftOut: 0, missing: ["Neu A", "Neu B"] });
+    it("takes what is new or empty by default and replaces no category", () => {
+        expect(reviewOutcome(all, NO_CHOICE)).toMatchObject({ fresh: 2, fills: 3, changes: 0, affected: 5, leftOut: 0, differing: 2, chosen: 0, missing: ["Neu A", "Neu B"] });
+        expect([fresh, fill, empty, differs, both, same].map((x) => rowCheck(x, NO_CHOICE))).toEqual(["on", "on", "on", "off", "partial", "none"]);
     });
 
     it("counts only the rows still selected", () => {
         const outcome = reviewOutcome(all, { ...NO_CHOICE, excluded: new Set([2, 3]), createCategories: true });
-        expect(outcome).toMatchObject({ fresh: 1, fills: 0, affected: 1, leftOut: 2, missing: ["Neu A"], create: true });
+        expect(outcome).toMatchObject({ fresh: 1, fills: 2, affected: 3, leftOut: 2, missing: ["Neu A"], create: true });
     });
 
-    it("overwrites only selected differing rows", () => {
-        expect(reviewOutcome(all, { ...NO_CHOICE, overwriteCategories: true })).toMatchObject({ overwrite: true, changes: 1, affected: 4 });
-        expect(reviewOutcome(all, { ...NO_CHOICE, overwriteCategories: true, excluded: new Set([5]) })).toMatchObject({ overwrite: false, changes: 0, affected: 3, leftOut: 1 });
+    it("replaces the category of a single row", () => {
+        const choice = toggleRow(differs, NO_CHOICE);
+        expect(choice.replaced).toEqual(new Set([5]));
+        expect(reviewOutcome(all, choice)).toMatchObject({ changes: 1, chosen: 1, affected: 6 });
+        expect(toggleRow(differs, choice).replaced).toEqual(new Set());
     });
 
-    it("says what happens to a stored category that differs", () => {
-        const absent = row({ line: 7, state: "duplicate", categoryState: "differs", categoryId: null, newCategory: "Neu C" });
-        expect(categoryChange(differs, NO_CHOICE)).toBe("no-overwrite");
-        expect(categoryChange(differs, { ...NO_CHOICE, overwriteCategories: true })).toBe("replaced");
-        expect(categoryChange(differs, { ...NO_CHOICE, overwriteCategories: true, excluded: new Set([5]) })).toBe("left-out");
-        expect(categoryChange(absent, { ...NO_CHOICE, overwriteCategories: true })).toBe("needs-category");
-        expect(categoryChange(absent, { ...NO_CHOICE, overwriteCategories: true, createCategories: true })).toBe("replaced");
+    it("clicks a row with both decisions from partly to all to nothing", () => {
+        const on = toggleRow(both, NO_CHOICE);
+        expect(rowCheck(both, on)).toBe("on");
+        const off = toggleRow(both, on);
+        expect(rowCheck(both, off)).toBe("off");
+        expect(off.excluded).toEqual(new Set([8]));
+        expect(off.replaced).toEqual(new Set());
+    });
+
+    it("decides the category and the filled-in values of a row separately", () => {
+        const onlyCategory = setRowPart([both], "take", false, setRowPart([both], "category", true, NO_CHOICE));
+        expect(rowCheck(both, onlyCategory)).toBe("partial");
+        expect(reviewOutcome([both], onlyCategory)).toMatchObject({ changes: 1, fills: 0, affected: 1, leftOut: 1 });
+    });
+
+    it("never replaces categories with all shown outside the filter for them", () => {
+        const off = toggleShown(all, "changes", NO_CHOICE);
+        expect(off.replaced).toEqual(new Set());
+        expect(off.excluded).toEqual(new Set([1, 2, 3, 7, 8]));
+        expect(toggleShown(all, "changes", off).replaced).toEqual(new Set());
+        expect(toggleShown(all, "all", NO_CHOICE).replaced).toEqual(new Set());
+    });
+
+    it("replaces all shown conflicts under their filter and leaves the rest", () => {
+        const conflicts = [differs, both];
+        const on = toggleShown(conflicts, "differs", NO_CHOICE);
+        expect(on.replaced).toEqual(new Set([5, 8]));
+        expect(on.excluded).toEqual(new Set());
+        expect(shownSelection(conflicts, "differs", on)).toMatchObject({ targets: 2, all: true, some: false, chosen: 2 });
+        expect(toggleShown(conflicts, "differs", on).replaced).toEqual(new Set());
+        expect(shownSelection(conflicts, "differs", { ...NO_CHOICE, replaced: new Set([5]) })).toMatchObject({ all: false, some: true });
+    });
+
+    it("writes a missing category only when it gets created", () => {
+        const absent = row({ line: 9, state: "duplicate", categoryState: "differs", categoryId: null, newCategory: "Neu C" });
+        const hollow = row({ line: 10, state: "duplicate", categoryState: "empty", categoryId: null, newCategory: "Neu D" });
+        const chosen = { ...NO_CHOICE, replaced: new Set([9]) };
+        expect(reviewOutcome([absent, hollow], NO_CHOICE)).toMatchObject({ missing: ["Neu D"], fills: 0, affected: 0, blocked: true });
+        expect(reviewOutcome([absent, hollow], chosen)).toMatchObject({ missing: ["Neu D", "Neu C"], changes: 0, blocked: true });
+        expect(reviewOutcome([absent, hollow], { ...chosen, createCategories: true })).toMatchObject({ changes: 1, fills: 1, affected: 2, blocked: false, create: true });
+    });
+
+    it("says what happens to a stored category", () => {
+        const absent = row({ line: 9, state: "duplicate", categoryState: "differs", categoryId: null, newCategory: "Neu C" });
+        const hollow = row({ line: 10, state: "duplicate", categoryState: "empty", categoryId: null, newCategory: "Neu D" });
+        const replaced = new Set([5, 9]);
+        expect(categoryChange(differs, NO_CHOICE)).toBe("not-chosen");
+        expect(categoryChange(differs, { ...NO_CHOICE, replaced })).toBe("replaced");
+        expect(categoryChange(differs, { ...NO_CHOICE, replaced, excluded: new Set([5]) })).toBe("replaced");
+        expect(categoryChange(absent, { ...NO_CHOICE, replaced })).toBe("needs-category");
+        expect(categoryChange(absent, { ...NO_CHOICE, replaced, createCategories: true })).toBe("replaced");
+        expect(categoryChange(empty, NO_CHOICE)).toBe("filled");
+        expect(categoryChange(empty, { ...NO_CHOICE, excluded: new Set([7]) })).toBe("left-out");
+        expect(categoryChange(hollow, NO_CHOICE)).toBe("needs-category");
+        expect(categoryChange(hollow, { ...NO_CHOICE, createCategories: true })).toBe("filled");
     });
 });

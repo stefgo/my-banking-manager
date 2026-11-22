@@ -43,6 +43,9 @@ den Abruf in der Banking-App frei. Neue Umsätze bekommen ihre Kategorie über d
 [Regeln](kategorien-regeln.md) und sind als [neu](umsaetze.md#neue-umsätze) markiert. Zusammen mit
 den Umsätzen holt MBM auch die [Aufträge](auftraege.md).
 
+Solange ein Abruf läuft, dreht sich in der Kontenliste ein Symbol neben jedem Konto, das gerade
+aktualisiert wird. Liegt das Konto in einer zugeklappten Gruppe, steht das Symbol an der Gruppe.
+
 ## Offline-Konten
 
 Für Bargeld, Sparbuch, Depot und alles ohne Online-Zugang. Ein Offline-Konto hat einen Namen, eine

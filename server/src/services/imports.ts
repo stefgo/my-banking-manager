@@ -2,7 +2,7 @@ import { columnsFromFormat, duplicateKey, formatFromColumns, guessColumns, IMPOR
 import type { Db } from "../db/database.js";
 import { nowIso } from "../db/database.js";
 import { badRequest, notFound } from "../http/errors.js";
-import { requireAccount } from "./accounts.js";
+import { keepBankBalance, requireAccount } from "./accounts.js";
 import { createCategory } from "./categories.js";
 import { formatCandidates } from "./importFormats.js";
 import { activeRules, firstMatch } from "./rules.js";
@@ -18,7 +18,7 @@ interface Planned extends ImportRow {
     /** Duplicate: the booking already stored, its category and how the file's category compares. */
     storedId: number | null;
     storedCategoryId: number | null;
-    categoryState: "same" | "differs" | "split" | null;
+    categoryState: "same" | "differs" | "empty" | "split" | null;
     /** Duplicate without a kind of booking that takes the one of the file. */
     fillsBookingText: boolean;
     /** Duplicate with an empty detail (reference, mandate, creditor id, BIC) the file has. */
@@ -133,7 +133,7 @@ function chooseFormat(db: Db, content: string, selection: ImportSelection): { fo
 export const detectImportFormat = (db: Db, content: string): { format: ImportFormatDefinition; formatKey: string | null } => chooseFormat(db, content, {});
 
 function plan(db: Db, accountId: number, content: string, selection: ImportSelection): { header: string[]; columns: ColumnMap; format: ImportFormatDefinition; formatKey: string | null; rows: Planned[] } {
-    requireAccount(db, accountId);
+    const isBankAccount = requireAccount(db, accountId).kind !== "offline";
     const { format, formatKey } = chooseFormat(db, content, selection);
     const table = readWithFormat(content, format);
     if (!table.header.length) throw badRequest("In der Datei steht keine Tabelle.", "empty_file");
@@ -170,6 +170,8 @@ function plan(db: Db, accountId: number, content: string, selection: ImportSelec
             const fills = FILLABLE.filter((f) => !!r[f] && !match![f]);
             return { ...planned, fills, fillsBookingText: fills.includes("bookingText"), fillsDetails: fills.some((f) => f !== "bookingText") };
         }
+        // The bank delivers pending bookings itself and replaces them; one from a file would stay
+        if (r.pending && isBankAccount) return { ...r, state: "invalid", ...NO_CATEGORY, error: "Vorgemerkte Umsätze kommen bei Bankkonten vom Abruf." };
         const fromFile = r.category ? categoryByName(categories, r.category, separator) : null;
         if (fromFile) return { ...r, state: "new", ...NO_CATEGORY, categoryId: fromFile, categorySource: "auto" };
         // Unless missing categories get created, the rules decide
@@ -195,6 +197,7 @@ function duplicate(r: ImportRow, storedId: number, stored: number[], categories:
     const missing = fromFile ? null : missingCategory(r.category, separator);
     if (!fromFile && !missing) return base;
     if (stored.length > 1) return { ...base, categoryId: fromFile, categoryState: "split" };
+    if (!stored.length) return { ...base, categoryId: fromFile, categorySource: "auto", missing, categoryState: "empty" };
     if (fromFile !== null && fromFile === base.storedCategoryId) return { ...base, categoryId: fromFile, categoryState: "same" };
     return { ...base, categoryId: fromFile, categorySource: "auto", missing, categoryState: "differs" };
 }
@@ -255,7 +258,7 @@ export function previewImport(db: Db, accountId: number, content: string, select
     for (const r of p.rows) {
         counts[r.state]++;
         if (r.categoryState === "differs") counts.differs++;
-        if (r.fillsBookingText || r.fillsDetails) counts.filled++;
+        if (r.fillsBookingText || r.fillsDetails || r.categoryState === "empty") counts.filled++;
     }
     return {
         header: p.header,
@@ -298,22 +301,26 @@ export function commitImport(
     selection: ImportSelection,
     userId: number | null,
     createCategories = false,
-    overwriteCategories = false,
+    replaceCategoryLines: readonly number[] = [],
     excludeLines: readonly number[] = [],
-): { importId: number; imported: number; skipped: number; invalid: number; createdCategories: number; recategorized: number; bookingTextsFilled: number; detailsFilled: number; filled: number; excluded: number } {
+): { importId: number; imported: number; skipped: number; invalid: number; createdCategories: number; recategorized: number; categoriesFilled: number; bookingTextsFilled: number; detailsFilled: number; filled: number; excluded: number } {
     // Left out only after the plan: each stored booking still covers its one equal row of the file
     const p = plan(db, accountId, content, selection);
     const left = new Set(excludeLines);
+    const replace = new Set(replaceCategoryLines);
     const kept = p.rows.filter((r) => !left.has(r.line));
-    const excluded = p.rows.filter((r) => left.has(r.line) && (r.state === "new" || r.fillsBookingText || r.fillsDetails || (overwriteCategories && r.categoryState === "differs"))).length;
+    const fillsCategory = (r: Planned): boolean => r.categoryState === "empty" && (r.categoryId !== null || (createCategories && !!r.missing));
+    const excluded = p.rows.filter((r) => left.has(r.line) && (r.state === "new" || r.fillsBookingText || r.fillsDetails || fillsCategory(r))).length;
     const fresh = kept.filter((r) => r.state === "new");
-    const differing = overwriteCategories ? kept.filter((r) => r.categoryState === "differs") : [];
+    const empty = kept.filter((r) => r.categoryState === "empty");
+    // Replacing a category is its own choice, so it does not depend on the row being left out
+    const differing = p.rows.filter((r) => r.categoryState === "differs" && replace.has(r.line));
     let createdCategories = 0;
     if (createCategories) {
         // The file decides over the rules for the categories it names
-        const { ids, created } = createMissing(db, uniqueMissing([...fresh, ...differing]));
+        const { ids, created } = createMissing(db, uniqueMissing([...fresh, ...empty, ...differing]));
         createdCategories = created;
-        for (const r of [...fresh, ...differing]) {
+        for (const r of [...fresh, ...empty, ...differing]) {
             if (!r.missing) continue;
             r.categoryId = ids.get(r.missing.key) ?? null;
             r.categorySource = "auto";
@@ -348,7 +355,7 @@ export function commitImport(
     }
     // New for the others; the importing user saw them in the preview
     markNew(db, ids, userId);
-    // Bookings already stored take the file's category as if assigned by hand
+    // A replaced category counts as assigned by hand
     const clear = db.prepare("DELETE FROM transaction_categories WHERE transaction_id = ?");
     let recategorized = 0;
     for (const r of differing) {
@@ -356,6 +363,13 @@ export function commitImport(
         clear.run(r.storedId);
         insertCat.run(r.storedId, r.categoryId, r.amount, "manual", null);
         recategorized++;
+    }
+    // A booking without a category takes the file's like a new one
+    let categoriesFilled = 0;
+    for (const r of empty) {
+        if (r.categoryId === null || r.storedId === null) continue;
+        insertCat.run(r.storedId, r.categoryId, r.amount, "auto", null);
+        categoriesFilled++;
     }
     // Only an empty kind of booking is filled in, one already stored stays
     const fillBookingText = db.prepare("UPDATE transactions SET booking_text = ? WHERE id = ? AND booking_text = ''");
@@ -376,8 +390,9 @@ export function commitImport(
     for (const r of kept) {
         if (r.fillsDetails && r.storedId !== null) detailsFilled += fillDetails.run(r.reference, r.mandateId, r.creditorId, r.counterpartyBic, r.storedId).changes;
     }
-    const filled = kept.filter((r) => r.storedId !== null && (r.fillsBookingText || r.fillsDetails)).length;
-    return { importId, imported: fresh.length, skipped, invalid, createdCategories, recategorized, bookingTextsFilled, detailsFilled, filled, excluded };
+    const filled = kept.filter((r) => r.storedId !== null && (r.fillsBookingText || r.fillsDetails || (r.categoryState === "empty" && r.categoryId !== null))).length;
+    keepBankBalance(db, accountId, fresh.reduce((sum, r) => sum + (r.amount ?? 0), 0));
+    return { importId, imported: fresh.length, skipped, invalid, createdCategories, recategorized, categoriesFilled, bookingTextsFilled, detailsFilled, filled, excluded };
 }
 
 export function listImports(db: Db): ImportRecord[] {
@@ -395,9 +410,11 @@ export function listImports(db: Db): ImportRecord[] {
 export function undoImport(db: Db, id: number): { accountId: number; fileName: string; removed: number } {
     const row = db.prepare("SELECT account_id, file_name FROM imports WHERE id = ?").get(id) as { account_id: number; file_name: string } | undefined;
     if (!row) throw notFound("Import");
+    const { sum } = db.prepare("SELECT COALESCE(SUM(amount), 0) AS sum FROM transactions WHERE import_id = ?").get(id) as { sum: number };
     // Counter bookings made from imported bookings go too
     db.prepare("DELETE FROM transactions WHERE source = 'manual' AND counter_transaction_id IN (SELECT id FROM transactions WHERE import_id = ?)").run(id);
     const removed = db.prepare("DELETE FROM transactions WHERE import_id = ?").run(id).changes;
     db.prepare("DELETE FROM imports WHERE id = ?").run(id);
+    keepBankBalance(db, row.account_id, -sum);
     return { accountId: row.account_id, fileName: row.file_name, removed };
 }

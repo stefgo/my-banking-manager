@@ -164,7 +164,12 @@ type ReviewRow = ImportPreview["rows"][number];
 /** What the list of the review shows; `changes` is everything that does something or failed. */
 export type ReviewFilter = "changes" | "new" | "fill" | "differs" | "duplicate" | "invalid" | "all";
 
-export const rowFills = (r: ReviewRow): boolean => r.fillsBookingText || r.fillsDetails;
+/** A stored booking with an empty kind of booking or detail the file has. */
+export const rowFillsFields = (r: ReviewRow): boolean => r.fillsBookingText || r.fillsDetails;
+/** A stored booking without a category, where the file names one. */
+export const rowFillsCategory = (r: ReviewRow): boolean => r.categoryState === "empty";
+export const rowFills = (r: ReviewRow): boolean => rowFillsFields(r) || rowFillsCategory(r);
+/** A stored booking whose category conflicts with the file's. */
 export const rowDiffers = (r: ReviewRow): boolean => r.categoryState === "differs";
 
 export function matchesFilter(r: ReviewRow, filter: ReviewFilter): boolean {
@@ -180,7 +185,8 @@ export function matchesFilter(r: ReviewRow, filter: ReviewFilter): boolean {
         case "duplicate":
             return r.state === "duplicate" && !rowFills(r) && !rowDiffers(r);
         case "changes":
-            return r.state !== "duplicate" || rowFills(r) || rowDiffers(r);
+            // A conflict changes nothing by itself, so it has its own filter
+            return r.state !== "duplicate" || rowFills(r);
         case "all":
             return true;
     }
@@ -202,47 +208,103 @@ export function matchesSearch(r: ReviewRow, text: string): boolean {
 
 /** What was decided in the review. It lasts as long as file, format and account stay the same. */
 export interface ReviewChoice {
-    /** Lines of the file left out. */
+    /** Lines whose new booking or filled-in values are left out. */
     excluded: ReadonlySet<number>;
+    /** Lines whose differing category replaces the stored one. None by default. */
+    replaced: ReadonlySet<number>;
     createCategories: boolean;
-    overwriteCategories: boolean;
 }
 
-export const NO_CHOICE: ReviewChoice = { excluded: new Set(), createCategories: false, overwriteCategories: false };
+export const NO_CHOICE: ReviewChoice = { excluded: new Set(), replaced: new Set(), createCategories: false };
 
-/** A row that can be left out, because taking it would change something. */
-export const rowSelectable = (r: ReviewRow, overwriteCategories: boolean): boolean => r.state === "new" || rowFills(r) || (overwriteCategories && rowDiffers(r));
+/** The two decisions a row can hold: take what is new or empty, and replace a differing category. */
+export type RowPart = "take" | "category";
 
-/** What the import does with the stored category of a differing row, and if nothing, why. */
-export type CategoryChange = "replaced" | "no-overwrite" | "left-out" | "needs-category";
+const rowHasPart = (r: ReviewRow, part: RowPart): boolean => (part === "take" ? r.state === "new" || rowFills(r) : rowDiffers(r));
+const partChosen = (r: ReviewRow, part: RowPart, choice: ReviewChoice): boolean => (part === "take" ? !choice.excluded.has(r.line) : choice.replaced.has(r.line));
+
+/** A row with something to decide. */
+export const rowSelectable = (r: ReviewRow): boolean => rowHasPart(r, "take") || rowHasPart(r, "category");
+
+/** Both decisions of a row together; `partial` when only one of them is chosen. */
+export type RowCheck = "none" | "off" | "partial" | "on";
+
+export function rowCheck(r: ReviewRow, choice: ReviewChoice): RowCheck {
+    const chosen = (["take", "category"] as const).filter((p) => rowHasPart(r, p)).map((p) => partChosen(r, p, choice));
+    if (!chosen.length) return "none";
+    return chosen.every(Boolean) ? "on" : chosen.some(Boolean) ? "partial" : "off";
+}
+
+/** Sets one decision for the rows that have it. */
+export function setRowPart(rows: readonly ReviewRow[], part: RowPart, on: boolean, choice: ReviewChoice): ReviewChoice {
+    const excluded = new Set(choice.excluded);
+    const replaced = new Set(choice.replaced);
+    for (const r of rows) {
+        if (!rowHasPart(r, part)) continue;
+        if (part === "category") {
+            if (on) replaced.add(r.line);
+            else replaced.delete(r.line);
+        } else if (on) excluded.delete(r.line);
+        else excluded.add(r.line);
+    }
+    return { ...choice, excluded, replaced };
+}
+
+/** A click on a row: everything on, or from fully on to everything off. */
+export function toggleRow(r: ReviewRow, choice: ReviewChoice): ReviewChoice {
+    const on = rowCheck(r, choice) !== "on";
+    return setRowPart([r], "category", on, setRowPart([r], "take", on, choice));
+}
+
+/** What "all shown" decides: categories under "Abweichend", else only what is new or empty. */
+const shownPart = (filter: ReviewFilter): RowPart => (filter === "differs" ? "category" : "take");
+
+/** The state of "all shown". `chosen` counts the shown rows with anything chosen. */
+export function shownSelection(rows: readonly ReviewRow[], filter: ReviewFilter, choice: ReviewChoice) {
+    const part = shownPart(filter);
+    const targets = rows.filter((r) => rowHasPart(r, part));
+    const on = targets.filter((r) => partChosen(r, part, choice)).length;
+    const chosen = rows.filter((r) => ["on", "partial"].includes(rowCheck(r, choice))).length;
+    return { targets: targets.length, all: targets.length > 0 && on === targets.length, some: on > 0 && on < targets.length, chosen };
+}
+
+export function toggleShown(rows: readonly ReviewRow[], filter: ReviewFilter, choice: ReviewChoice): ReviewChoice {
+    return setRowPart(rows, shownPart(filter), !shownSelection(rows, filter, choice).all, choice);
+}
+
+/** What the import does with the category of a stored booking, and if nothing, why. */
+export type CategoryChange = "replaced" | "filled" | "not-chosen" | "left-out" | "needs-category";
 
 export function categoryChange(r: ReviewRow, choice: ReviewChoice): CategoryChange {
-    if (!choice.overwriteCategories) return "no-overwrite";
-    if (choice.excluded.has(r.line)) return "left-out";
-    return r.categoryId !== null || choice.createCategories ? "replaced" : "needs-category";
+    if (rowDiffers(r) && !choice.replaced.has(r.line)) return "not-chosen";
+    if (rowFillsCategory(r) && choice.excluded.has(r.line)) return "left-out";
+    if (r.categoryId === null && !choice.createCategories) return "needs-category";
+    return rowDiffers(r) ? "replaced" : "filled";
 }
 
 /** What the import does with the rows that are selected. */
 export function reviewOutcome(rows: ReviewRow[], choice: ReviewChoice) {
     const kept = rows.filter((r) => !choice.excluded.has(r.line));
-    const differing = kept.filter(rowDiffers);
-    const overwrite = choice.overwriteCategories && differing.length > 0;
-    // Missing categories of rows that will be written: new ones, and differing ones when overwritten
-    const missing = [...new Set(kept.filter((r) => r.newCategory && (r.state === "new" || (overwrite && rowDiffers(r)))).map((r) => r.newCategory!))];
+    const differing = rows.filter(rowDiffers);
+    const chosen = differing.filter((r) => choice.replaced.has(r.line));
+    const empty = kept.filter(rowFillsCategory);
+    // Missing categories of rows that will be written
+    const missing = [...new Set([...kept.filter((r) => r.state === "new"), ...empty, ...chosen].filter((r) => r.newCategory).map((r) => r.newCategory!))];
     const create = choice.createCategories && missing.length > 0;
-    const takesCategory = (r: ReviewRow) => overwrite && rowDiffers(r) && (r.categoryId !== null || (create && !!r.newCategory));
-    const changes = kept.filter(takesCategory).length;
+    const writes = (r: ReviewRow) => r.categoryId !== null || (create && !!r.newCategory);
+    const replaced = new Set(chosen.filter(writes).map((r) => r.line));
+    const fillsAny = (r: ReviewRow) => rowFillsFields(r) || (rowFillsCategory(r) && writes(r));
     return {
         differing: differing.length,
+        chosen: chosen.length,
         missing,
-        overwrite,
         create,
-        changes,
-        blocked: overwrite && differing.length > changes,
+        changes: replaced.size,
+        blocked: chosen.length + empty.length > replaced.size + empty.filter(writes).length,
         fresh: kept.filter((r) => r.state === "new").length,
-        fills: kept.filter(rowFills).length,
-        affected: kept.filter((r) => r.state === "new" || rowFills(r) || takesCategory(r)).length,
-        leftOut: rows.filter((r) => choice.excluded.has(r.line) && rowSelectable(r, choice.overwriteCategories)).length,
+        fills: kept.filter(fillsAny).length,
+        affected: rows.filter((r) => replaced.has(r.line) || (!choice.excluded.has(r.line) && (r.state === "new" || fillsAny(r)))).length,
+        leftOut: rows.filter((r) => choice.excluded.has(r.line) && (r.state === "new" || fillsAny(r))).length,
     };
 }
 

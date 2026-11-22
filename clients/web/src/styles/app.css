@@ -247,6 +247,7 @@ body.resizing { cursor: col-resize; user-select: none; }
 }
 .tr-end { display: flex; align-items: center; gap: 2px; }
 .tr-sum { font-size: 12px; color: var(--faint); }
+.tr-sync { display: grid; place-items: center; margin-right: 6px; color: var(--faint); }
 .tr-end .amt, .tr-end .tr-sum { padding-right: 6px; }
 .tr.edit .tr-end .amt, .tr.edit .tr-end .tr-sum { padding-right: 0; }
 .tr-a .tr-main { display: flex; align-items: center; gap: 6px; min-width: 0; padding-block: 3px; }
@@ -1067,6 +1068,9 @@ button.ctx-ic:hover, button.ctx-ic:focus-visible { box-shadow: inset 0 0 0 1.5px
 .rv-change.on .rv-side.new, .rv-change.on > p { color: var(--change); }
 .rv-change.on.replace .rv-side.old:not(.rv-blank) span { color: var(--muted); text-decoration: line-through; }
 .rv-options { display: grid; gap: 8px; padding: 12px 16px; border: 1px solid var(--line-soft); border-radius: 12px; background: var(--surface); }
+.rv-part { padding-left: 122px; font-size: 13px; }
+.imp-bar > .rv-summary { white-space: normal; }
+.rv-summary b { color: var(--warn); font-weight: 500; }
 .cc-acc .mini { width: 26px; height: 26px; }
 .cc-acc-actions { display: flex; gap: 4px; justify-content: flex-end; }
 .cc-acc-main { min-width: 0; }
@@ -1105,7 +1109,7 @@ button.ctx-ic:hover, button.ctx-ic:focus-visible { box-shadow: inset 0 0 0 1.5px
     .imp-page .step { gap: 5px; }
     .imp-page .step-sep { display: none; }
     .rv-compare { gap: 10px; }
-    .rv-compare > p { padding-left: 0; }
+    .rv-compare > p, .rv-part { padding-left: 0; }
     .rv-change { grid-template-columns: minmax(0, 1fr); }
     .rv-change.head { display: none; }
     .rv-change > svg { transform: rotate(90deg); }

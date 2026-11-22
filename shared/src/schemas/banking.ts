@@ -470,8 +470,8 @@ export const ImportRequest = z.object({
     columns: ColumnMapSchema.optional().describe("Plain column assignment; ignored when `format` is given"),
     format: ImportFormatDefinition.optional().describe("How to read the file; without it and without `columns` the format is chosen by the header"),
     createCategories: z.boolean().optional().describe("Create the categories the file names but that do not exist yet"),
-    overwriteCategories: z.boolean().optional().describe("Give bookings already stored the category the file names where it differs; split bookings stay as they are"),
-    excludeLines: z.array(z.number().int().min(1)).max(1_000_000).optional().describe("Rows of the file (`line` of the preview) that change nothing; only for the import itself"),
+    replaceCategoryLines: z.array(z.number().int().min(1)).max(1_000_000).optional().describe("Rows of the file (`line` of the preview) whose differing category replaces the stored one; without them a stored category stays"),
+    excludeLines: z.array(z.number().int().min(1)).max(1_000_000).optional().describe("Rows of the file (`line` of the preview) whose new booking or filled-in values are left out; does not affect `replaceCategoryLines`"),
 });
 
 export const DetectImportFormatRequest = z.object({ content: z.string().max(20_000_000) });
@@ -504,9 +504,9 @@ export const ImportPreviewRow = z.object({
     state: z.enum(["new", "duplicate", "invalid"]),
     storedCategoryId: Id.nullable().describe("Duplicate: the category of the booking already stored"),
     categoryState: z
-        .enum(["same", "differs", "split"])
+        .enum(["same", "differs", "empty", "split"])
         .nullable()
-        .describe("Duplicate whose file names a category: same as the stored booking, differs from it, or the stored booking is split (never overwritten)"),
+        .describe("Duplicate whose file names a category: same as the stored booking, differs from it, the stored booking has none, or it is split (never overwritten)"),
     error: z.string().nullable(),
 });
 
@@ -516,13 +516,13 @@ export const ImportPreview = z.object({
     format: ImportFormatDefinition.describe("The format the preview was made with"),
     formatKey: z.string().nullable().describe("The stored format chosen by the header; null for the automatic column assignment or a format sent with the request"),
     rows: z.array(ImportPreviewRow),
-    newCategories: z.array(z.string()).describe("Missing categories named by the new rows and the duplicates with a differing category"),
+    newCategories: z.array(z.string()).describe("Missing categories named by the new rows and the duplicates with a differing or empty category"),
     counts: z.object({
         new: z.number().int(),
         duplicate: z.number().int(),
         invalid: z.number().int(),
-        differs: z.number().int().describe("Duplicates with a differing category"),
-        filled: z.number().int().describe("Duplicates with an empty kind of booking or detail the file fills in"),
+        differs: z.number().int().describe("Duplicates whose stored category differs from the file's"),
+        filled: z.number().int().describe("Duplicates with an empty kind of booking, detail or category the file fills in"),
     }),
 });
 export type ImportPreview = z.infer<typeof ImportPreview>;
@@ -533,10 +533,11 @@ export const ImportResult = z.object({
     skipped: z.number().int(),
     invalid: z.number().int(),
     createdCategories: z.number().int(),
-    recategorized: z.number().int().describe("Bookings already stored that got the category of the file"),
+    recategorized: z.number().int().describe("Bookings already stored whose category was replaced by the one of the file"),
+    categoriesFilled: z.number().int().describe("Bookings already stored without a category that got the one of the file"),
     bookingTextsFilled: z.number().int().describe("Bookings already stored whose empty kind of booking came from the file"),
     detailsFilled: z.number().int().describe("Bookings already stored with an empty reference, mandate, creditor id or BIC that came from the file"),
-    filled: z.number().int().describe("Bookings already stored that got a kind of booking, a detail or both"),
+    filled: z.number().int().describe("Bookings already stored that got a kind of booking, a detail, a category in place of none, or several of these"),
     excluded: z.number().int().describe("Rows that would have changed something but were left out"),
 });
 

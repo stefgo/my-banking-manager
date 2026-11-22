@@ -100,6 +100,14 @@ lädt die betroffenen Abfragen neu (`clients/web/src/lib/socket.ts`).
   Splitbuchungen später ohne Umbau möglich sind.
 - Saldo eines Offline-Kontos: Anfangssaldo + alle Buchungen. Der Anfangssaldo ist der Kontostand vor
   der ersten Buchung und hat kein Datum; auch importierte Buchungen jeden Datums zählen.
+- Saldo eines Bankkontos: ebenfalls Anfangssaldo + alle Buchungen (`services/accounts.ts`). Ein Abruf
+  mit Saldo setzt den Anfangssaldo per `alignBankBalance` so, dass der Saldo der Bank herauskommt;
+  dieser enthält alles außer den vorgemerkten Buchungen der Bank. Import und „Import rückgängig“
+  verrechnen ihre Summe per `keepBankBalance` im Anfangssaldo, der heutige Saldo bleibt also gleich.
+  Ohne Bank-Saldo ändert sich der Anfangssaldo nicht.
+- Eine gebuchte Buchung der Bank übernimmt beim Abruf eine gleiche Buchung aus einem CSV-Import
+  (`duplicateKey`, `sameCounterparty`): Id, Kategorie und Lesestand bleiben, Quelle wird `bank`,
+  `import_id` wird leer. Vorgemerkte CSV-Zeilen nimmt ein Bankkonto nicht an.
 - **Neue Umsätze** gelten je Benutzer (`transaction_unread`, nur ungelesene Buchungen haben eine Zeile;
   `services/unread.ts`, Plan `plans/neue-umsaetze.md`):
   - Abruf: neu für alle Benutzer; der gebuchte Nachfolger eines vorgemerkten Umsatzes übernimmt
