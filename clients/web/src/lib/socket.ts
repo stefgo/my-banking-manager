@@ -30,6 +30,7 @@ export function useServerEvents(enabled: boolean): void {
         let stopped = false;
         let delay = 1000;
         let timer: ReturnType<typeof setTimeout> | undefined;
+        let wasOpen = false;
 
         const signedOutOrLocked = () => {
             void queryClient.invalidateQueries({ queryKey: ["status"] });
@@ -42,6 +43,9 @@ export function useServerEvents(enabled: boolean): void {
             current = ws;
             ws.onopen = () => {
                 delay = 1000;
+                // A run may have ended while the connection was gone; its "sync" event is lost
+                if (wasOpen) void queryClient.invalidateQueries({ queryKey: ["sync"] });
+                wasOpen = true;
             };
             ws.onmessage = (e) => {
                 const parsed = ServerEvent.safeParse(JSON.parse(String(e.data)));

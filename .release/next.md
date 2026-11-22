@@ -10,6 +10,12 @@ dev keeps the text; the stable release from main empties this file again.
 Nothing inside an HTML comment is published.
 -->
 
+### Kontenliste: Laufende Aktualisierung sichtbar
+
+Während eines Abrufs dreht sich neben jedem betroffenen Konto ein Symbol. Liegt das Konto in einer
+zugeklappten Gruppe, steht das Symbol an der Gruppe. Nach einer unterbrochenen Verbindung holt MBM den
+aktuellen Stand der Abrufe nach, sodass kein Symbol hängen bleibt.
+
 ### Server-Log: Wer den Server entsperrt hat
 
 Die Log-Zeilen `unlocked` und `unlocked with the recovery key` nennen jetzt die Benutzer-ID der

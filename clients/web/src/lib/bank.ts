@@ -20,13 +20,31 @@ export const useOfferedAccounts = (connectionId: number, enabled: boolean) =>
     useQuery({ queryKey: ["connections", "offered", connectionId], queryFn: () => call(routes.lastOfferedAccounts, { params: { id: connectionId } }), enabled });
 
 /** Fetch runs of the signed-in user; the server keeps them current with "sync" events. */
-export const useSyncRuns = () => useQuery({ queryKey: ["sync"], queryFn: () => call(routes.listSync), staleTime: Infinity });
+const syncQuery = { queryKey: ["sync"], queryFn: () => call(routes.listSync), staleTime: Infinity };
+export const useSyncRuns = () => useQuery(syncQuery);
 
 export const setSyncRuns = (runs: SyncRun[]): void => {
     queryClient.setQueryData(["sync"], runs);
 };
 
 export const isActive = (r: SyncRun): boolean => r.status === "running" || r.status === "approval";
+
+/**
+ * The accounts running fetches are updating. A run for the orders alone changes neither balances
+ * nor bookings, and an account the bank no longer reports is skipped by its run.
+ */
+export const syncingAccountIds = (runs: SyncRun[]): Set<number> =>
+    new Set(runs.filter((r) => isActive(r) && !r.ordersOnly).flatMap((r) => r.accountIds.filter((id) => !r.missingAccounts.includes(id))));
+
+/** Is a fetch updating one of these accounts? A row re-renders only when the answer changes. */
+export const useIsSyncing = (accountIds: number[]): boolean =>
+    useQuery({
+        ...syncQuery,
+        select: (runs) => {
+            const syncing = syncingAccountIds(runs);
+            return accountIds.some((id) => syncing.has(id));
+        },
+    }).data ?? false;
 
 /**
  * Takes the runs of a "sync" event. A run that needs an approval or failed opens the fetch panel
