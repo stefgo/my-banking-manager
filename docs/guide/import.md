@@ -130,15 +130,15 @@ Kategorie aus der Datei ein. Wenn du das nicht möchtest, wählst du die Zeile a
 
 Nennt die Datei bei einem Umsatz, den es schon gibt, eine **andere Kategorie**, zeigt die Prüfung
 „Kategorie abweichend“. Solche Zeilen stehen im Filter **Abweichend** und sind anfangs nicht gewählt,
-deine Kategorie bleibt also erhalten. Solange es sie gibt, weist die Leiste unten darauf hin, und
-**Prüfen** führt dich direkt zum Filter.
+deine Kategorie bleibt also erhalten.
 
 Die Details einer Zeile stellen die Kategorie aktuell in MBM und die aus der Datei nebeneinander. Um
 sie zu ersetzen, wählst du die Zeile. Für alle angezeigten Zeilen wählst du im Filter **Abweichend**
 oben **Alle angezeigten ersetzen**. In den anderen Filtern ändert „Alle angezeigten“ nie eine
 vorhandene Kategorie.
 
-Ersetzte Kategorien gelten, als hättest du sie von Hand vergeben.
+Ersetzte Kategorien gelten, als hättest du sie von Hand vergeben. Die Zusammenfassung unten nennt,
+wie viele Kategorien der Import ersetzt.
 
 !!! warning "Nicht rückgängig zu machen"
     Auch wenn du den Import später rückgängig machst, bleibt eine ersetzte Kategorie bestehen.

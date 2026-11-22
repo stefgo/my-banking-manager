@@ -227,14 +227,11 @@ export function ImportReview({
     const summary = [
         outcome.fresh ? `${outcome.fresh.toLocaleString("de-DE")} neu` : "",
         outcome.fills ? `${outcome.fills.toLocaleString("de-DE")} ergänzen` : "",
-        changes ? `${plural(changes, "Kategorie", "Kategorien")} ersetzen` : "",
         outcome.leftOut ? `${outcome.leftOut.toLocaleString("de-DE")} abgewählt` : "",
     ].filter(Boolean).join(", ");
+    const replaces = changes ? `${plural(changes, "Kategorie", "Kategorien")} ersetzen (nicht rückgängig)` : "";
     const nothing = counts.differs ? "Hier gibt es nichts zu übernehmen. Abweichende Kategorien stehen unter „Abweichend“." : "Diese Datei ändert nichts: Alle Umsätze sind schon vorhanden.";
     const empty = needle.trim() ? "Keine Zeile passt zur Suche." : filter === "changes" ? nothing : "Keine Zeilen.";
-    const conflictNote = changes
-        ? `${changes.toLocaleString("de-DE")} ${changes === 1 ? "Kategorie wird" : "Kategorien werden"} ersetzt. Das lässt sich nicht rückgängig machen.`
-        : plural(counts.differs, "Kategorie", "Kategorien") + " abweichend";
     const setPart = (r: Row, part: RowPart, on: boolean) => onChoice(setRowPart([r], part, on, choice));
 
     return (
@@ -310,13 +307,12 @@ export function ImportReview({
             </section>
             {error && <Hint tone="bad">{error}</Hint>}
             <div className="imp-bar">
-                {counts.differs > 0 && (
-                    <div className="rv-bar-note">
-                        <span className={changes ? "warn" : ""}>{conflictNote}</span>
-                        {filter !== "differs" && <Button className="btn-ghost btn-sm" onClick={() => setFilter("differs")}>Prüfen</Button>}
-                    </div>
-                )}
-                <span className="muted">{summary || "Nichts zu übernehmen"}</span>
+                <span className="muted rv-summary">
+                    {summary}
+                    {summary && replaces ? ", " : ""}
+                    {replaces && <b>{replaces}</b>}
+                    {!summary && !replaces && "Nichts zu übernehmen"}
+                </span>
                 <Button className="btn-ghost" icon={ArrowLeft} onClick={onBack}>Zurück</Button>
                 <Button className="btn-primary" icon={Check} busy={busy} disabled={!affected} onClick={() => onCommit({ createCategories: create, replaceCategoryLines: [...choice.replaced] })}>
                     {plural(affected, "Umsatz", "Umsätze")} übernehmen

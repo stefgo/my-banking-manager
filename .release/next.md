@@ -15,8 +15,8 @@ Nothing inside an HTML comment is published.
 Im Schritt „Prüfen“ entscheidest du jetzt je Zeile, ob eine abweichende Kategorie ersetzt wird. Die
 Sammeloption „abweichende Kategorien überschreiben“ entfällt.
 
-- Abweichende Kategorien sind anfangs nicht gewählt, deine Kategorie bleibt also erhalten. Die Leiste
-  unten zeigt, wie viele es gibt, und führt mit **Prüfen** direkt zu ihnen.
+- Abweichende Kategorien stehen im Filter **Abweichend** und sind anfangs nicht gewählt, deine
+  Kategorie bleibt also erhalten.
 - Vorhandene Umsätze **ohne Kategorie** bekommen die Kategorie aus der Datei jetzt als normale
   Ergänzung. Wenn du das nicht möchtest, wählst du die Zeile ab.
 - Bei einer Zeile mit abweichender Kategorie und leeren Angaben entscheidest du in den Details getrennt
