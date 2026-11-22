@@ -13,7 +13,7 @@ import { dateText, plural } from "../lib/format";
 import { withDateRange, withoutDate } from "../lib/dateQuery";
 import { fieldProps, focusFirstError, type FieldErrors } from "../lib/fields";
 import { catList, catParam, filterOf, isCategoryView, keepsFilters, parseTxSearch, RANGE_LABELS, txViewOf, withFilter, type TxSearch } from "../lib/search";
-import { ui, useUi } from "../lib/ui";
+import { getUi, ui, useUi } from "../lib/ui";
 import { Amt, Button, Empty, Kbd, Modal, NoBankAccess } from "../components/common";
 import { Field } from "../components/form";
 import { Ic, Sym } from "../components/icons";
@@ -57,6 +57,8 @@ function NoView() {
     const narrow = useMedia(NARROW_QUERY);
     const navigate = useNavigate();
     const accounts = useAccounts();
+    // Without a list there is no selected booking
+    useEffect(() => ui.openTx(null), []);
     return (
         <>
             <h1 className="sr-only">Umsätze</h1>
@@ -214,6 +216,18 @@ function TransactionList() {
 
     useEffect(() => () => ui.clearPick(), []);
     useEffect(() => ui.clearPick(), [search.scope, search.cat, validQ, search.dir, listRange]);
+
+    // A new view or filter whose loaded list lacks the open booking ends its details. Within one
+    // view they stay: a counter booking is not in the list, and a booking that just left it by a
+    // new category still shows the offer of a rule.
+    const listView = JSON.stringify([search.scope, search.cat, validQ, search.dir, listRange]);
+    const checkedView = useRef(listView);
+    useEffect(() => {
+        if (!list.data || list.isPlaceholderData || checkedView.current === listView) return;
+        checkedView.current = listView;
+        const open = getUi().drawerTx;
+        if (open !== null && !list.data.items.some((t) => t.id === open)) ui.openTx(null);
+    }, [listView, list.data, list.isPlaceholderData]);
 
     // Picking by touch: a long press starts it, then a tap picks or unpicks; it ends with nothing picked
     const [selecting, setSelecting] = useState(false);

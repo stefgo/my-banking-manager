@@ -10,6 +10,11 @@ dev keeps the text; the stable release from main empties this file again.
 Nothing inside an HTML comment is published.
 -->
 
+### Umsätze: Details schließen sich mit der Auswahl
+
+Wechselst du das Konto oder änderst Suche oder Filter und der geöffnete Umsatz steht nicht mehr in
+der Liste, schließen sich seine Details. Bleibt er in der Liste, bleiben sie offen.
+
 ### Import: Saldo von Bankkonten bleibt richtig
 
 Importierst du ältere Umsätze in ein Bankkonto, bleibt der heutige Saldo jetzt auf dem Stand der Bank,

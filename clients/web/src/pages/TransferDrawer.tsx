@@ -91,7 +91,9 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                                 icon={List}
                                 onClick={() => {
                                     close();
-                                    void navigate({ to: "/transactions", search: { scope: `account:${t.accountId}` } }).then(() => ui.openTx(t.transactionId));
+                                    // Without search and kept filters, so the list holds the booking
+                                    ui.setSearch("");
+                                    void navigate({ to: "/transactions", search: { scope: `account:${t.accountId}`, range: "all" } }).then(() => ui.openTx(t.transactionId));
                                 }}
                             >
                                 Buchung zeigen

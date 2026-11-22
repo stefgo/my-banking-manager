@@ -28,6 +28,10 @@ oder du sie gesetzt hast), Verwendungszweck, Umsatzart der Bank (etwa „Kartenz
 „Lastschrift“), Referenz, Mandat, Gläubiger-ID, Daten, Konto, IBAN, BIC und Herkunft, soweit die
 Bank oder die [importierte Datei](import.md#umsatzart-und-weitere-angaben) sie nennt.
 
+Die Details bleiben offen, solange der Umsatz in der gezeigten Liste steht. Wechselst du das Konto
+oder änderst Suche oder Filter und der Umsatz fällt heraus, schließen sie sich. Änderst du in einer
+Kategorieansicht die Kategorie, bleiben sie offen, damit du noch eine Regel anlegen kannst.
+
 Bei Kartenzahlungen meldet die Bank als Gegenseite oft nur den Abwickler, etwa eine Landesbank, und
 den Händler als **abweichenden Empfänger**. MBM zeigt dann in Liste und Titel den Händler. In den
 Details steht der Abwickler als „Kontoinhaber“, ihm gehört die IBAN. Die Suche mit `gegenseite:` und
