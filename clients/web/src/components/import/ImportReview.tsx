@@ -20,8 +20,11 @@ const FILTERS: { filter: ReviewFilter; label: string; tone: string }[] = [
     { filter: "all", label: "Alle", tone: "" },
 ];
 
+/** A readable pending row the server does not take into a bank account. */
+const heldBack = (r: Row): boolean => r.state === "invalid" && r.pending && r.date !== null && r.amount !== null;
+
 const statusText = (r: Row): string => {
-    if (r.state === "invalid") return "unlesbar";
+    if (r.state === "invalid") return heldBack(r) ? "vorgemerkt" : "unlesbar";
     if (r.state === "new") return r.pending ? "neu · vorgemerkt" : "neu";
     const parts = [rowDiffers(r) ? "Kategorie abweichend" : "", rowFills(r) ? "ergänzen" : "", r.categoryState === "split" ? "aufgeteilt, bleibt" : ""].filter(Boolean);
     return parts.join(" · ") || "vorhanden";
@@ -266,7 +269,7 @@ export function ImportReview({
                 <div className="seg rv-filter" role="group" aria-label="Zeilen filtern">
                     {FILTERS.map((f) => (
                         <button key={f.filter} type="button" className={f.tone} aria-pressed={filter === f.filter} disabled={!counts[f.filter] && f.filter !== "changes" && f.filter !== "all"} onClick={() => setFilter(f.filter)}>
-                            {f.label} <b>{counts[f.filter].toLocaleString("de-DE")}</b>
+                            {f.filter === "invalid" && rows.some(heldBack) ? "Nicht übernehmbar" : f.label} <b>{counts[f.filter].toLocaleString("de-DE")}</b>
                         </button>
                     ))}
                 </div>

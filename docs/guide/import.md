@@ -41,6 +41,19 @@ sind. Ohne IBAN vergleicht MBM den Namen der Gegenseite, ohne Groß- und Kleinsc
 Leer- und Satzzeichen. Der Verwendungszweck zählt nicht, weil Exporte ihn oft unterschiedlich
 aufbereiten. So kannst du dieselbe Datei auch zweimal importieren, ohne etwas doppelt zu haben.
 
+## Saldo bei Bankkonten
+
+Bei einem Bankkonto bleibt der heutige Saldo beim Import und beim Rückgängigmachen auf dem letzten
+Stand der Bank. Ältere Umsätze ändern nur den Saldoverlauf davor. Ein zusätzlicher Abruf ist nicht
+nötig. Fehlen in der Historie Umsätze, weichen die Tage vor dieser Lücke um die fehlenden Beträge ab.
+
+Liefert die Bank später einen Umsatz, der schon aus einer Datei da ist, legt MBM ihn nicht noch
+einmal an. Der vorhandene Umsatz bekommt die Angaben der Bank und behält seine Kategorie. Er gilt ab
+dann als Umsatz der Bank, „Import rückgängig“ entfernt ihn also nicht mehr.
+
+**Vorgemerkte Zeilen** übernimmt MBM bei Bankkonten nicht, weil die Bank sie selbst liefert. Sie
+stehen im Schritt „Prüfen“ unter **Nicht übernehmbar**.
+
 ## Importformate
 
 Ein Format beschreibt, wie MBM eine Datei liest und welcher Wert in welches Feld kommt. Mitgeliefert

@@ -2,7 +2,7 @@ import { columnsFromFormat, duplicateKey, formatFromColumns, guessColumns, IMPOR
 import type { Db } from "../db/database.js";
 import { nowIso } from "../db/database.js";
 import { badRequest, notFound } from "../http/errors.js";
-import { requireAccount } from "./accounts.js";
+import { keepBankBalance, requireAccount } from "./accounts.js";
 import { createCategory } from "./categories.js";
 import { formatCandidates } from "./importFormats.js";
 import { activeRules, firstMatch } from "./rules.js";
@@ -133,7 +133,7 @@ function chooseFormat(db: Db, content: string, selection: ImportSelection): { fo
 export const detectImportFormat = (db: Db, content: string): { format: ImportFormatDefinition; formatKey: string | null } => chooseFormat(db, content, {});
 
 function plan(db: Db, accountId: number, content: string, selection: ImportSelection): { header: string[]; columns: ColumnMap; format: ImportFormatDefinition; formatKey: string | null; rows: Planned[] } {
-    requireAccount(db, accountId);
+    const isBankAccount = requireAccount(db, accountId).kind !== "offline";
     const { format, formatKey } = chooseFormat(db, content, selection);
     const table = readWithFormat(content, format);
     if (!table.header.length) throw badRequest("In der Datei steht keine Tabelle.", "empty_file");
@@ -170,6 +170,8 @@ function plan(db: Db, accountId: number, content: string, selection: ImportSelec
             const fills = FILLABLE.filter((f) => !!r[f] && !match![f]);
             return { ...planned, fills, fillsBookingText: fills.includes("bookingText"), fillsDetails: fills.some((f) => f !== "bookingText") };
         }
+        // The bank delivers pending bookings itself and replaces them; one from a file would stay
+        if (r.pending && isBankAccount) return { ...r, state: "invalid", ...NO_CATEGORY, error: "Vorgemerkte Umsätze kommen bei Bankkonten vom Abruf." };
         const fromFile = r.category ? categoryByName(categories, r.category, separator) : null;
         if (fromFile) return { ...r, state: "new", ...NO_CATEGORY, categoryId: fromFile, categorySource: "auto" };
         // Unless missing categories get created, the rules decide
@@ -389,6 +391,7 @@ export function commitImport(
         if (r.fillsDetails && r.storedId !== null) detailsFilled += fillDetails.run(r.reference, r.mandateId, r.creditorId, r.counterpartyBic, r.storedId).changes;
     }
     const filled = kept.filter((r) => r.storedId !== null && (r.fillsBookingText || r.fillsDetails || (r.categoryState === "empty" && r.categoryId !== null))).length;
+    keepBankBalance(db, accountId, fresh.reduce((sum, r) => sum + (r.amount ?? 0), 0));
     return { importId, imported: fresh.length, skipped, invalid, createdCategories, recategorized, categoriesFilled, bookingTextsFilled, detailsFilled, filled, excluded };
 }
 
@@ -407,9 +410,11 @@ export function listImports(db: Db): ImportRecord[] {
 export function undoImport(db: Db, id: number): { accountId: number; fileName: string; removed: number } {
     const row = db.prepare("SELECT account_id, file_name FROM imports WHERE id = ?").get(id) as { account_id: number; file_name: string } | undefined;
     if (!row) throw notFound("Import");
+    const { sum } = db.prepare("SELECT COALESCE(SUM(amount), 0) AS sum FROM transactions WHERE import_id = ?").get(id) as { sum: number };
     // Counter bookings made from imported bookings go too
     db.prepare("DELETE FROM transactions WHERE source = 'manual' AND counter_transaction_id IN (SELECT id FROM transactions WHERE import_id = ?)").run(id);
     const removed = db.prepare("DELETE FROM transactions WHERE import_id = ?").run(id).changes;
     db.prepare("DELETE FROM imports WHERE id = ?").run(id);
+    keepBankBalance(db, row.account_id, -sum);
     return { accountId: row.account_id, fileName: row.file_name, removed };
 }

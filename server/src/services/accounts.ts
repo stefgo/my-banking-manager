@@ -267,3 +267,19 @@ export function balanceAt(db: Db, accountId: number, date: string): number {
     const after = (db.prepare("SELECT COALESCE(SUM(amount), 0) AS s FROM transactions WHERE account_id = ? AND booking_date > ?").get(accountId, date) as { s: number }).s;
     return getAccount(db, accountId).balance - after;
 }
+
+/**
+ * Sets the opening balance so that the bookings lead to the booked balance the bank just sent.
+ * That balance holds every booking but the bank's own pending ones.
+ */
+export function alignBankBalance(db: Db, accountId: number, booked: number): void {
+    const { s } = db
+        .prepare("SELECT COALESCE(SUM(amount), 0) AS s FROM transactions WHERE account_id = ? AND NOT (source = 'bank' AND status = 'pending')")
+        .get(accountId) as { s: number };
+    db.prepare("UPDATE accounts SET opening_balance = ? WHERE id = ?").run(booked - s, accountId);
+}
+
+/** Offsets bookings added to (or, negative, removed from) an account with a bank balance, whose balance they do not change. */
+export function keepBankBalance(db: Db, accountId: number, change: number): void {
+    db.prepare("UPDATE accounts SET opening_balance = COALESCE(opening_balance, 0) - ? WHERE id = ? AND EXISTS (SELECT 1 FROM balances b WHERE b.account_id = accounts.id)").run(change, accountId);
+}
