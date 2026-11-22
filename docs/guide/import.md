@@ -38,8 +38,10 @@ erhalten, solange Datei, Format und Konto gleich bleiben.
 
 Ein Umsatz gilt als schon vorhanden, wenn Buchungsdatum, Betrag und IBAN der Gegenseite gleich
 sind. Ohne IBAN vergleicht MBM den Namen der Gegenseite, ohne Groß- und Kleinschreibung, Akzente,
-Leer- und Satzzeichen. Der Verwendungszweck zählt nicht, weil Exporte ihn oft unterschiedlich
-aufbereiten. So kannst du dieselbe Datei auch zweimal importieren, ohne etwas doppelt zu haben.
+Leer- und Satzzeichen. Fehlt auch der Name, muss der Verwendungszweck aus der Datei im
+Verwendungszweck des Umsatzes in MBM enthalten sein, nach denselben Vergleichsregeln. Sind beide
+Verwendungszwecke leer, gilt das als gleich. So kannst du dieselbe Datei auch zweimal importieren,
+ohne etwas doppelt zu haben.
 
 ## Saldo bei Bankkonten
 

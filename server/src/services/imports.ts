@@ -51,6 +51,7 @@ interface StoredBooking {
     iban: string | null;
     name: string;
     bookingText: string;
+    purpose: string;
     reference: string;
     mandateId: string;
     creditorId: string;
@@ -146,12 +147,12 @@ function plan(db: Db, accountId: number, content: string, selection: ImportSelec
     const existing = new Map<string, StoredBooking[]>();
     if (dates.length) {
         const rows = db
-            .prepare("SELECT id, booking_date, amount, counterparty_name, counterparty_iban, booking_text, reference, mandate_id, creditor_id, counterparty_bic FROM transactions WHERE account_id = ? AND booking_date BETWEEN ? AND ?")
-            .all(accountId, dates[0], dates[dates.length - 1]) as { id: number; booking_date: string; amount: number; counterparty_name: string; counterparty_iban: string | null; booking_text: string; reference: string; mandate_id: string; creditor_id: string; counterparty_bic: string }[];
+            .prepare("SELECT id, booking_date, amount, counterparty_name, counterparty_iban, remittance, booking_text, reference, mandate_id, creditor_id, counterparty_bic FROM transactions WHERE account_id = ? AND booking_date BETWEEN ? AND ?")
+            .all(accountId, dates[0], dates[dates.length - 1]) as { id: number; booking_date: string; amount: number; counterparty_name: string; counterparty_iban: string | null; remittance: string; booking_text: string; reference: string; mandate_id: string; creditor_id: string; counterparty_bic: string }[];
         for (const r of rows) {
             const key = duplicateKey(r.booking_date, r.amount);
             const list = existing.get(key) ?? [];
-            list.push({ id: r.id, iban: r.counterparty_iban, name: r.counterparty_name, bookingText: r.booking_text, reference: r.reference, mandateId: r.mandate_id, creditorId: r.creditor_id, counterpartyBic: r.counterparty_bic });
+            list.push({ id: r.id, iban: r.counterparty_iban, name: r.counterparty_name, purpose: r.remittance, bookingText: r.booking_text, reference: r.reference, mandateId: r.mandate_id, creditorId: r.creditor_id, counterpartyBic: r.counterparty_bic });
             existing.set(key, list);
         }
     }

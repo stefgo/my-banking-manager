@@ -291,15 +291,27 @@ export const normalizeText = (s: string | null | undefined): string =>
  */
 export const duplicateKey = (date: string, amount: number): string => `${date}|${amount}`;
 
+/** The parts of a booking that identify its counterparty. */
+export interface BookingParty {
+    iban: string | null;
+    name: string;
+    purpose: string | null;
+}
+
 /**
- * Same counterparty: by IBAN when both bookings have one, else by name. A missing name matches any
- * (bank fees, for instance, often come without a counterparty from the bank but with one in exports).
+ * Same counterparty: by IBAN when both bookings have one, else by name. With a name missing
+ * (bank fees, for instance, often come without a counterparty from the bank but with one in
+ * exports), the purpose of the file must be contained in the purpose of the other booking.
+ * Two empty purposes count as equal, so that importing a file again adds nothing.
  */
-export function sameCounterparty(a: { iban: string | null; name: string }, b: { iban: string | null; name: string }): boolean {
-    const ibanA = normalizeText(a.iban);
-    const ibanB = normalizeText(b.iban);
+export function sameCounterparty(booking: BookingParty, file: BookingParty): boolean {
+    const ibanA = normalizeText(booking.iban);
+    const ibanB = normalizeText(file.iban);
     if (ibanA && ibanB) return ibanA === ibanB;
-    const nameA = normalizeText(a.name);
-    const nameB = normalizeText(b.name);
-    return !nameA || !nameB || nameA === nameB;
+    const nameA = normalizeText(booking.name);
+    const nameB = normalizeText(file.name);
+    if (nameA && nameB) return nameA === nameB;
+    const purpose = normalizeText(booking.purpose);
+    const filePurpose = normalizeText(file.purpose);
+    return filePurpose ? purpose.includes(filePurpose) : !purpose;
 }

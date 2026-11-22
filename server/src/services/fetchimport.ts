@@ -126,17 +126,18 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
         };
 
         // Bookings from a CSV import, by day and amount; each one stands for one booking of the bank
-        const imported = new Map<string, { id: number; iban: string | null; name: string }[]>();
+        const imported = new Map<string, { id: number; iban: string | null; name: string; purpose: string }[]>();
         const importedRows = db
-            .prepare("SELECT id, booking_date, amount, counterparty_iban AS iban, counterparty_name AS name FROM transactions WHERE account_id = ? AND source = 'import' ORDER BY id")
-            .all(accountId) as { id: number; booking_date: string; amount: number; iban: string | null; name: string }[];
+            .prepare("SELECT id, booking_date, amount, counterparty_iban AS iban, counterparty_name AS name, remittance AS purpose FROM transactions WHERE account_id = ? AND source = 'import' ORDER BY id")
+            .all(accountId) as { id: number; booking_date: string; amount: number; iban: string | null; name: string; purpose: string }[];
         for (const r of importedRows) {
             const key = duplicateKey(r.booking_date, r.amount);
-            imported.set(key, [...(imported.get(key) ?? []), { id: r.id, iban: r.iban, name: r.name }]);
+            imported.set(key, [...(imported.get(key) ?? []), { id: r.id, iban: r.iban, name: r.name, purpose: r.purpose }]);
         }
         const takeImported = (t: ConnectorTransaction): number | undefined => {
             const candidates = imported.get(duplicateKey(t.bookingDate, t.amount)) ?? [];
-            const at = candidates.findIndex((c) => sameCounterparty(c, { iban: t.counterpartyIban, name: t.counterpartyName }));
+            // The imported booking holds the text of the file, the bank's is the complete one
+            const at = candidates.findIndex((c) => sameCounterparty({ iban: t.counterpartyIban, name: t.counterpartyName, purpose: t.remittance }, c));
             return at < 0 ? undefined : candidates.splice(at, 1)[0]!.id;
         };
         // The bank's details win; where it sends nothing, the file's value stays
