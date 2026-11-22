@@ -108,6 +108,10 @@ export const ConnectorTransaction = z.object({
     bookingText: z.string(),
     /** Reference of the bank for this booking, if it sends one. */
     bankReference: z.string().nullable(),
+    /** Gives back an earlier booking (return debit, cancellation). Older connectors leave it out. */
+    isReturn: z.boolean().default(false),
+    /** Reason code of the return as the bank sends it; "" if none. Older connectors leave it out. */
+    returnReason: z.string().default(""),
 });
 export type ConnectorTransaction = z.infer<typeof ConnectorTransaction>;
 

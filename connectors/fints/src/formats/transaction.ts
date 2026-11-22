@@ -20,6 +20,8 @@ export const emptyTransaction = (): Transaction => ({
     creditorId: null,
     bookingText: "",
     bankReference: null,
+    isReturn: false,
+    returnReason: "",
 });
 
 /** SEPA references that are no references (DFÜ-Abkommen fill value). */

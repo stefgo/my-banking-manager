@@ -1084,6 +1084,12 @@ paths:
                                   type:
                                     - string
                                     - "null"
+                                isReturn:
+                                  default: false
+                                  type: boolean
+                                returnReason:
+                                  default: ""
+                                  type: string
                               required:
                                 - bookingDate
                                 - valueDate
@@ -1100,6 +1106,8 @@ paths:
                                 - creditorId
                                 - bookingText
                                 - bankReference
+                                - isReturn
+                                - returnReason
                               additionalProperties: false
                         required:
                           - transactions
@@ -1333,6 +1341,12 @@ paths:
                                   type:
                                     - string
                                     - "null"
+                                isReturn:
+                                  default: false
+                                  type: boolean
+                                returnReason:
+                                  default: ""
+                                  type: string
                               required:
                                 - bookingDate
                                 - valueDate
@@ -1349,6 +1363,8 @@ paths:
                                 - creditorId
                                 - bookingText
                                 - bankReference
+                                - isReturn
+                                - returnReason
                               additionalProperties: false
                           balance:
                             anyOf:

@@ -18,7 +18,7 @@ const challenge = (decoupled: boolean) => ({ decoupled, text: decoupled ? "In de
 
 const tx = (over: Record<string, unknown>) => ({
     bookingDate: "2026-11-10", valueDate: "2026-11-10", amount: -1000, currency: "EUR", status: "booked", counterpartyName: "", counterpartyIban: null, counterpartyBic: null,
-    remittance: "", endToEndId: null, mandateId: null, creditorId: null, bookingText: "", bankReference: null, ...over,
+    remittance: "", endToEndId: null, mandateId: null, creditorId: null, bookingText: "", bankReference: null, isReturn: false, returnReason: "", ...over,
 });
 
 let accountsAtBank = [GIRO, SAVINGS, CARD, NEW];

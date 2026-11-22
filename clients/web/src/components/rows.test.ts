@@ -4,7 +4,7 @@ import { buildRows, listOrder } from "./rows";
 
 const tx = (id: number, date: string, amount: number, status: "booked" | "pending" = "booked"): Transaction => ({
     id, accountId: 1, bookingDate: date, valueDate: date, amount, currency: "EUR", counterpartyName: `T${id}`, ultimateParty: "", counterpartyIban: null, bookingText: "", reference: "", mandateId: "", creditorId: "", counterpartyBic: "",
-    remittance: "", status, source: "manual", importId: null, counterTransactionId: null, categoryId: null, categorySource: null, createdAt: "", unread: false,
+    remittance: "", status, source: "manual", importId: null, counterTransactionId: null, isReturn: false, returnReason: "", returnOfId: null, returnedById: null, categoryId: null, categorySource: null, createdAt: "", unread: false,
 });
 
 describe("buildRows", () => {

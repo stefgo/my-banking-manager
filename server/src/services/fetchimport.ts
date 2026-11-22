@@ -10,6 +10,8 @@
 //   for whoever had read that one.
 // - Imported: a booked booking the bank delivers for the first time takes over an equal booking
 //   from a CSV import (same comparison as the import), which keeps its id, category and read state.
+// - Returns: linked to the booking they give back, whose category they take. One stored with this
+//   account as its counterparty is corrected in place, since the corrected IBAN changes its fingerprint.
 // - The balance: the account's opening balance is set so that opening balance plus booked
 //   bookings equals the bank's booked balance (balance series and totals keep working).
 
@@ -19,6 +21,7 @@ import type { Db } from "../db/database.js";
 import { alignBankBalance } from "./accounts.js";
 import { activeRules, firstMatch } from "./rules.js";
 import { queryTargets, type QueryRow } from "./querytarget.js";
+import { cleanIban, inheritReturnCategories, linkReturns } from "./returns.js";
 import { counterDefaultCategoryId } from "./transactions.js";
 import { linkBookedTransfers } from "./transfers.js";
 import { markNew, markNewFor } from "./unread.js";
@@ -89,8 +92,8 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
 
         const existing = new Set((db.prepare("SELECT fingerprint FROM transactions WHERE account_id = ? AND fingerprint IS NOT NULL").all(accountId) as { fingerprint: string }[]).map((r) => r.fingerprint));
         const insertTx = db.prepare(
-            `INSERT INTO transactions (account_id, fingerprint, booking_date, value_date, amount, currency, counterparty_name, ultimate_party, counterparty_iban, remittance, end_to_end_id, booking_text, reference, mandate_id, creditor_id, counterparty_bic, status, raw, first_seen_at, source, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bank', ?)`,
+            `INSERT INTO transactions (account_id, fingerprint, booking_date, value_date, amount, currency, counterparty_name, ultimate_party, counterparty_iban, remittance, end_to_end_id, booking_text, reference, mandate_id, creditor_id, counterparty_bic, is_return, return_reason, status, raw, first_seen_at, source, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bank', ?)`,
         );
         const rawOf = (t: ConnectorTransaction) => JSON.stringify({ bookingText: t.bookingText, mandateId: t.mandateId, creditorId: t.creditorId, bankReference: t.bankReference, counterpartyBic: t.counterpartyBic });
         const insertCat = db.prepare("INSERT INTO transaction_categories (transaction_id, category_id, amount, source, rule_id) VALUES (?, ?, ?, ?, ?)");
@@ -99,7 +102,7 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
         let newBooked = 0;
         const insert = (t: ConnectorTransaction, fp: string, carried: OldPending | undefined) => {
             const id = Number(
-                insertTx.run(accountId, fp, t.bookingDate, t.valueDate, t.amount, t.currency, t.counterpartyName, t.ultimateParty, t.counterpartyIban, t.remittance, t.endToEndId, t.bookingText, referenceOf(t), t.mandateId ?? "", t.creditorId ?? "", t.counterpartyBic ?? "", t.status, rawOf(t), now, userId)
+                insertTx.run(accountId, fp, t.bookingDate, t.valueDate, t.amount, t.currency, t.counterpartyName, t.ultimateParty, t.counterpartyIban, t.remittance, t.endToEndId, t.bookingText, referenceOf(t), t.mandateId ?? "", t.creditorId ?? "", t.counterpartyBic ?? "", t.isReturn ? 1 : 0, t.returnReason, t.status, rawOf(t), now, userId)
                     .lastInsertRowid,
             );
             if (carried?.category_id) insertCat.run(id, carried.category_id, t.amount, carried.category_source ?? "manual", null);
@@ -147,18 +150,50 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
                 counterparty_iban = COALESCE(?, counterparty_iban), remittance = COALESCE(NULLIF(?, ''), remittance), end_to_end_id = ?,
                 booking_text = COALESCE(NULLIF(?, ''), booking_text), reference = COALESCE(NULLIF(?, ''), reference),
                 mandate_id = COALESCE(NULLIF(?, ''), mandate_id), creditor_id = COALESCE(NULLIF(?, ''), creditor_id),
-                counterparty_bic = COALESCE(NULLIF(?, ''), counterparty_bic), status = 'booked', raw = ?, source = 'bank', import_id = NULL
+                counterparty_bic = COALESCE(NULLIF(?, ''), counterparty_bic), is_return = MAX(is_return, ?), return_reason = COALESCE(NULLIF(?, ''), return_reason),
+                status = 'booked', raw = ?, source = 'bank', import_id = NULL
              WHERE id = ?`,
         );
         const hasCategory = db.prepare("SELECT 1 FROM transaction_categories WHERE transaction_id = ?");
+        const markReturn = db.prepare("UPDATE transactions SET is_return = 1, return_reason = COALESCE(NULLIF(?, ''), return_reason) WHERE account_id = ? AND fingerprint = ?");
+
+        // Bookings stored with this account as their own counterparty, as returns once were. Their
+        // fingerprint holds that IBAN, so the corrected booking would otherwise arrive as a new one.
+        const ownIban = cleanIban((db.prepare("SELECT iban FROM accounts WHERE id = ?").get(accountId) as { iban: string | null } | undefined)?.iban);
+        const selfKey = (date: string, amount: number, remittance: string | null, endToEndId: string | null) => [date, amount, norm(remittance), endToEndId ?? ""].join("|");
+        const selfBooked = new Map<string, number[]>();
+        if (ownIban) {
+            const rows = db
+                .prepare("SELECT id, booking_date, amount, remittance, end_to_end_id FROM transactions WHERE account_id = ? AND source = 'bank' AND status = 'booked' AND UPPER(REPLACE(counterparty_iban, ' ', '')) = ? ORDER BY id")
+                .all(accountId, ownIban) as { id: number; booking_date: string; amount: number; remittance: string; end_to_end_id: string | null }[];
+            for (const r of rows) {
+                const key = selfKey(r.booking_date, r.amount, r.remittance, r.end_to_end_id);
+                selfBooked.set(key, [...(selfBooked.get(key) ?? []), r.id]);
+            }
+        }
+        const takeSelfBooked = (t: ConnectorTransaction): number | undefined =>
+            cleanIban(t.counterpartyIban) === ownIban ? undefined : selfBooked.get(selfKey(t.bookingDate, t.amount, t.remittance, t.endToEndId))?.shift();
+        const correctParty = db.prepare(
+            `UPDATE transactions SET fingerprint = ?, counterparty_name = COALESCE(NULLIF(?, ''), counterparty_name), ultimate_party = ?, counterparty_iban = ?,
+                counterparty_bic = COALESCE(NULLIF(?, ''), counterparty_bic), is_return = MAX(is_return, ?), return_reason = COALESCE(NULLIF(?, ''), return_reason), raw = ?
+             WHERE id = ?`,
+        );
 
         const bookedFps = fingerprints(booked);
         booked.forEach((t, i) => {
             const fp = bookedFps[i]!;
-            if (existing.has(fp)) return;
+            if (existing.has(fp)) {
+                if (t.isReturn) markReturn.run(t.returnReason, accountId, fp);
+                return;
+            }
+            const selfId = takeSelfBooked(t);
+            if (selfId !== undefined) {
+                correctParty.run(fp, t.counterpartyName, t.ultimateParty, t.counterpartyIban, t.counterpartyBic ?? "", t.isReturn ? 1 : 0, t.returnReason, rawOf(t), selfId);
+                return;
+            }
             const importedId = takeImported(t);
             if (importedId !== undefined) {
-                adoptImported.run(fp, t.valueDate, t.currency, t.counterpartyName, t.ultimateParty, t.counterpartyIban, t.remittance, t.endToEndId, t.bookingText, referenceOf(t), t.mandateId ?? "", t.creditorId ?? "", t.counterpartyBic ?? "", rawOf(t), importedId);
+                adoptImported.run(fp, t.valueDate, t.currency, t.counterpartyName, t.ultimateParty, t.counterpartyIban, t.remittance, t.endToEndId, t.bookingText, referenceOf(t), t.mandateId ?? "", t.creditorId ?? "", t.counterpartyBic ?? "", t.isReturn ? 1 : 0, t.returnReason, rawOf(t), importedId);
                 const carried = successorOf(t);
                 if (carried?.category_id && !hasCategory.get(importedId)) insertCat.run(importedId, carried.category_id, t.amount, carried.category_source ?? "manual", null);
                 return;
@@ -169,7 +204,10 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
         const pendingFps = fingerprints(pending);
         pending.forEach((t, i) => insert(t, pendingFps[i]!, successorOf(t, pendingFps[i])));
 
-        categorize(db, newIds);
+        // Before the rules: a linked return takes the category of its booking, whatever they would say
+        const linkedReturns = linkReturns(db, accountId);
+        categorize(db, newIds.filter((id) => !linkedReturns.includes(id)));
+        inheritReturnCategories(db, linkedReturns);
         // Transfers from MBM find their booking by the end-to-end ID
         linkBookedTransfers(db, accountId);
 

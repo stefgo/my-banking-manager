@@ -571,7 +571,7 @@ export class TransferManager {
 export function linkBookedTransfers(db: Db, accountId: number): number {
     const rows = db
         .prepare(
-            `SELECT tr.*, (SELECT t.id FROM transactions t WHERE t.account_id = tr.account_id AND t.end_to_end_id = tr.end_to_end_id ORDER BY t.status = 'booked' DESC, t.id LIMIT 1) AS tx,
+            `SELECT tr.*, (SELECT t.id FROM transactions t WHERE t.account_id = tr.account_id AND t.end_to_end_id = tr.end_to_end_id AND t.is_return = 0 ORDER BY t.status = 'booked' DESC, t.id LIMIT 1) AS tx,
                     (SELECT a.name FROM accounts a WHERE a.id = tr.account_id) AS account_name
              FROM transfers tr WHERE tr.account_id = ? AND tr.transaction_id IS NULL AND tr.status IN ('executed', 'unknown')`,
         )

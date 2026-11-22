@@ -37,6 +37,10 @@ interface TxRow {
     source: "bank" | "manual" | "import";
     import_id: number | null;
     counter_transaction_id: number | null;
+    is_return: number;
+    return_reason: string;
+    return_of_id: number | null;
+    returned_by_id: number | null;
     first_seen_at: string;
     category_id: number | null;
     category_source: "rule" | "manual" | "auto" | null;
@@ -44,13 +48,18 @@ interface TxRow {
     unread?: number;
 }
 
+const RETURNED_BY = "(SELECT rb.id FROM transactions rb WHERE rb.return_of_id = t.id) AS returned_by_id";
+
+/** Bookings that count in figures: neither a linked return nor the booking it gave back. */
+const NOT_RETURNED = "t.return_of_id IS NULL AND NOT EXISTS (SELECT 1 FROM transactions rb WHERE rb.return_of_id = t.id)";
+
 const TX_SELECT = `
-    SELECT t.*, c.category_id, c.source AS category_source
+    SELECT t.*, ${RETURNED_BY}, c.category_id, c.source AS category_source
     FROM transactions t LEFT JOIN transaction_categories c ON c.transaction_id = t.id`;
 
 /** Like TX_SELECT, with `unread` for the user given as the first parameter. */
 const TX_SELECT_FOR_USER = `
-    SELECT t.*, c.category_id, c.source AS category_source,
+    SELECT t.*, ${RETURNED_BY}, c.category_id, c.source AS category_source,
            EXISTS (SELECT 1 FROM transaction_unread u WHERE u.transaction_id = t.id AND u.user_id = ?) AS unread
     FROM transactions t LEFT JOIN transaction_categories c ON c.transaction_id = t.id`;
 
@@ -74,6 +83,10 @@ export const toTransaction = (r: TxRow): Transaction => ({
     source: r.source,
     importId: r.import_id,
     counterTransactionId: r.counter_transaction_id,
+    isReturn: r.is_return === 1,
+    returnReason: r.return_reason,
+    returnOfId: r.return_of_id,
+    returnedById: r.returned_by_id,
     categoryId: r.category_id,
     categorySource: r.category_source,
     createdAt: r.first_seen_at,
@@ -448,6 +461,7 @@ export function cashflow(db: Db, scope: AccountScope, from: string, to: string):
              FROM transactions t
              LEFT JOIN transaction_categories tc ON tc.transaction_id = t.id
              WHERE t.account_id IN (${ids.map(() => "?").join(",")}) AND t.booking_date BETWEEN ? AND ?
+               AND ${NOT_RETURNED}
                AND (${none}tc.category_id NOT IN (${EXCLUDED_CATEGORIES}))`,
         )
         .get(...ids, from, to) as { income: number; expenses: number; count: number };
@@ -462,6 +476,7 @@ export function categorySums(db: Db, scope: AccountScope, from: string, to: stri
             `SELECT tc.category_id AS categoryId, SUM(t.amount) AS amount, count(*) AS count
              FROM transactions t LEFT JOIN transaction_categories tc ON tc.transaction_id = t.id
              WHERE t.account_id IN (${ids.map(() => "?").join(",")}) AND t.booking_date BETWEEN ? AND ?
+               AND ${NOT_RETURNED}
              GROUP BY tc.category_id`,
         )
         .all(...ids, from, to) as { categoryId: number | null; amount: number; count: number }[];

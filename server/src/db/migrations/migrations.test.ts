@@ -4,6 +4,7 @@ import { initial } from "./0001-initial.js";
 import { unread } from "./0002-unread.js";
 import { bookingDetails } from "./0003-booking-details.js";
 import { importFormats } from "./0004-import-formats.js";
+import { bookingReturns } from "./0005-booking-returns.js";
 import { applyMigration } from "./index.js";
 
 const columns = (db: Database.Database, table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
@@ -167,6 +168,29 @@ describe("0004-import-formats", () => {
         ]);
         db.exec("INSERT INTO import_formats (name, definition, created_at, updated_at) VALUES ('Format', '{}', 'x', 'x')");
         expect(() => db.exec("INSERT INTO import_formats (name, definition, created_at, updated_at) VALUES ('FORMAT', '{}', 'x', 'x')")).toThrow();
+        db.close();
+    });
+});
+
+describe("0005-booking-returns", () => {
+    it("marks stored return debits, links one return per booking and lets go when a booking is deleted", () => {
+        const db = new Database(":memory:");
+        db.pragma("foreign_keys = ON");
+        for (const m of [initial, unread, bookingDetails, importFormats]) applyMigration(db, m);
+        db.exec(`
+            INSERT INTO accounts (id, kind, name, icon, color, position, created_at) VALUES (1, 'giro', 'Giro', 'landmark', 'blue', 0, '2026-01-01T00:00:00Z');
+            INSERT INTO transactions (id, account_id, booking_date, amount, status, first_seen_at, source, booking_text) VALUES
+                (1, 1, '2026-01-02', -100, 'booked', 'x', 'bank', 'LASTSCHRIFT'),
+                (2, 1, '2026-01-03', 100, 'booked', 'x', 'bank', 'RUECKLASTSCHRIFT'),
+                (3, 1, '2026-01-04', 100, 'booked', 'x', 'bank', 'Rücklastschrift'),
+                (4, 1, '2026-01-05', 100, 'booked', 'x', 'bank', 'RÜCKLASTSCHRIFT');
+        `);
+        applyMigration(db, bookingReturns);
+        expect(db.prepare("SELECT id FROM transactions WHERE is_return = 1 ORDER BY id").all()).toEqual([{ id: 2 }, { id: 3 }, { id: 4 }]);
+        db.exec("UPDATE transactions SET return_of_id = 1 WHERE id = 2");
+        expect(() => db.exec("UPDATE transactions SET return_of_id = 1 WHERE id = 3")).toThrow();
+        db.exec("DELETE FROM transactions WHERE id = 1");
+        expect(db.prepare("SELECT return_of_id AS r FROM transactions WHERE id = 2").get()).toEqual({ r: null });
         db.close();
     });
 });

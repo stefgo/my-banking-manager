@@ -37,6 +37,13 @@ den Händler als **abweichenden Empfänger**. MBM zeigt dann in Liste und Titel 
 Details steht der Abwickler als „Kontoinhaber“, ihm gehört die IBAN. Die Suche mit `gegenseite:` und
 Regeln finden den Umsatz unter beiden Namen.
 
+Gibt die Bank eine Lastschrift zurück, etwa mangels Deckung oder nach deinem Widerspruch, erscheint
+eine **Rückbuchung** als eigener Umsatz. MBM verknüpft sie mit der ursprünglichen Buchung, wenn
+Referenz, Mandat mit Gläubiger-ID oder die IBAN der Gegenseite passen, und gibt ihr deren Kategorie.
+In den Details siehst du den Rückgabegrund und springst zur anderen Buchung. Beide bleiben in der
+Liste und im Saldo, zählen aber nicht in „Eingänge und Ausgaben“ und in den Kategoriesummen. Die
+Forderung ist damit meist nicht erledigt: Zieht der Gläubiger erneut ein, zählt das als neue Ausgabe.
+
 ![Die Details eines Umsatzes neben der Liste](../assets/screenshots/umsatz-details-dark.png)
 
 *Die Details: Kategorie ändern, als neu markieren, kopieren oder eine Gegenbuchung in einem Offline-Konto anlegen.*
