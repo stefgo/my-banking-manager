@@ -205,7 +205,7 @@ export function ImportPage() {
         ui.confirm({ title: "Änderungen verwerfen?", text: "Die Änderungen am aktuellen Format gehen verloren.", confirm: "Verwerfen", danger: true, onConfirm: take });
     };
 
-    const commit = async (options: { createCategories: boolean; overwriteCategories: boolean }) => {
+    const commit = async (options: { createCategories: boolean; replaceCategoryLines: number[] }) => {
         if (!file || !def || accountId === undefined) return;
         setError("");
         const r = await action.run(() => call(routes.importCommit, { params: { id: accountId }, body: { fileName: file.name, content, format: def, ...options, excludeLines: [...choice.excluded] } }), {

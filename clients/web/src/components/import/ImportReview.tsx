@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, Check, Search, X } from "lucide-react";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import type { ImportFillField, ImportPreview } from "@mbm/shared";
 import { dateText, fmtSigned, plural } from "../../lib/format";
-import { categoryChange, matchesFilter, matchesSearch, reviewCounts, reviewOutcome, rowDiffers, rowFills, rowSelectable, type CategoryChange, type ReviewChoice, type ReviewFilter } from "../../lib/importFormat";
+import { categoryChange, matchesFilter, matchesSearch, reviewCounts, reviewOutcome, rowCheck, rowDiffers, rowFills, rowFillsCategory, rowFillsFields, setRowPart, shownSelection, toggleRow, toggleShown, type CategoryChange, type ReviewChoice, type ReviewFilter, type RowPart } from "../../lib/importFormat";
 import { categoryPath, type CategoryIndex } from "../../lib/tree";
 import { Button, Hint } from "../common";
 import { Ic } from "../icons";
@@ -30,10 +30,11 @@ const statusText = (r: Row): string => {
 const statusTone = (r: Row): string => (r.state === "invalid" ? "neg" : r.state === "new" ? "pos" : rowDiffers(r) ? "warn" : rowFills(r) ? "iris" : "");
 
 const CHANGE_TEXT: Record<CategoryChange, string> = {
-    replaced: "Wird beim Import ersetzt.",
-    "no-overwrite": "Bleibt unverändert. Zum Ersetzen unten „abweichende Kategorien überschreiben“ wählen.",
-    "left-out": "Bleibt unverändert, weil die Zeile abgewählt ist.",
-    "needs-category": "Bleibt unverändert, bis du unten „Fehlende Kategorien anlegen“ wählst.",
+    replaced: "Wird beim Import ersetzt. Das lässt sich nicht rückgängig machen.",
+    filled: "Wird beim Import ergänzt.",
+    "not-chosen": "Bleibt unverändert, solange du das Ersetzen nicht wählst.",
+    "left-out": "Bleibt leer, weil die Zeile abgewählt ist.",
+    "needs-category": "Bleibt unverändert, bis du oben „Fehlende Kategorien anlegen“ wählst.",
 };
 
 const fileCategory = (r: Row, index: CategoryIndex): string => (r.categoryId ? categoryPath(index, r.categoryId) : r.newCategory ? `${r.newCategory} (fehlt)` : "");
@@ -60,11 +61,14 @@ function ChangeLine({ label, before, after, tone, on, note }: { label: string; b
 }
 
 /** What the import changes in a booking already stored: its category and the empty fields it fills. */
-function StoredChanges({ r, index, choice }: { r: Row; index: CategoryIndex; choice: ReviewChoice }) {
+function StoredChanges({ r, index, choice, onPart }: { r: Row; index: CategoryIndex; choice: ReviewChoice; onPart: (r: Row, part: RowPart, on: boolean) => void }) {
     const change = categoryChange(r, choice);
     const leftOut = choice.excluded.has(r.line);
     const one = r.fills.length === 1;
-    const fillNote = leftOut ? `${one ? "Diese Angabe bleibt" : "Diese Angaben bleiben"} leer, weil die Zeile abgewählt ist.` : `${one ? "Diese Angabe wird" : "Diese Angaben werden"} beim Import ergänzt.`;
+    const fillNote = leftOut ? `${one ? "Diese Angabe bleibt" : "Diese Angaben bleiben"} leer, weil sie abgewählt ${one ? "ist" : "sind"}.` : `${one ? "Diese Angabe wird" : "Diese Angaben werden"} beim Import ergänzt.`;
+    const hasCategory = rowDiffers(r) || rowFillsCategory(r);
+    // Only a row with both decisions needs its own switches; otherwise the row's checkbox says it all
+    const both = rowDiffers(r) && rowFillsFields(r);
     return (
         <section className="rv-compare" aria-label="Änderungen durch den Import">
             <div className="rv-change head" aria-hidden="true">
@@ -73,28 +77,40 @@ function StoredChanges({ r, index, choice }: { r: Row; index: CategoryIndex; cho
                 <span />
                 <span>Aus der Datei</span>
             </div>
-            {rowDiffers(r) && (
+            {hasCategory && (
                 <ChangeLine
                     label="Kategorie"
                     before={r.storedCategoryId ? categoryPath(index, r.storedCategoryId) : null}
                     after={fileCategory(r, index)}
-                    tone="replace"
-                    on={change === "replaced"}
+                    tone={rowDiffers(r) ? "replace" : "fill"}
+                    on={change === "replaced" || change === "filled"}
                     note={CHANGE_TEXT[change]}
                 />
             )}
+            {both && (
+                <label className="check-row rv-part">
+                    <input type="checkbox" checked={choice.replaced.has(r.line)} onChange={(e) => onPart(r, "category", e.target.checked)} />
+                    <span>Kategorie ersetzen</span>
+                </label>
+            )}
             {r.fills.map((f) => <ChangeLine key={f} label={FILL_LABEL[f]} before={null} after={r[f]} tone="fill" on={!leftOut} />)}
             {r.fills.length > 0 && <p className={leftOut ? "" : "on"}>{fillNote}</p>}
+            {both && (
+                <label className="check-row rv-part">
+                    <input type="checkbox" checked={!leftOut} onChange={(e) => onPart(r, "take", e.target.checked)} />
+                    <span>{one ? "Angabe ergänzen" : "Angaben ergänzen"}</span>
+                </label>
+            )}
         </section>
     );
 }
 
-function RowDetails({ r, index, choice }: { r: Row; index: CategoryIndex; choice: ReviewChoice }) {
+function RowDetails({ r, index, choice, onPart }: { r: Row; index: CategoryIndex; choice: ReviewChoice; onPart: (r: Row, part: RowPart, on: boolean) => void }) {
     // A field that the import fills in already stands in the comparison
     const detail = (f: ImportFillField): string => (r.fills.includes(f) ? "" : r[f]);
     const items: [string, string][] = [
         ["Verwendungszweck", r.purpose],
-        ["Kategorie", rowDiffers(r) ? "" : fileCategory(r, index)],
+        ["Kategorie", rowDiffers(r) || rowFillsCategory(r) ? "" : fileCategory(r, index)],
         ["IBAN", r.iban ?? ""],
         [FILL_LABEL.counterpartyBic, detail("counterpartyBic")],
         [FILL_LABEL.reference, detail("reference")],
@@ -104,7 +120,7 @@ function RowDetails({ r, index, choice }: { r: Row; index: CategoryIndex; choice
     ];
     return (
         <div className="rv-details">
-            {(rowDiffers(r) || r.fills.length > 0) && <StoredChanges r={r} index={index} choice={choice} />}
+            {(rowDiffers(r) || rowFills(r)) && <StoredChanges r={r} index={index} choice={choice} onPart={onPart} />}
             <dl className="rv-fields">
                 {r.error && (
                     <div className="bad">
@@ -123,7 +139,7 @@ function RowDetails({ r, index, choice }: { r: Row; index: CategoryIndex; choice
     );
 }
 
-function ReviewList({ rows, index, choice, onToggle }: { rows: Row[]; index: CategoryIndex; choice: ReviewChoice; onToggle: (line: number) => void }) {
+function ReviewList({ rows, index, choice, onToggle, onPart }: { rows: Row[]; index: CategoryIndex; choice: ReviewChoice; onToggle: (r: Row) => void; onPart: (r: Row, part: RowPart, on: boolean) => void }) {
     const ref = useRef<HTMLDivElement>(null);
     const [margin, setMargin] = useState(0);
     const [open, setOpen] = useState<number | null>(null);
@@ -136,13 +152,23 @@ function ReviewList({ rows, index, choice, onToggle }: { rows: Row[]; index: Cat
             {v.getVirtualItems().map((it) => {
                 const r = rows[it.index]!;
                 const expanded = open === r.line;
-                const selectable = rowSelectable(r, choice.overwriteCategories);
-                const selected = selectable && !choice.excluded.has(r.line);
+                const check = rowCheck(r, choice);
                 // The ref is new on every render, so an opened row is measured right away
                 return (
                     <div key={it.key} className="vrow" data-index={it.index} ref={(el) => v.measureElement(el)} style={{ transform: `translateY(${it.start - margin}px)` }}>
-                        <div className={`rv-line ${selectable && !selected ? "off" : ""}`}>
-                            <input type="checkbox" className="rv-check" aria-label={`Zeile ${r.line} übernehmen`} disabled={!selectable} checked={selected} onChange={() => onToggle(r.line)} />
+                        {/* A conflict starts unchosen and still needs a look, so only a row left out is dimmed */}
+                        <div className={`rv-line ${check === "off" && choice.excluded.has(r.line) ? "off" : ""}`}>
+                            <input
+                                type="checkbox"
+                                className="rv-check"
+                                aria-label={`Zeile ${r.line} übernehmen`}
+                                disabled={check === "none"}
+                                checked={check === "on"}
+                                ref={(el) => {
+                                    if (el) el.indeterminate = check === "partial";
+                                }}
+                                onChange={() => onToggle(r)}
+                            />
                             <button type="button" className="rv-row" aria-expanded={expanded} onClick={() => setOpen(expanded ? null : r.line)}>
                                 <span>{r.date ? dateText(r.date) : "?"}</span>
                                 <span className="rv-main">
@@ -154,7 +180,7 @@ function ReviewList({ rows, index, choice, onToggle }: { rows: Row[]; index: Cat
                                 <span className={`rv-state ${statusTone(r)}`}>{statusText(r)}</span>
                             </button>
                         </div>
-                        {expanded && <RowDetails r={r} index={index} choice={choice} />}
+                        {expanded && <RowDetails r={r} index={index} choice={choice} onPart={onPart} />}
                     </div>
                 );
             })}
@@ -186,40 +212,30 @@ export function ImportReview({
     choice: ReviewChoice;
     onChoice: (next: ReviewChoice) => void;
     onBack: () => void;
-    onCommit: (options: { createCategories: boolean; overwriteCategories: boolean }) => void;
+    onCommit: (options: { createCategories: boolean; replaceCategoryLines: number[] }) => void;
 }) {
-    const [filter, setFilter] = useState<ReviewFilter>("changes");
-    const [search, setSearch] = useState("");
-    const needle = useDeferredValue(search);
     const rows = preview.rows;
     const counts = useMemo(() => reviewCounts(rows), [rows]);
+    // A file with nothing but conflicts opens where they can be decided
+    const [filter, setFilter] = useState<ReviewFilter>(() => (!counts.changes && counts.differs ? "differs" : "changes"));
+    const [search, setSearch] = useState("");
+    const needle = useDeferredValue(search);
     const shown = useMemo(() => rows.filter((r) => matchesFilter(r, filter) && matchesSearch(r, needle)), [rows, filter, needle]);
     const outcome = useMemo(() => reviewOutcome(rows, choice), [rows, choice]);
-    const selectable = useMemo(() => shown.filter((r) => rowSelectable(r, choice.overwriteCategories)), [shown, choice.overwriteCategories]);
-    const selected = selectable.filter((r) => !choice.excluded.has(r.line)).length;
-    const allSelected = selectable.length > 0 && selected === selectable.length;
-    const { missing, create, overwrite, changes, blocked, affected } = outcome;
+    const selection = useMemo(() => shownSelection(shown, filter, choice), [shown, filter, choice]);
+    const { missing, create, changes, blocked, affected } = outcome;
     const summary = [
         outcome.fresh ? `${outcome.fresh.toLocaleString("de-DE")} neu` : "",
         outcome.fills ? `${outcome.fills.toLocaleString("de-DE")} ergänzen` : "",
-        changes ? `${plural(changes, "Kategorie", "Kategorien")} ändern` : "",
+        changes ? `${plural(changes, "Kategorie", "Kategorien")} ersetzen` : "",
         outcome.leftOut ? `${outcome.leftOut.toLocaleString("de-DE")} abgewählt` : "",
     ].filter(Boolean).join(", ");
-    const empty = needle.trim() ? "Keine Zeile passt zur Suche." : filter === "changes" ? "Diese Datei ändert nichts: Alle Umsätze sind schon vorhanden." : "Keine Zeilen.";
-
-    const toggle = (line: number) => {
-        const excluded = new Set(choice.excluded);
-        if (!excluded.delete(line)) excluded.add(line);
-        onChoice({ ...choice, excluded });
-    };
-    const toggleShown = () => {
-        const excluded = new Set(choice.excluded);
-        for (const r of selectable) {
-            if (allSelected) excluded.add(r.line);
-            else excluded.delete(r.line);
-        }
-        onChoice({ ...choice, excluded });
-    };
+    const nothing = counts.differs ? "Hier gibt es nichts zu übernehmen. Abweichende Kategorien stehen unter „Abweichend“." : "Diese Datei ändert nichts: Alle Umsätze sind schon vorhanden.";
+    const empty = needle.trim() ? "Keine Zeile passt zur Suche." : filter === "changes" ? nothing : "Keine Zeilen.";
+    const conflictNote = changes
+        ? `${changes.toLocaleString("de-DE")} ${changes === 1 ? "Kategorie wird" : "Kategorien werden"} ersetzt. Das lässt sich nicht rückgängig machen.`
+        : plural(counts.differs, "Kategorie", "Kategorien") + " abweichend";
+    const setPart = (r: Row, part: RowPart, on: boolean) => onChoice(setRowPart([r], part, on, choice));
 
     return (
         <div className="rv">
@@ -258,53 +274,51 @@ export function ImportReview({
                     ))}
                 </div>
             </div>
+            {preview.newCategories.length > 0 && (
+                <div className="rv-options">
+                    <label className="check-row">
+                        <input type="checkbox" disabled={!missing.length} checked={create} onChange={(e) => onChoice({ ...choice, createCategories: e.target.checked })} />
+                        {missing.length ? (
+                            <span>
+                                {missing.length === 1 ? "Fehlende Kategorie" : `${missing.length} fehlende Kategorien`} anlegen: {missing.slice(0, 3).join(", ")}
+                                {missing.length > 3 ? ` und ${missing.length - 3} weitere` : ""}
+                            </span>
+                        ) : (
+                            <span>Fehlende Kategorien anlegen (für die gewählten Zeilen nicht nötig)</span>
+                        )}
+                    </label>
+                    {blocked && <p className="hint">Kategorien, die noch fehlen, werden nur mit „Fehlende Kategorien anlegen“ übernommen.</p>}
+                </div>
+            )}
             <section className="panel rv-panel" aria-label="Zeilen der Datei">
                 <div className="rv-list-head">
                     <label className="check-row">
                         <input
                             type="checkbox"
-                            disabled={!selectable.length}
-                            checked={allSelected}
+                            disabled={!selection.targets}
+                            checked={selection.all}
                             ref={(el) => {
-                                if (el) el.indeterminate = selected > 0 && !allSelected;
+                                if (el) el.indeterminate = selection.some;
                             }}
-                            onChange={toggleShown}
+                            onChange={() => onChoice(toggleShown(shown, filter, choice))}
                         />
-                        <span>Alle angezeigten</span>
+                        <span>{filter === "differs" ? "Alle angezeigten ersetzen" : "Alle angezeigten"}</span>
                     </label>
-                    <span className="faint small">{shown.length.toLocaleString("de-DE")} von {rows.length.toLocaleString("de-DE")} Zeilen · {selected.toLocaleString("de-DE")} gewählt</span>
+                    <span className="faint small">{shown.length.toLocaleString("de-DE")} von {rows.length.toLocaleString("de-DE")} Zeilen · {selection.chosen.toLocaleString("de-DE")} gewählt</span>
                 </div>
-                {shown.length ? <ReviewList key={filter} rows={shown} index={index} choice={choice} onToggle={toggle} /> : <p className="muted rv-empty">{empty}</p>}
+                {shown.length ? <ReviewList key={filter} rows={shown} index={index} choice={choice} onToggle={(r) => onChoice(toggleRow(r, choice))} onPart={setPart} /> : <p className="muted rv-empty">{empty}</p>}
             </section>
-            {(missing.length > 0 || counts.differs > 0) && (
-                <div className="rv-options">
-                    {missing.length > 0 && (
-                        <label className="check-row">
-                            <input type="checkbox" checked={choice.createCategories} onChange={(e) => onChoice({ ...choice, createCategories: e.target.checked })} />
-                            <span>
-                                {missing.length === 1 ? "Fehlende Kategorie" : `${missing.length} fehlende Kategorien`} anlegen: {missing.slice(0, 3).join(", ")}
-                                {missing.length > 3 ? ` und ${missing.length - 3} weitere` : ""}
-                            </span>
-                        </label>
-                    )}
-                    {counts.differs > 0 && (
-                        <label className="check-row">
-                            <input type="checkbox" checked={choice.overwriteCategories} onChange={(e) => onChoice({ ...choice, overwriteCategories: e.target.checked })} />
-                            <span>
-                                {outcome.differing === counts.differs
-                                    ? plural(counts.differs, "abweichende Kategorie", "abweichende Kategorien")
-                                    : `${outcome.differing.toLocaleString("de-DE")} von ${plural(counts.differs, "abweichenden Kategorie", "abweichenden Kategorien")}`} überschreiben
-                            </span>
-                        </label>
-                    )}
-                    {blocked && <p className="hint">Fehlende Kategorien vorhandener Umsätze werden nur mit „Fehlende Kategorien anlegen“ übernommen.</p>}
-                </div>
-            )}
             {error && <Hint tone="bad">{error}</Hint>}
             <div className="imp-bar">
+                {counts.differs > 0 && (
+                    <div className="rv-bar-note">
+                        <span className={changes ? "warn" : ""}>{conflictNote}</span>
+                        {filter !== "differs" && <Button className="btn-ghost btn-sm" onClick={() => setFilter("differs")}>Prüfen</Button>}
+                    </div>
+                )}
                 <span className="muted">{summary || "Nichts zu übernehmen"}</span>
                 <Button className="btn-ghost" icon={ArrowLeft} onClick={onBack}>Zurück</Button>
-                <Button className="btn-primary" icon={Check} busy={busy} disabled={!affected} onClick={() => onCommit({ createCategories: create, overwriteCategories: overwrite })}>
+                <Button className="btn-primary" icon={Check} busy={busy} disabled={!affected} onClick={() => onCommit({ createCategories: create, replaceCategoryLines: [...choice.replaced] })}>
                     {plural(affected, "Umsatz", "Umsätze")} übernehmen
                 </Button>
             </div>

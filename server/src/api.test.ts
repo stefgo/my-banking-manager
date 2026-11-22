@@ -851,7 +851,35 @@ describe("CSV import", () => {
         expect(named("Ersatzteile").parentId).toBe(named("Rad").id);
     });
 
-    it("shows differing categories of stored bookings and overwrites them only when asked", async () => {
+    it("decides the category and the filled-in values of a row separately", async () => {
+        const { api } = await setUpSignedIn(t);
+        const acc = (await api<Account>("POST", "/api/accounts", { name: "Kasse" })).body;
+        const cats = (await api<CategoryList>("GET", "/api/categories")).body.items;
+        const rent = cats.find((c) => c.name === "Miete")!;
+        const market = cats.find((c) => c.name === "Supermarkt")!;
+        const book = async (date: string, amount: number, name: string) =>
+            (await api<Transaction>("POST", `/api/accounts/${acc.id}/transactions`, { bookingDate: date, amount, counterpartyName: name, categoryId: rent.id })).body.id;
+        const onlyCategory = await book("2026-10-01", -1000, "Bäckerei");
+        const onlyFill = await book("2026-10-02", -2000, "Kiosk");
+        const file = "Datum;Buchungstext;Kategorie;Name;Betrag\n01.10.2026;LASTSCHRIFT;Supermarkt;Bäckerei;-10,00\n02.10.2026;LASTSCHRIFT;Supermarkt;Kiosk;-20,00\n";
+        const [first, second] = (await api<ImportPreview>("POST", `/api/accounts/${acc.id}/import/preview`, { fileName: "x.csv", content: file })).body.rows;
+        expect(first).toMatchObject({ categoryState: "differs", fillsBookingText: true });
+
+        const result = (await api<{ recategorized: number; bookingTextsFilled: number; filled: number; excluded: number }>("POST", `/api/accounts/${acc.id}/import`, {
+            fileName: "x.csv",
+            content: file,
+            replaceCategoryLines: [first!.line],
+            excludeLines: [first!.line],
+        })).body;
+        expect(result).toMatchObject({ recategorized: 1, bookingTextsFilled: 1, filled: 1, excluded: 1 });
+        const db = t.vault.database;
+        const stored = (id: number) => db.prepare("SELECT t.booking_text AS bookingText, c.category_id AS categoryId FROM transactions t JOIN transaction_categories c ON c.transaction_id = t.id WHERE t.id = ?").get(id);
+        expect(stored(onlyCategory)).toEqual({ bookingText: "", categoryId: market.id });
+        expect(stored(onlyFill)).toEqual({ bookingText: "LASTSCHRIFT", categoryId: rent.id });
+        expect(second!.categoryState).toBe("differs");
+    });
+
+    it("fills empty categories, and replaces differing ones only for the rows chosen", async () => {
         const { api } = await setUpSignedIn(t);
         const acc = (await api<Account>("POST", "/api/accounts", { name: "Kasse" })).body;
         const cats = (await api<CategoryList>("GET", "/api/categories")).body.items;
@@ -865,6 +893,7 @@ describe("CSV import", () => {
         const split = await book("2026-10-04", -3000, "Kaufhaus", market.id);
         const missing = await book("2026-10-05", -500, "Giro", null);
         const plain = await book("2026-10-06", -700, "Kiosk", rent.id);
+        const conflict = await book("2026-10-08", -900, "Zoo", rent.id);
         // Split bookings have no route yet: two shares straight in the database
         const db = t.vault.database;
         db.prepare("UPDATE transaction_categories SET amount = -1000 WHERE transaction_id = ?").run(split);
@@ -878,47 +907,60 @@ describe("CSV import", () => {
             "05.10.2026;Tierheim;Giro;-5,00",
             "06.10.2026;;Kiosk;-7,00",
             "07.10.2026;Supermarkt;Neu;-1,00",
+            "08.10.2026;Tierheim;Zoo;-9,00",
         ].join("\n");
 
         const preview = (await api<ImportPreview>("POST", `/api/accounts/${acc.id}/import/preview`, { fileName: "x.csv", content: file })).body;
-        expect(preview.counts).toEqual({ new: 1, duplicate: 6, invalid: 0, differs: 3, filled: 0 });
-        expect(preview.rows.map((r) => r.categoryState)).toEqual(["same", "differs", "differs", "split", "differs", null, null]);
-        expect(preview.rows.map((r) => r.storedCategoryId)).toEqual([rent.id, rent.id, null, null, null, rent.id, null]);
+        expect(preview.counts).toEqual({ new: 1, duplicate: 7, invalid: 0, differs: 2, filled: 2 });
+        expect(preview.rows.map((r) => r.categoryState)).toEqual(["same", "differs", "empty", "split", "empty", null, null, "differs"]);
+        expect(preview.rows.map((r) => r.storedCategoryId)).toEqual([rent.id, rent.id, null, null, null, rent.id, null, rent.id]);
         expect(preview.rows[1]!.categoryId).toBe(market.id);
         expect(preview.rows[4]).toMatchObject({ categoryId: null, newCategory: "Tierheim" });
+        expect(preview.rows[7]).toMatchObject({ categoryId: null, newCategory: "Tierheim" });
         expect(preview.newCategories).toEqual(["Tierheim"]);
+        const otherLine = preview.rows[1]!.line;
+        const conflictLine = preview.rows[7]!.line;
 
         const categoryOf = (id: number) => db.prepare("SELECT category_id AS categoryId, source FROM transaction_categories WHERE transaction_id = ? ORDER BY category_id").all(id);
-        const before = [same, other, none, split, missing, plain].map(categoryOf);
-        // Without the option nothing stored changes
-        const first = (await api<{ importId: number; recategorized: number }>("POST", `/api/accounts/${acc.id}/import`, { fileName: "x.csv", content: file })).body;
-        expect(first.recategorized).toBe(0);
-        expect([same, other, none, split, missing, plain].map(categoryOf)).toEqual(before);
+        const before = [same, other, none, split, missing, plain, conflict].map(categoryOf);
+        // Left out, an empty category stays empty and nothing else changes
+        const noneLine = preview.rows[2]!.line;
+        const leftOut = (await api<{ importId: number; recategorized: number; categoriesFilled: number; excluded: number }>("POST", `/api/accounts/${acc.id}/import`, { fileName: "x.csv", content: file, excludeLines: [noneLine] })).body;
+        expect(leftOut).toMatchObject({ recategorized: 0, categoriesFilled: 0, excluded: 1 });
+        expect([same, other, none, split, missing, plain, conflict].map(categoryOf)).toEqual(before);
+        await api("DELETE", `/api/imports/${leftOut.importId}`);
+
+        // By default an empty category is filled in and no stored category is replaced
+        const first = (await api<{ importId: number; recategorized: number; categoriesFilled: number; filled: number }>("POST", `/api/accounts/${acc.id}/import`, { fileName: "x.csv", content: file })).body;
+        expect(first).toMatchObject({ recategorized: 0, categoriesFilled: 1, filled: 1 });
+        expect(categoryOf(none)).toEqual([{ categoryId: market.id, source: "auto" }]);
+        expect(categoryOf(missing)).toEqual([]);
+        expect([same, other, split, plain, conflict].map(categoryOf)).toEqual([before[0], before[1], before[3], before[5], before[6]]);
         await api("DELETE", `/api/imports/${first.importId}`);
 
-        // With it, but without creating categories: the missing one stays
-        const second = (await api<{ importId: number; recategorized: number; createdCategories: number }>("POST", `/api/accounts/${acc.id}/import`, { fileName: "x.csv", content: file, overwriteCategories: true })).body;
-        expect(second).toMatchObject({ recategorized: 2, createdCategories: 0 });
+        // A chosen row is replaced; the missing category of the other conflict is not created
+        const second = (await api<{ importId: number; recategorized: number; createdCategories: number }>("POST", `/api/accounts/${acc.id}/import`, { fileName: "x.csv", content: file, replaceCategoryLines: [otherLine, conflictLine] })).body;
+        expect(second).toMatchObject({ recategorized: 1, createdCategories: 0 });
         expect(categoryOf(other)).toEqual([{ categoryId: market.id, source: "manual" }]);
-        expect(categoryOf(none)).toEqual([{ categoryId: market.id, source: "manual" }]);
+        expect(categoryOf(conflict)).toEqual(before[6]);
         expect(categoryOf(split)).toEqual(before[3]);
-        expect(categoryOf(missing)).toEqual([]);
         expect(categoryOf(plain)).toEqual(before[5]);
         // Undoing the import leaves the changed categories
         await api("DELETE", `/api/imports/${second.importId}`);
         expect(categoryOf(other)).toEqual([{ categoryId: market.id, source: "manual" }]);
 
-        const third = (await api<{ recategorized: number; createdCategories: number }>("POST", `/api/accounts/${acc.id}/import`, {
+        const third = (await api<{ recategorized: number; categoriesFilled: number; createdCategories: number }>("POST", `/api/accounts/${acc.id}/import`, {
             fileName: "x.csv",
             content: file,
-            overwriteCategories: true,
+            replaceCategoryLines: [conflictLine],
             createCategories: true,
         })).body;
-        expect(third).toMatchObject({ recategorized: 1, createdCategories: 1 });
+        expect(third).toMatchObject({ recategorized: 1, categoriesFilled: 1, createdCategories: 1 });
         const created = (await api<CategoryList>("GET", "/api/categories")).body.items.find((c) => c.name === "Tierheim")!;
-        expect(categoryOf(missing)).toEqual([{ categoryId: created.id, source: "manual" }]);
+        expect(categoryOf(conflict)).toEqual([{ categoryId: created.id, source: "manual" }]);
+        expect(categoryOf(missing)).toEqual([{ categoryId: created.id, source: "auto" }]);
         const log = (await api<ActivityEntry[]>("GET", "/api/activity")).body;
-        expect(log.find((e) => e.action === "import")?.details).toBe("x.csv: 1 neu, 6 schon vorhanden, 1 Kategorien angelegt, 1 Kategorien geändert");
+        expect(log.find((e) => e.action === "import")?.details).toBe("x.csv: 1 neu, 7 schon vorhanden, 1 Kategorien angelegt, 1 Kategorien geändert, 1 Kategorien ergänzt");
     });
 
     it("takes the kind of booking from the file and fills in only empty ones", async () => {

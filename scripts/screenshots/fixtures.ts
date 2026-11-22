@@ -742,7 +742,9 @@ const samplePreviewRows = [
     previewRow(4, "2026-11-14", 320000, "Muster AG", "Gehalt November", "Lohn/Gehalt", { state: "duplicate", fillsBookingText: true, fills: ["bookingText"] }),
     previewRow(5, "2026-11-12", -6400, "Stadtwerke", "Abschlag November", "Lastschrift", { state: "duplicate", fillsDetails: true, fills: ["reference"], reference: "SW-2026-11" }),
     previewRow(6, "2026-11-10", -2750, "Buchhandlung am Markt", "Rechnung 881", "Überweisung", { state: "duplicate" }),
-    previewRow(7, null, -1200, "Unbekannt", "", "Lastschrift", { state: "invalid", error: "Datum „32.11.2026“ nicht lesbar" }),
+    previewRow(7, "2026-11-09", -1490, "Frischemarkt", "Wocheneinkauf", "Kartenzahlung", { state: "duplicate", categoryState: "empty", categoryId: cat("Supermarkt") }),
+    previewRow(8, "2026-11-08", -3250, "Kaufhaus Mitte", "Bon 5521", "Kartenzahlung", { state: "duplicate", categoryState: "differs", storedCategoryId: cat("Supermarkt"), categoryId: cat("Miete") }),
+    previewRow(9, null, -1200, "Unbekannt", "", "Lastschrift", { state: "invalid", error: "Datum „32.11.2026“ nicht lesbar" }),
 ];
 
 const sampleFormat = BUILTIN_IMPORT_FORMATS.find((f) => f.key === "builtin:moneymoney")!.definition;
@@ -754,7 +756,7 @@ export const importPreview: ImportPreview = {
     formatKey: "builtin:moneymoney",
     rows: samplePreviewRows,
     newCategories: [],
-    counts: { new: 3, duplicate: 3, invalid: 1, differs: 0, filled: 2 },
+    counts: { new: 3, duplicate: 5, invalid: 1, differs: 1, filled: 3 },
 };
 
 export const imports = [

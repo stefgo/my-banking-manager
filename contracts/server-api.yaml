@@ -6741,11 +6741,16 @@ paths:
                 createCategories:
                   description: Create the categories the file names but that do not exist yet
                   type: boolean
-                overwriteCategories:
-                  description: Give bookings already stored the category the file names where it differs; split bookings stay as they are
-                  type: boolean
+                replaceCategoryLines:
+                  description: Rows of the file (`line` of the preview) whose differing category replaces the stored one; without them a stored category stays
+                  maxItems: 1000000
+                  type: array
+                  items:
+                    type: integer
+                    minimum: 1
+                    maximum: 9007199254740991
                 excludeLines:
-                  description: Rows of the file (`line` of the preview) that change nothing; only for the import itself
+                  description: Rows of the file (`line` of the preview) whose new booking or filled-in values are left out; does not affect `replaceCategoryLines`
                   maxItems: 1000000
                   type: array
                   items:
@@ -6965,9 +6970,10 @@ paths:
                               enum:
                                 - same
                                 - differs
+                                - empty
                                 - split
                             - type: "null"
-                          description: "Duplicate whose file names a category: same as the stored booking, differs from it, or the stored booking is split (never overwritten)"
+                          description: "Duplicate whose file names a category: same as the stored booking, differs from it, the stored booking has none, or it is split (never overwritten)"
                         error:
                           type:
                             - string
@@ -6999,7 +7005,7 @@ paths:
                     type: array
                     items:
                       type: string
-                    description: Missing categories named by the new rows and the duplicates with a differing category
+                    description: Missing categories named by the new rows and the duplicates with a differing or empty category
                   counts:
                     type: object
                     properties:
@@ -7019,12 +7025,12 @@ paths:
                         type: integer
                         minimum: -9007199254740991
                         maximum: 9007199254740991
-                        description: Duplicates with a differing category
+                        description: Duplicates whose stored category differs from the file's
                       filled:
                         type: integer
                         minimum: -9007199254740991
                         maximum: 9007199254740991
-                        description: Duplicates with an empty kind of booking or detail the file fills in
+                        description: Duplicates with an empty kind of booking, detail or category the file fills in
                     required:
                       - new
                       - duplicate
@@ -7179,11 +7185,16 @@ paths:
                 createCategories:
                   description: Create the categories the file names but that do not exist yet
                   type: boolean
-                overwriteCategories:
-                  description: Give bookings already stored the category the file names where it differs; split bookings stay as they are
-                  type: boolean
+                replaceCategoryLines:
+                  description: Rows of the file (`line` of the preview) whose differing category replaces the stored one; without them a stored category stays
+                  maxItems: 1000000
+                  type: array
+                  items:
+                    type: integer
+                    minimum: 1
+                    maximum: 9007199254740991
                 excludeLines:
-                  description: Rows of the file (`line` of the preview) that change nothing; only for the import itself
+                  description: Rows of the file (`line` of the preview) whose new booking or filled-in values are left out; does not affect `replaceCategoryLines`
                   maxItems: 1000000
                   type: array
                   items:
@@ -7225,7 +7236,12 @@ paths:
                     type: integer
                     minimum: -9007199254740991
                     maximum: 9007199254740991
-                    description: Bookings already stored that got the category of the file
+                    description: Bookings already stored whose category was replaced by the one of the file
+                  categoriesFilled:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                    description: Bookings already stored without a category that got the one of the file
                   bookingTextsFilled:
                     type: integer
                     minimum: -9007199254740991
@@ -7240,7 +7256,7 @@ paths:
                     type: integer
                     minimum: -9007199254740991
                     maximum: 9007199254740991
-                    description: Bookings already stored that got a kind of booking, a detail or both
+                    description: Bookings already stored that got a kind of booking, a detail, a category in place of none, or several of these
                   excluded:
                     type: integer
                     minimum: -9007199254740991
@@ -7253,6 +7269,7 @@ paths:
                   - invalid
                   - createdCategories
                   - recategorized
+                  - categoriesFilled
                   - bookingTextsFilled
                   - detailsFilled
                   - filled
