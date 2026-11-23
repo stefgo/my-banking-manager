@@ -15,6 +15,8 @@ Nothing inside an HTML comment is published.
 - Regeln ändern neben der Kategorie auch die angezeigte Gegenseite und den Verwendungszweck. Muster, Trennzeichen und Trennwörter lösen dafür Teile wie Händler, Ort oder Rechnungsnummer aus dem Text.
 - Regeln gelten für alle oder für ausgewählte Konten. Je Umsatz wirkt die erste passende Regel.
 - „Regeln ausführen“ zeigt jede Änderung zur Prüfung und schreibt nur, was du übernimmst.
+- Jede Regel lässt sich über ihr Menü „…“ einzeln ausführen, dort liegen jetzt alle ihre Aktionen. Neue Regeln legst du über „Regel hinzufügen“ oben rechts an.
+- „Speichern“ ändert nur die Regel. „Speichern & ausführen“ wendet sie danach auf vorhandene Umsätze an, und die Ausführen-Seite zeigt zuerst, was die Regel tut und wie viele Umsätze sie trifft.
 - Die Details zeigen die Originaldaten der Bank. Dort kannst du das Original wieder verwenden oder einen eigenen Text setzen. Überweisungen nutzen immer die Daten der Bank.
 
 ### Geändertes Verhalten
@@ -24,6 +26,7 @@ Nothing inside an HTML comment is published.
 - Beim Löschen einer Kategorie bleiben Regeln mit weiteren Aktionen erhalten.
 - Die Suche mit `*` und `?` kann den Server nicht mehr durch ungünstige Muster blockieren.
 - Beim Ändern einer Buchung von Hand bleiben Felder, die nicht mitgesendet werden, jetzt erhalten.
+- Überschrift und Beschreibung der Seiten für den Import und das Ausführen von Regeln nutzen jetzt in jedem Schritt die volle Breite.
 
 ### Update
 

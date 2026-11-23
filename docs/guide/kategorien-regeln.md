@@ -34,7 +34,7 @@ Buchungen von Hand durchlaufen sie nie von selbst.
 
 *Einstellungen → Regeln: jede Regel mit ihrer Suche, ihren Aktionen und wie viele Umsätze sie trifft.*
 
-- **Anlegen:** Suche eingeben, Aktionen wählen, „Speichern & prüfen“. Schneller geht es in den
+- **Anlegen:** „Regel hinzufügen“ oben rechts, Suche eingeben, Aktionen wählen, „Speichern“. Schneller geht es in den
   Details eines Umsatzes: Setzt du dort eine Kategorie, bietet MBM an, sie für alle Umsätze
   dieser Gegenseite zu merken. „Daraus eine Regel machen“ füllt das Formular mit den Werten des Umsatzes.
 - **Gilt für:** alle Konten oder einzelne Konten. Die Wahl bleibt auch nach dem Umbenennen oder
@@ -42,8 +42,11 @@ Buchungen von Hand durchlaufen sie nie von selbst.
   fehlt“ und trifft nichts mehr.
 - **Reihenfolge:** Die erste passende Regel gewinnt. Ziehe genauere Regeln nach oben. Die Liste zeigt
   je Regel ihre Treffer und wie viele davon eine Regel weiter oben erfasst.
+- **Ändern:** Im Menü „…“ auf „Bearbeiten“, dann „Speichern“. Das ändert nur die Regel. Mit
+  „Speichern & ausführen“ wendest du sie direkt danach auf vorhandene Umsätze an.
 - **Aus- und einschalten** mit dem Schalter, ohne die Regel zu löschen.
-- **Lupe:** zeigt die Umsätze, auf die ihre Suche passt.
+- **Menü „…“:** In jeder Zeile stehen dort alle Aktionen der Regel: bearbeiten, in den Umsätzen
+  zeigen, ausführen, verschieben und löschen.
 
 In Regeln gibt es kein `kategorie:`, kein `ist:neu` und keine relativen Daten wie `-30t`, denn Regeln
 lesen nur die Werte der Bank.
@@ -73,14 +76,16 @@ im Formular zeigt das an echten Umsätzen, ohne etwas zu speichern.
 
 ### Regeln ausführen
 
-Eine neue oder geänderte Regel ändert **keinen vorhandenen Umsatz von selbst**. Dafür gibt es „Regeln
-ausführen“, für alle aktiven Regeln oder eine einzelne:
+Eine neue oder geänderte Regel ändert **keinen vorhandenen Umsatz von selbst**. Starte eine aktive
+Regel über „Regel ausführen“ in ihrem Menü „…“. Sie ändert nur Umsätze, bei denen sie die erste passende ist.
+Die folgende Seite zeigt, was die Regel tut und wie viele Umsätze sie trifft. Unter „Regel“ kannst du
+stattdessen „Alle aktiven Regeln“ wählen und festlegen, welche Werte sich ändern dürfen:
 
-- **Nur nicht gesetzte Werte** füllt Felder ohne Wert.
-- **Alle Datensätze** rechnet alles neu und setzt Anpassungen von Regeln zurück, die nicht mehr greifen.
-  Kategorien entfernt es nie.
+- **Nur leere Felder füllen** lässt vorhandene Werte unverändert.
+- **Alles neu berechnen** aktualisiert auch frühere Ergebnisse von Regeln. Beim Lauf über alle aktiven
+  Regeln setzt es Anpassungen zurück, die nicht mehr greifen. Kategorien entfernt es nie.
 
-Der Schritt **Prüfen** zeigt jede Änderung mit Vorher und Nachher. Erst „Übernehmen“ schreibt die
+Der Schritt **Änderungen prüfen** zeigt jede Änderung mit Vorher und Nachher. Erst „Übernehmen“ schreibt die
 gewählten Änderungen. Werte von Hand, aus CSV-Dateien oder Gegenbuchungen und alle Buchungen von Hand
 sind anfangs abgewählt. Ersetzte Werte lassen sich nicht wiederherstellen. Hat sich seit der Prüfung
 etwas geändert, speichert MBM nichts und zeigt den neuen Stand.

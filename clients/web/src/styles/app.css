@@ -617,25 +617,24 @@ select.inp { appearance: none; background-image: linear-gradient(45deg, transpar
 .nomark { width: 92px; height: 92px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
 
 /* ---------- Orders, categories, rules, connections ---------- */
-.rule { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto auto auto auto; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; }
+.rules-note { padding: 4px 12px 10px; }
+.rule { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto auto auto; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; }
 .rule .grip { color: var(--faint); cursor: grab; display: grid; opacity: 0; transition: opacity 0.15s; }
 .rule:hover .grip { opacity: 1; }
 .rule.drop-before { box-shadow: inset 0 2px 0 var(--iris); }
 .rule.drop-after { box-shadow: inset 0 -2px 0 var(--iris); }
 .rule:hover { background: var(--surface-2); }
-.rule .r-txt { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.rule code { font-family: var(--font-mono); font-size: 12.5px; padding: 2px 7px; border-radius: 6px; background: var(--surface-3); }
+.r-txt { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.r-txt code { font-family: var(--font-mono); font-size: 12.5px; padding: 2px 7px; border-radius: 6px; background: var(--surface-3); overflow-wrap: anywhere; }
 .rule.off { opacity: 0.5; }
-/* The switch keeps the same distance from the arrows as from the actions */
-.rule .card-tools .switch { margin-left: 10px; }
 .rule-form { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; }
 .rule-form .picker-btn { min-width: 0; max-width: 100%; }
 .rule-form .picker-btn > * { flex: none; }
 .rule-form .picker-btn > .picker-text { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rule-form-wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .rule-edit { padding: 12px; border-radius: 12px; background: var(--surface-2); margin-block: 4px; }
-.rule .r-name { font-weight: 600; }
-.rule .r-edit { font-size: 12.5px; padding: 2px 7px; border-radius: 6px; background: var(--iris-soft); overflow-wrap: anywhere; }
+.r-name { font-weight: 600; }
+.r-edit { font-size: 12.5px; padding: 2px 7px; border-radius: 6px; background: var(--iris-soft); overflow-wrap: anywhere; }
 .rf { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .rf-row { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; align-items: center; font-size: 13.5px; }
 .rf-row.top { align-items: start; }
@@ -650,7 +649,8 @@ select.inp { appearance: none; background-image: linear-gradient(45deg, transpar
 .rf-grow > .inp { flex: 1; min-width: 0; }
 .rf-grow > .rf-short { flex: 0 0 72px; }
 .rf-add { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
-.rf-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.rf-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.rf-note { text-align: right; }
 .rf-probe { display: grid; gap: 6px; }
 .rf-sample { display: grid; gap: 2px; padding: 7px 10px; border-radius: 8px; background: var(--surface-2); font-size: 12.5px; overflow-wrap: anywhere; }
 .rf-sample.miss { opacity: 0.7; }
@@ -659,6 +659,7 @@ select.inp { appearance: none; background-image: linear-gradient(45deg, transpar
 .rf-sample .rf-new { display: inline-flex; align-items: center; gap: 5px; }
 .run-scope { display: grid; gap: 14px; width: min(640px, 100%); justify-self: center; }
 .run-field { display: grid; gap: 6px; }
+.run-rule { display: grid; gap: 8px; padding: 12px; border-radius: 10px; background: var(--surface-2); }
 .run-modes { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; }
 .run-modes .check-row > span { display: grid; }
 .run-modes small { color: var(--muted); font-size: 12.5px; }
@@ -909,9 +910,9 @@ a.mini { text-decoration: none; }
     .rule-form .q-field { flex: 1 0 100%; }
     .rule-form .picker-btn { flex: 1 1 auto; }
     .rule-form > .row { margin-left: auto; }
-    /* Phones: no dragging, all actions of a rule in its "…" menu */
+    /* Phones: no dragging */
     .rule { grid-template-columns: minmax(0, 1fr) auto auto auto; }
-    .rule .grip, .rule .rule-btns { display: none; }
+    .rule .grip { display: none; }
 }
 @media (max-width: 520px) {
     .hero { padding: 18px 16px 12px; border-radius: 18px; }
@@ -924,6 +925,8 @@ a.mini { text-decoration: none; }
     .step-sep { width: 10px; }
     .rule { grid-template-columns: minmax(0, 1fr) auto auto; }
     .rule .r-hits { display: none; }
+    .rf-note { text-align: left; }
+    .rf-actions .btn-primary { flex-basis: 100%; }
 }
 
 /* ---------- Symbols & colours (accounts, groups, categories) ---------- */

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Check, Copy, Eye, FileUp, Lock, Pencil, Plus, ShieldCheck, Trash2, Undo2, Wand2 } from "lucide-react";
+import { Check, Copy, Eye, FileUp, Lock, Pencil, Plus, ShieldCheck, Trash2, Undo2 } from "lucide-react";
 import { CLIENT_LABELS, ClientKind, routes, Theme, type Me } from "@mbm/shared";
 import { settingsRoute } from "../router";
 import { SETTINGS_TABS } from "../lib/settingsTabs";
@@ -12,7 +12,6 @@ import { codeProblem, fieldProps, focusFirstError, type FieldErrors } from "../l
 import { copyName } from "../lib/importFormat";
 import { openImport } from "../lib/importNav";
 import { confirmDeleteAccount } from "../lib/menus";
-import { openRunRules } from "../lib/rules";
 import { THEME_LABELS } from "../lib/theme";
 import { ui } from "../lib/ui";
 import { useOpenTransactions } from "../lib/useOpenTransactions";
@@ -44,9 +43,9 @@ export function SettingsPage() {
                 )}
                 {tab === "rules" && (
                     <div className="head-actions">
-                        <button className="btn" onClick={() => openRunRules()}>
-                            <Ic icon={Wand2} size={16} />
-                            Regeln ausführen
+                        <button className="btn btn-primary" onClick={() => void navigate({ to: "/settings", search: { tab: "rules", new: true } })}>
+                            <Ic icon={Plus} size={16} />
+                            Regel hinzufügen
                         </button>
                     </div>
                 )}

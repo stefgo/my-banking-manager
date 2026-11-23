@@ -32,8 +32,12 @@ const orders = createRoute({ getParentRoute: () => root, path: "/orders", compon
 export const settingsRoute = createRoute({
     getParentRoute: () => root,
     path: "/settings",
-    validateSearch: (raw: Record<string, unknown>): { tab?: SettingsTab } =>
-        SETTINGS_TABS.some((t) => t.id === raw.tab) ? { tab: raw.tab as SettingsTab } : {},
+    // `new`: the form for a new rule is open
+    validateSearch: (raw: Record<string, unknown>): { tab?: SettingsTab; new?: true } => {
+        if (!SETTINGS_TABS.some((t) => t.id === raw.tab)) return {};
+        const tab = raw.tab as SettingsTab;
+        return tab === "rules" && raw.new === true ? { tab, new: true } : { tab };
+    },
     component: SettingsPage,
 });
 

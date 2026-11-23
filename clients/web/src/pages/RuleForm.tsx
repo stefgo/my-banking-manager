@@ -220,18 +220,17 @@ function Probe({ result, ruleName }: { result: RuleTestResult; ruleName: (id: nu
 export function RuleForm({
     initial,
     ruleId,
-    submitLabel,
+    canRun = false,
     onSubmit,
     onCancel,
-    resetOnSuccess = false,
     autoFocus = false,
 }: {
     initial?: Partial<RuleValues>;
     ruleId?: number;
-    submitLabel: string;
-    onSubmit: (values: RuleValues) => Promise<boolean>;
+    /** Offers to run the rule right after saving it. */
+    canRun?: boolean;
+    onSubmit: (values: RuleValues, run: boolean) => Promise<void>;
     onCancel?: () => void;
-    resetOnSuccess?: boolean;
     autoFocus?: boolean;
 }) {
     const { index } = useCategoryIndex();
@@ -247,9 +246,8 @@ export function RuleForm({
     const [accountIds, setAccountIds] = useState<number[] | null>(initial?.accountIds === undefined ? null : initial.accountIds);
     const [extracts, setExtracts] = useState<RuleExtract[]>(initial?.extracts ?? []);
     const [edits, setEdits] = useState<RuleEdit[]>(initial?.edits ?? []);
-    const [formKey, setFormKey] = useState(0);
     const [error, setError] = useState("");
-    const [busy, setBusy] = useState(false);
+    const [busy, setBusy] = useState<"save" | "run" | null>(null);
     const [probe, setProbe] = useState<RuleTestResult | null>(null);
     const queryRef = useRef<HTMLInputElement>(null);
     const hints = useSuggest({ value: query, onChange: setQuery, inputRef: queryRef, mode: "rule" });
@@ -290,8 +288,8 @@ export function RuleForm({
     };
     const accountText = accountIds === null ? "Alle Konten" : accountIds.length === 0 ? "Konto fehlt" : accountIds.map((id) => accounts.find((a) => a.id === id)?.name ?? "Konto").join(", ");
 
-    const submit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const save = async (run: boolean) => {
+        if (busy) return;
         setError("");
         const problem = !values.query
             ? "Bitte eine Abfrage eingeben, z. B. gegenseite:rewe."
@@ -303,22 +301,20 @@ export function RuleForm({
             const t = edit.op === "set" ? parseTemplate(edit.value) : edit.op === "replace" ? parseTemplate(edit.with) : null;
             if (t && !t.ok) return setError(t.error);
         }
-        setBusy(true);
-        const ok = await onSubmit(values);
-        setBusy(false);
-        if (ok && resetOnSuccess) {
-            setName("");
-            setQuery("");
-            setCat(null);
-            setAccountIds(null);
-            setExtracts([]);
-            setEdits([]);
-            setFormKey((k) => k + 1);
-        }
+        setBusy(run ? "run" : "save");
+        await onSubmit(values, run);
+        setBusy(null);
     };
 
     return (
-        <form className="rf" onSubmit={submit} noValidate>
+        <form
+            className="rf"
+            noValidate
+            onSubmit={(e) => {
+                e.preventDefault();
+                void save(false);
+            }}
+        >
             <div className="rf-row">
                 <label htmlFor={`${ids}-name`}>Name</label>
                 <input id={`${ids}-name`} className="inp inp-sm" placeholder="optional" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} />
@@ -365,7 +361,7 @@ export function RuleForm({
                     <SuggestList list={hints.list} />
                 </span>
             </div>
-            <div className="rf-row top" key={`x${formKey}`}>
+            <div className="rf-row top">
                 <span>Ausschnitte</span>
                 <div className="rf-stack">
                     {extracts.map((step, i) => (
@@ -412,14 +408,20 @@ export function RuleForm({
             <div>
                 {error ? <Hint tone="bad">{error}</Hint> : values.query && !check.ok ? <Hint tone="bad">{check.error}</Hint> : structural && values.query ? <Hint tone="bad">{structural}</Hint> : canTry && probe ? <Probe result={probe} ruleName={ruleName} /> : null}
             </div>
+            <p className="muted small rf-note">Speichern ändert nur die Regel. Vorhandene Umsätze bleiben unverändert, bis du sie ausführst.</p>
             <div className="row rf-actions">
                 {onCancel && (
                     <button className="btn btn-sm btn-ghost" type="button" onClick={onCancel}>
                         Abbrechen
                     </button>
                 )}
-                <Button className="btn-primary btn-sm" type="submit" busy={busy} icon={onCancel ? undefined : Plus} iconSize={14}>
-                    {submitLabel}
+                {canRun && (
+                    <Button className="btn-sm" busy={busy === "run"} disabled={busy === "save"} onClick={() => void save(true)}>
+                        Speichern & ausführen
+                    </Button>
+                )}
+                <Button className="btn-primary btn-sm" type="submit" busy={busy === "save"} disabled={busy === "run"}>
+                    Speichern
                 </Button>
             </div>
         </form>

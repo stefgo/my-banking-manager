@@ -2,7 +2,7 @@ import { Fragment, useDeferredValue, useLayoutEffect, useMemo, useRef, useState 
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, Check, Search, Wand2, X } from "lucide-react";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { routes, type RuleChangeField, type RuleChangeKind, type RuleFieldChange, type RulePreview, type RuleRunItem, type RuleRunMode } from "@mbm/shared";
+import { routes, type Rule, type RuleChangeField, type RuleChangeKind, type RuleFieldChange, type RulePreview, type RuleRunItem, type RuleRunMode } from "@mbm/shared";
 import { ApiFailure, call, errorText } from "../lib/api";
 import { dateText, fmtSigned, plural } from "../lib/format";
 import { useAction, useAccounts, useCategoryIndex, useRules } from "../lib/queries";
@@ -11,10 +11,26 @@ import { categoryPath, type CategoryIndex } from "../lib/tree";
 import { Button, Hint } from "../components/common";
 import { Ic } from "../components/icons";
 import { StepList } from "../components/import/StepList";
+import { RuleSummary } from "../components/RuleSummary";
 import { runRulesRoute } from "../router";
 
-const STEPS = ["Umfang", "Prüfen"] as const;
+const STEPS = ["Auswahl", "Änderungen prüfen"] as const;
 const NO_CHOICE: RunChoice = new Map();
+const MODE_TEXT: Record<RuleRunMode, string> = { empty: "Nur leere Felder füllen", all: "Alles neu berechnen" };
+
+/** What the chosen scope reaches among the stored bookings. */
+function scopeText(rule: Rule | undefined, activeCount: number): string {
+    if (!rule) {
+        if (activeCount === 0) return "Es ist keine Regel aktiv.";
+        if (activeCount === 1) return "Die einzige aktive Regel läuft über alle Umsätze.";
+        return `${activeCount.toLocaleString("de-DE")} aktive Regeln laufen in ihrer Reihenfolge. Je Umsatz wirkt die erste passende.`;
+    }
+    if (rule.hits === 0) return "Passt aktuell auf keinen Umsatz.";
+    const taken = rule.hits - rule.wins;
+    const hits = `Passt auf ${plural(rule.hits, "Umsatz", "Umsätze")}.`;
+    if (taken === 0) return hits;
+    return `${hits} ${taken.toLocaleString("de-DE")} davon erfasst eine Regel weiter oben. ${taken === 1 ? "Er bleibt" : "Diese bleiben"} hier unverändert.`;
+}
 
 const FILTERS: { filter: RunFilter; label: string; tone: string }[] = [
     { filter: "all", label: "Änderungen", tone: "" },
@@ -152,6 +168,7 @@ export function RunRulesPage() {
     const outcome = useMemo(() => runOutcome(items, choice), [items, choice]);
     const selection = useMemo(() => shownState(shown, choice), [shown, choice]);
     const activeRules = rules.filter((r) => r.active);
+    const chosenRule = ruleId === undefined ? undefined : rules.find((r) => r.id === ruleId);
     const ruleName = (id: number) => {
         const r = rules.find((x) => x.id === id);
         return r ? r.name || r.query : "Regel";
@@ -226,97 +243,109 @@ export function RunRulesPage() {
     }
 
     return (
-        <div className={`imp-page ${preview ? "wide" : ""}`}>
-            <StepList steps={STEPS} at={step} onPick={() => restart()} />
-            {!preview && (
-                <>
-                    <section className="panel imp-file run-scope">
-                        <label className="run-field">
-                            <span className="flabel">Regeln</span>
-                            <select className="inp" value={ruleId ?? "all"} onChange={(e) => setPickedRule({ id: e.target.value === "all" ? undefined : Number(e.target.value) })}>
-                                <option value="all">Alle aktiven Regeln</option>
-                                {activeRules.map((r) => <option key={r.id} value={r.id}>{r.name || r.query}</option>)}
-                            </select>
-                        </label>
-                        {ruleId !== undefined && <Hint>Gezeigt werden nur Umsätze, bei denen diese Regel die erste passende ist. Umsätze, die sie nicht mehr gewinnt, erscheinen beim Umfang „Alle aktiven Regeln“.</Hint>}
-                        <fieldset className="run-modes">
-                            <legend className="flabel">Was wird geschrieben?</legend>
-                            <label className="check-row">
-                                <input type="radio" name="run-mode" checked={mode === "empty"} onChange={() => setMode("empty")} />
-                                <span><b>Nur nicht gesetzte Werte</b><small>Füllt Felder ohne Wert. Vorhandene Werte bleiben.</small></span>
-                            </label>
-                            <label className="check-row">
-                                <input type="radio" name="run-mode" checked={mode === "all"} onChange={() => setMode("all")} />
-                                <span><b>Alle Datensätze</b><small>Rechnet alles neu. Werte von Hand bleiben, bis du sie beim Prüfen wählst.</small></span>
-                            </label>
-                        </fieldset>
-                        {error && <Hint tone="bad">{error}</Hint>}
-                    </section>
-                    <div className="imp-bar narrow">
-                        <span className="muted">Bis zur Zustimmung wird nichts gespeichert.</span>
-                        <Button className="btn-ghost" icon={ArrowLeft} onClick={() => void navigate({ to: "/settings", search: { tab: "rules" } })}>Zurück</Button>
-                        <Button className="btn-primary" icon={Wand2} busy={busy} disabled={!accounts.length && !rules.length} onClick={() => void check()}>Prüfen</Button>
-                    </div>
-                </>
-            )}
-            {preview && (
-                <div className="rv">
-                    <div className="rv-head">
-                        <span>
-                            <span><b>{ruleId === undefined ? "Alle aktiven Regeln" : ruleName(ruleId)}</b> · {mode === "all" ? "Alle Datensätze" : "Nur nicht gesetzte Werte"}</span>
-                            <small>{plural(items.length, "Umsatz ändert", "Umsätze ändern")} sich, {preview.unchanged.toLocaleString("de-DE")} {preview.unchanged === 1 ? "bleibt" : "bleiben"} gleich</small>
-                        </span>
-                    </div>
-                    {notice && <Hint>{notice}</Hint>}
-                    <div className="rv-tools">
-                        <label className="search">
-                            <Ic icon={Search} />
-                            <input type="search" placeholder="Gegenseite, Verwendungszweck oder neuer Wert" aria-label="Änderungen durchsuchen" autoComplete="off" spellCheck={false} value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.key === "Escape" && search && setSearch("")} />
-                            {search && (
-                                <button type="button" className="search-clear" aria-label="Suche leeren" title="Suche leeren (Esc)" onClick={() => setSearch("")}>
-                                    <Ic icon={X} size={15} strokeWidth={2.2} />
-                                </button>
-                            )}
-                        </label>
-                        <div className="seg rv-filter" role="group" aria-label="Änderungen filtern">
-                            {FILTERS.map((f) => (
-                                <button key={f.filter} type="button" className={f.tone} aria-pressed={filter === f.filter} disabled={!counts[f.filter] && f.filter !== "all"} onClick={() => setFilter(f.filter)}>
-                                    {f.label} <b>{counts[f.filter].toLocaleString("de-DE")}</b>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                    <section className="panel rv-panel" aria-label="Änderungen">
-                        <div className="rv-list-head">
-                            <label className="check-row">
-                                <input
-                                    type="checkbox"
-                                    disabled={!shown.length}
-                                    checked={selection.all}
-                                    ref={(el) => {
-                                        if (el) el.indeterminate = selection.some;
-                                    }}
-                                    onChange={() => setChoice(toggleShown(shown, choice))}
-                                />
-                                <span>Alle angezeigten</span>
-                            </label>
-                            <span className="faint small">{shown.length.toLocaleString("de-DE")} Umsätze · {selection.chosen.toLocaleString("de-DE")} gewählt</span>
-                        </div>
-                        {shown.length ? <RunList key={filter} items={shown} index={index} choice={choice} onChoice={setChoice} /> : <p className="muted rv-empty">{items.length ? "Keine Änderung passt zur Suche." : "Nichts zu übernehmen."}</p>}
-                    </section>
-                    {error && <Hint tone="bad">{error}</Hint>}
-                    <div className="imp-bar">
-                        <span className="muted rv-summary">
-                            {parts || "Nichts gewählt"}
-                            {outcome.replaces > 0 && <>, <b>{plural(outcome.replaces, "Wert", "Werte")} ersetzen (nicht rückgängig)</b></>}
-                        </span>
-                        <Button className="btn-ghost" icon={ArrowLeft} onClick={restart}>Zurück</Button>
-                        <Button className="btn-primary" icon={Check} busy={action.pending || busy} disabled={!outcome.chosen} onClick={() => void commit()}>
-                            {plural(outcome.chosen, "Umsatz", "Umsätze")} übernehmen
-                        </Button>
-                    </div>
+        <>
+            <div className="page-head">
+                <div>
+                    <h1>{ruleId === undefined ? "Alle aktiven Regeln ausführen" : "Regel ausführen"}</h1>
+                    <p className="muted">{preview ? "Wähle, welche Änderungen übernommen werden." : `Wendet ${ruleId === undefined ? "alle aktiven Regeln" : "die Regel"} auf bereits vorhandene Umsätze an.`}</p>
                 </div>
-            )}
-        </div>
+            </div>
+            <div className={`imp-page ${preview ? "wide" : ""}`}>
+                <StepList steps={STEPS} at={step} onPick={() => restart()} />
+                {!preview && (
+                    <>
+                        <section className="panel imp-file run-scope">
+                            <label className="run-field">
+                                <span className="flabel">Regel</span>
+                                <select className="inp" value={ruleId ?? "all"} onChange={(e) => setPickedRule({ id: e.target.value === "all" ? undefined : Number(e.target.value) })}>
+                                    <option value="all">Alle aktiven Regeln</option>
+                                    {activeRules.map((r) => <option key={r.id} value={r.id}>{r.name || r.query}</option>)}
+                                </select>
+                            </label>
+                            {(ruleId === undefined || chosenRule) && (
+                                <div className="run-rule">
+                                    {chosenRule && <RuleSummary rule={chosenRule} />}
+                                    <p className="muted small">{scopeText(chosenRule, activeRules.length)}</p>
+                                </div>
+                            )}
+                            <fieldset className="run-modes">
+                                <legend className="flabel">Welche Werte dürfen sich ändern?</legend>
+                                <label className="check-row">
+                                    <input type="radio" name="run-mode" checked={mode === "empty"} onChange={() => setMode("empty")} />
+                                    <span><b>{MODE_TEXT.empty}</b><small>Vorhandene Werte bleiben.</small></span>
+                                </label>
+                                <label className="check-row">
+                                    <input type="radio" name="run-mode" checked={mode === "all"} onChange={() => setMode("all")} />
+                                    <span><b>{MODE_TEXT.all}</b><small>Aktualisiert auch frühere Ergebnisse von Regeln. Eigene Werte änderst du nur, wenn du sie wählst.</small></span>
+                                </label>
+                            </fieldset>
+                            {error && <Hint tone="bad">{error}</Hint>}
+                        </section>
+                        <div className="imp-bar narrow">
+                            <Button className="btn-ghost" icon={ArrowLeft} onClick={() => void navigate({ to: "/settings", search: { tab: "rules" } })}>Zurück</Button>
+                            <Button className="btn-primary" icon={Wand2} busy={busy} disabled={!accounts.length && !rules.length} onClick={() => void check()}>Änderungen anzeigen</Button>
+                        </div>
+                    </>
+                )}
+                {preview && (
+                    <div className="rv">
+                        <div className="rv-head">
+                            <span>
+                                <span><b>{ruleId === undefined ? "Alle aktiven Regeln" : ruleName(ruleId)}</b> · {MODE_TEXT[mode]}</span>
+                                <small>{plural(items.length, "Umsatz ändert", "Umsätze ändern")} sich, {preview.unchanged.toLocaleString("de-DE")} {preview.unchanged === 1 ? "bleibt" : "bleiben"} gleich</small>
+                            </span>
+                        </div>
+                        {notice && <Hint>{notice}</Hint>}
+                        <div className="rv-tools">
+                            <label className="search">
+                                <Ic icon={Search} />
+                                <input type="search" placeholder="Gegenseite, Verwendungszweck oder neuer Wert" aria-label="Änderungen durchsuchen" autoComplete="off" spellCheck={false} value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.key === "Escape" && search && setSearch("")} />
+                                {search && (
+                                    <button type="button" className="search-clear" aria-label="Suche leeren" title="Suche leeren (Esc)" onClick={() => setSearch("")}>
+                                        <Ic icon={X} size={15} strokeWidth={2.2} />
+                                    </button>
+                                )}
+                            </label>
+                            <div className="seg rv-filter" role="group" aria-label="Änderungen filtern">
+                                {FILTERS.map((f) => (
+                                    <button key={f.filter} type="button" className={f.tone} aria-pressed={filter === f.filter} disabled={!counts[f.filter] && f.filter !== "all"} onClick={() => setFilter(f.filter)}>
+                                        {f.label} <b>{counts[f.filter].toLocaleString("de-DE")}</b>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <section className="panel rv-panel" aria-label="Änderungen">
+                            <div className="rv-list-head">
+                                <label className="check-row">
+                                    <input
+                                        type="checkbox"
+                                        disabled={!shown.length}
+                                        checked={selection.all}
+                                        ref={(el) => {
+                                            if (el) el.indeterminate = selection.some;
+                                        }}
+                                        onChange={() => setChoice(toggleShown(shown, choice))}
+                                    />
+                                    <span>Alle angezeigten</span>
+                                </label>
+                                <span className="faint small">{shown.length.toLocaleString("de-DE")} Umsätze · {selection.chosen.toLocaleString("de-DE")} gewählt</span>
+                            </div>
+                            {shown.length ? <RunList key={filter} items={shown} index={index} choice={choice} onChoice={setChoice} /> : <p className="muted rv-empty">{items.length ? "Keine Änderung passt zur Suche." : "Nichts zu übernehmen."}</p>}
+                        </section>
+                        {error && <Hint tone="bad">{error}</Hint>}
+                        <div className="imp-bar">
+                            <span className="muted rv-summary">
+                                {parts || "Nichts gewählt"}
+                                {outcome.replaces > 0 && <>, <b>{plural(outcome.replaces, "Wert", "Werte")} ersetzen (nicht rückgängig)</b></>}
+                            </span>
+                            <Button className="btn-ghost" icon={ArrowLeft} onClick={restart}>Zurück</Button>
+                            <Button className="btn-primary" icon={Check} busy={action.pending || busy} disabled={!outcome.chosen} onClick={() => void commit()}>
+                                {plural(outcome.chosen, "Umsatz", "Umsätze")} übernehmen
+                            </Button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </>
     );
 }
