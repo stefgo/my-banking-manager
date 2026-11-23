@@ -86,7 +86,8 @@ stattdessen „Alle aktiven Regeln“ wählen und festlegen, welche Werte sich �
   Regeln setzt es Anpassungen zurück, die nicht mehr greifen. Kategorien entfernt es nie.
 
 Der Schritt **Änderungen prüfen** zeigt jede Änderung mit Vorher und Nachher. Erst „Übernehmen“ schreibt die
-gewählten Änderungen. Werte von Hand, aus CSV-Dateien oder Gegenbuchungen und alle Buchungen von Hand
+gewählten Änderungen. Gibt es nichts zu ändern oder ist nichts gewählt, beendest du den Lauf ohne
+Änderung. Werte von Hand, aus CSV-Dateien oder Gegenbuchungen und alle Buchungen von Hand
 sind anfangs abgewählt. Ersetzte Werte lassen sich nicht wiederherstellen. Hat sich seit der Prüfung
 etwas geändert, speichert MBM nichts und zeigt den neuen Stand.
 
