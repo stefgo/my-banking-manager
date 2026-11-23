@@ -10,6 +10,13 @@ dev keeps the text; the stable release from main empties this file again.
 Nothing inside an HTML comment is published.
 -->
 
+### Umsätze: Kontokopf in schmalen Fenstern
+
+Passt die IBAN oder Kontonummer nicht mehr in eine Zeile, entfällt im Kopf der Umsatzliste das Symbol.
+Kontodaten und Kontostand stehen dann untereinander, sodass die Nummer nicht mehr umbricht. Auf sehr
+schmalen Displays laufen die Umsatzseite und die Regeln in den Einstellungen außerdem nicht mehr
+seitlich über, und die Kategorie im Regel-Formular bleibt in einer Zeile.
+
 ### Umsätze: Liste bleibt beim Öffnen der Details stehen
 
 Öffnest oder schließt du die Details eines Umsatzes, bleibt die ausgewählte Zeile an ihrer Stelle,

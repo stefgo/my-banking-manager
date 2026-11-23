@@ -2,7 +2,8 @@
 
 Unter **Umsätze** stehen alle Buchungen. Links wählst du im **Kontenbaum** ein Konto oder eine
 Gruppe, im **Kategorienbaum** eine Kategorie. Der Kopf zeigt dann Kontostand, IBAN und die
-Aktionen dazu: Abrufen, Überweisen, Verlauf und Infos.
+Aktionen dazu: Abrufen, Überweisen, Verlauf und Infos. Passt die IBAN oder Kontonummer nicht mehr in
+eine Zeile, entfällt das Symbol, und Kontodaten und Kontostand stehen untereinander.
 
 ![Die Umsätze des Girokontos, nach Tagen mit Tagessumme und Saldo](../assets/screenshots/umsaetze-dark.png)
 

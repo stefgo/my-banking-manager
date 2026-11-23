@@ -294,7 +294,7 @@ a.icon-btn { text-decoration: none; position: relative; }
 .icon-btn:hover { background: var(--surface-2); color: var(--fg); }
 .icon-btn[aria-pressed="true"] { color: var(--iris); background: var(--iris-soft); border-color: transparent; }
 
-main { min-width: 0; padding-block: 26px 96px; display: grid; gap: 22px; align-content: start; }
+main { min-width: 0; padding-block: 26px 96px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; align-content: start; }
 main:focus { outline: none; }
 .topbar, .tabbar { display: none; }
 
@@ -305,6 +305,9 @@ main:focus { outline: none; }
 .head-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .head-actions .btn[aria-pressed="true"] { background: var(--iris-soft); color: var(--iris); border-color: transparent; }
 .head-actions .icon-btn { width: 38px; height: 38px; border-radius: 11px; }
+/* A long label wraps in a narrow window instead of pushing the page wider */
+.head-actions .btn { height: auto; min-height: 38px; padding-block: 4px; white-space: normal; }
+.head-actions .btn > svg { flex: none; }
 .overview-actions { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; align-items: center; margin-top: 8px; }
 .overview-actions .btn[aria-pressed="true"] { background: var(--iris-soft); color: var(--iris); }
 .overview-actions .icon-btn { width: 32px; height: 32px; border-radius: 9px; border-color: transparent; }
@@ -410,7 +413,7 @@ button.av:hover { box-shadow: inset 0 0 0 1px var(--c); }
 .datechip span { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 
 /* ---------- Transactions ---------- */
-.txlist { display: grid; }
+.txlist { display: grid; grid-template-columns: minmax(0, 1fr); }
 .day { position: sticky; top: var(--stick-top); z-index: 1; display: flex; justify-content: space-between; gap: 12px; padding: 14px 12px 6px; font-size: 12px; font-weight: 500; color: var(--muted); background: var(--surface); }
 .day:first-child { padding-top: 4px; }
 .day .amt { color: var(--faint); }
@@ -437,7 +440,7 @@ button.av:hover { box-shadow: inset 0 0 0 1px var(--c); }
 .tx-acc { font-size: 11.5px; color: var(--faint); }
 .tx.pending .tx-name, .tx.pending .tx-end .amt { opacity: 0.72; }
 .list-panel { padding: 10px 8px; }
-.toolbar { display: grid; gap: 12px; }
+.toolbar { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .search {
     display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 12px 0 14px;
     border-radius: 13px; background: var(--surface); border: 1px solid var(--line); color: var(--muted);
@@ -626,7 +629,10 @@ select.inp { appearance: none; background-image: linear-gradient(45deg, transpar
 /* The switch keeps the same distance from the arrows as from the actions */
 .rule .card-tools .switch { margin-left: 10px; }
 .rule-form { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; }
-.rule-form-wrap { display: grid; gap: 8px; }
+.rule-form .picker-btn { min-width: 0; max-width: 100%; }
+.rule-form .picker-btn > * { flex: none; }
+.rule-form .picker-btn > .picker-text { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rule-form-wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .rule-edit { padding: 12px; border-radius: 12px; background: var(--surface-2); margin-block: 4px; }
 .q-field {
     display: flex; align-items: center; gap: 6px; height: 38px; min-width: 0; padding: 0 5px 0 12px; border-radius: 10px;
@@ -678,6 +684,12 @@ a.mini { text-decoration: none; }
     .ctx-fig { grid-column: 1 / -1; text-align: left; }
     .ctx-title h1 { font-size: 22px; }
 }
+/* The account line does not fit: no symbol, details and balance below each other (useStackedHead).
+   The symbol stays in place, invisible, as the anchor of its picker. */
+.ctx-top:not([data-stacked]) .iban-line { flex-wrap: nowrap; max-width: 100%; white-space: nowrap; }
+.ctx-top[data-stacked] { position: relative; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.ctx-top[data-stacked] > .ctx-ic { position: absolute; top: 0; left: 0; visibility: hidden; }
+.ctx-top[data-stacked] .ctx-fig { grid-column: auto; text-align: left; }
 
 /* Own information of accounts, groups and categories: panel in the header, edit dialog */
 .info-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--iris); flex: none; }
@@ -852,8 +864,11 @@ a.mini { text-decoration: none; }
     .drawer { top: auto; left: 0; width: 100%; max-height: 88dvh; border-left: 0; border-top: 1px solid var(--line); border-radius: 22px 22px 0 0; padding-left: max(20px, env(safe-area-inset-left, 0px)); animation-name: slideUp; }
     .help-grid { grid-template-columns: 1fr; }
     .bulk { bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); }
-    .rule-form { grid-template-columns: minmax(0, 1fr) auto; }
-    .rule-form .q-field { grid-column: 1 / -1; }
+    /* The category keeps one line; the buttons move below it when both do not fit */
+    .rule-form { display: flex; flex-wrap: wrap; }
+    .rule-form .q-field { flex: 1 0 100%; }
+    .rule-form .picker-btn { flex: 1 1 auto; }
+    .rule-form > .row { margin-left: auto; }
     /* Phones: no dragging, all actions of a rule in its "…" menu */
     .rule { grid-template-columns: minmax(0, 1fr) auto auto auto; }
     .rule .grip, .rule .rule-btns { display: none; }
