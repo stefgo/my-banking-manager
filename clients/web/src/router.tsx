@@ -9,7 +9,9 @@ import { OrdersPage } from "./pages/Orders";
 import { AccountsPage } from "./pages/Accounts";
 import { ImportPage } from "./pages/Import";
 import { ImportFormatPage } from "./pages/ImportFormat";
+import { RunRulesPage } from "./pages/RunRules";
 import { registerImportNavigation } from "./lib/importNav";
+import { registerRuleNavigation } from "./lib/rules";
 import { compactTxSearch, parseTxSearch } from "./lib/search";
 
 const root = createRootRoute({ component: Gate });
@@ -30,8 +32,12 @@ const orders = createRoute({ getParentRoute: () => root, path: "/orders", compon
 export const settingsRoute = createRoute({
     getParentRoute: () => root,
     path: "/settings",
-    validateSearch: (raw: Record<string, unknown>): { tab?: SettingsTab } =>
-        SETTINGS_TABS.some((t) => t.id === raw.tab) ? { tab: raw.tab as SettingsTab } : {},
+    // `new`: the form for a new rule is open
+    validateSearch: (raw: Record<string, unknown>): { tab?: SettingsTab; new?: true } => {
+        if (!SETTINGS_TABS.some((t) => t.id === raw.tab)) return {};
+        const tab = raw.tab as SettingsTab;
+        return tab === "rules" && raw.new === true ? { tab, new: true } : { tab };
+    },
     component: SettingsPage,
 });
 
@@ -50,13 +56,25 @@ export const importFormatRoute = createRoute({
     component: ImportFormatPage,
 });
 
+export const runRulesRoute = createRoute({
+    getParentRoute: () => root,
+    path: "/rules/run",
+    validateSearch: (raw: Record<string, unknown>): { rule?: number } => (Number.isSafeInteger(raw.rule) && (raw.rule as number) > 0 ? { rule: raw.rule as number } : {}),
+    component: RunRulesPage,
+});
+
 export const router = createRouter({
-    routeTree: root.addChildren([overview, transactionsRoute, accountsPage, transfer, orders, settingsRoute, importRoute, importFormatRoute]),
+    routeTree: root.addChildren([overview, transactionsRoute, accountsPage, transfer, orders, settingsRoute, importRoute, importFormatRoute, runRulesRoute]),
     defaultPreload: false,
     scrollRestoration: true,
 });
 
 registerImportNavigation((accountId) => void router.navigate({ to: "/import", search: accountId === undefined ? {} : { account: accountId } }));
+
+registerRuleNavigation(
+    (ruleId) => void router.navigate({ to: "/rules/run", search: ruleId === undefined ? {} : { rule: ruleId } }),
+    () => void router.navigate({ to: "/settings", search: { tab: "rules" } }),
+);
 
 declare module "@tanstack/react-router" {
     interface Register {
@@ -73,4 +91,5 @@ export const ROUTE_TITLES: Record<string, string> = {
     "/settings": "Einstellungen",
     "/import": "Importieren",
     "/import-format": "Importformat",
+    "/rules/run": "Regeln ausführen",
 };

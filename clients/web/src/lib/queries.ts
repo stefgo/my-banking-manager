@@ -1,5 +1,5 @@
 import { QueryClient, useMutation, useQuery, keepPreviousData } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useEffect, useMemo, useReducer } from "react";
 import {
     routes,
     type AccountScope,
@@ -215,6 +215,14 @@ export function useTxById(id: number | null | undefined) {
     return (cached ?? all.data?.items.find((t) => t.id === id)) as import("@mbm/shared").Transaction | undefined;
 }
 
+/** Renders again whenever a list of bookings got new data, which the cache lookup above cannot see. */
 function useTransactionsVersion(): void {
-    useQuery({ queryKey: ["transactions", "__version"], queryFn: () => Date.now(), staleTime: Infinity });
+    const [, bump] = useReducer((n: number) => n + 1, 0);
+    useEffect(
+        () =>
+            queryClient.getQueryCache().subscribe((e) => {
+                if (e.type === "updated" && e.action.type === "success" && e.query.queryKey[0] === "transactions") bump();
+            }),
+        [],
+    );
 }

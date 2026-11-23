@@ -74,7 +74,7 @@ export function QueryHelp({ mode = "search" }: { mode?: "search" | "rule" }) {
                         <p className="muted small">
                             {mode === "search"
                                 ? "UND, ODER und NICHT (auch AND, OR, NOT) nur in Großbuchstaben. Felder auch englisch: counterparty:, purpose:, account:, category:, amount:, date:, is:new. Ein Datum in der Suche ersetzt die Vorgabe im Menü „Zeitraum“. Esc leert das Feld."
-                                : "UND, ODER und NICHT (auch AND, OR, NOT) nur in Großbuchstaben. Felder auch englisch: counterparty:, purpose:, account:, amount:, date:. Regeln wirken nur auf Umsätze ohne Kategorie, deshalb gibt es hier kein kategorie: und keine relativen Daten wie -30t oder vormonat."}
+                                : "UND, ODER und NICHT (auch AND, OR, NOT) nur in Großbuchstaben. Felder auch englisch: counterparty:, purpose:, account:, amount:, date:. Regeln lesen nur die Werte der Bank und sehen keine gespeicherten Kategorien, deshalb gibt es hier kein kategorie: und keine relativen Daten wie -30t oder vormonat."}
                         </p>
                     </div>
                 </Popover.Content>

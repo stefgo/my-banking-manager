@@ -224,6 +224,7 @@ function book(b: Booking): Transaction | null {
         createdAt: at(b.date, "09:29:12"),
         // What the last fetches brought is new for Alex
         unread: bank && b.date >= "2026-11-18",
+        edits: { counterparty: null, remittance: null },
     };
     transactions.push(t);
     return t;
@@ -386,11 +387,16 @@ const parsedRules = RULES.map(([query, category]) => {
 
 export const rules: Rule[] = parsedRules.map((r, i) => ({
     id: i + 1,
+    name: "",
     query: r.query,
     categoryId: cat(r.category),
+    accountIds: null,
+    extracts: [],
+    edits: [],
     position: i,
     active: true,
     hits: transactions.filter((t) => matchTxQuery(r.node, targetOf(t))).length,
+    wins: transactions.filter((t) => parsedRules.find((x) => matchTxQuery(x.node, targetOf(t)))?.query === r.query).length,
 }));
 
 // A fetched booking no rule matches got its category by hand
@@ -723,6 +729,8 @@ const previewRow = (line: number, date: string | null, amount: number | null, na
     name,
     iban: SAMPLE_IBAN,
     purpose,
+    shownName: null,
+    shownPurpose: null,
     bookingText,
     fillsBookingText: false,
     reference: "",

@@ -40,7 +40,7 @@ export function BookingDialog({ accountId, txId }: { accountId?: number; txId?: 
     const catItems = useCategoryItems({ none: true });
     const action = useAction();
     const editTx = useTxById(txId);
-    // The category picked here; until then the one of the booking being edited (undefined: rules decide)
+    // The category picked here; until then the one of the booking being edited (undefined: none)
     const [picked, setPicked] = useState<{ id: number | null } | null>(null);
     const cat: number | null | undefined = picked ? picked.id : editTx?.categoryId;
     const editing = txId !== undefined;
@@ -92,7 +92,6 @@ export function BookingDialog({ accountId, txId }: { accountId?: number; txId?: 
     });
 
     const err = formState.errors;
-    const catHint = cat === undefined && !editing ? "Ohne Auswahl vergeben die Regeln die Kategorie." : undefined;
 
     return (
         <Modal title={editing ? "Buchung ändern" : "Buchung erfassen"} onClose={() => ui.close()} narrow>
@@ -134,14 +133,14 @@ export function BookingDialog({ accountId, txId }: { accountId?: number; txId?: 
                 <Field id="bk-purpose" label="Verwendungszweck" error={err.purpose?.message}>
                     <input className="inp" placeholder="optional" autoComplete="off" {...fieldProps("bk-purpose", err.purpose?.message)} {...register("purpose")} />
                 </Field>
-                <Field id="bk-cat" label="Kategorie" hint={catHint}>
+                <Field id="bk-cat" label="Kategorie">
                     <Picker
                         items={catItems}
                         value={cat === undefined ? undefined : cat === null ? "none" : String(cat)}
                         onPick={(v) => setPicked({ id: v === "none" ? null : Number(v) })}
                         placeholder="Kategorie suchen …"
                         trigger={
-                            <PickerButton {...fieldProps("bk-cat", undefined, !!catHint)} set={!!cat} icon={cat ? <CatTile idx={index} id={cat} size={12} className="ti-s" /> : <Ic icon={Tag} size={14} />}>
+                            <PickerButton {...fieldProps("bk-cat", undefined)} set={!!cat} icon={cat ? <CatTile idx={index} id={cat} size={12} className="ti-s" /> : <Ic icon={Tag} size={14} />}>
                                 {cat ? categoryPath(index, cat) : cat === null ? "Ohne Kategorie" : "Kategorie wählen"}
                             </PickerButton>
                         }

@@ -1,3 +1,4 @@
+import type { Transaction } from "@mbm/shared";
 import { fromIsoDate, todayIso, addDaysIso } from "@mbm/shared";
 
 export { formatCents as fmt, formatSignedCents as fmtSigned } from "@mbm/shared";
@@ -52,3 +53,11 @@ export const plural = (n: number, one: string, many: string): string => `${n} ${
  * payment whose counterparty is the processing bank), else the counterparty.
  */
 export const partyName = (tx: { counterpartyName: string; ultimateParty: string }): string => tx.ultimateParty || tx.counterpartyName;
+
+type WithEdits = { counterpartyName: string; ultimateParty: string; remittance: string; edits: Transaction["edits"] };
+
+/** The counterparty to show: the adjusted text, else the bank's. Transfers always use the bank's. */
+export const shownParty = (tx: WithEdits): string => tx.edits.counterparty?.value ?? partyName(tx);
+
+/** The purpose to show: the adjusted text, else the bank's. */
+export const shownPurpose = (tx: WithEdits): string => tx.edits.remittance?.value ?? tx.remittance;

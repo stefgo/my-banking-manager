@@ -7,14 +7,13 @@ import { CalendarDays, Eye, EyeOff, Home, Keyboard, List, Lock, LogOut, Menu, Pl
 import { useAccounts, useCategoryIndex, useGroups, useTransactions } from "../lib/queries";
 import { ui, useUi } from "../lib/ui";
 import { useOpenTransactions } from "../lib/useOpenTransactions";
-import { fmtSigned, dayMonth, partyName } from "../lib/format";
+import { fmtSigned, dayMonth, shownParty, shownPurpose } from "../lib/format";
 import { categoryPath } from "../lib/tree";
 import { ConfirmDialog, Kbd, Modal } from "../components/common";
 import { Ic, Sym } from "../components/icons";
 import { BookingDialog, ReconcileDialog } from "../dialogs/Booking";
 import { CounterBookingDialog } from "../dialogs/CounterBooking";
 import { openImport } from "../lib/importNav";
-import { ApplyRulesDialog } from "../dialogs/ApplyRules";
 import { InfoDialog } from "../dialogs/InfoDialog";
 import { AddAccountDialog, OpeningBalanceDialog } from "../dialogs/AddAccount";
 import { BankSetupDialog } from "../dialogs/BankSetup";
@@ -63,8 +62,6 @@ export function DialogHost() {
             return <AddCardDialog />;
         case "cardSettings":
             return <CardSettingsDialog cardId={d.cardId} />;
-        case "applyRules":
-            return <ApplyRulesDialog ruleId={d.ruleId} created={d.created} preview={d.preview} />;
         case "info":
             return <InfoDialog target={d.target} id={d.id} />;
         case "confirmSecret":
@@ -192,7 +189,7 @@ function Palette() {
                                                 key={t.id}
                                                 value={`tx-${t.id} ${q}`}
                                                 icon={<Ic icon={List} size={17} />}
-                                                label={partyName(t) || t.remittance || "Umsatz"}
+                                                label={shownParty(t) || shownPurpose(t) || "Umsatz"}
                                                 hint={`${dayMonth(t.bookingDate)} · ${fmtSigned(t.amount)}`}
                                                 onSelect={() => run(() => void open({ kind: "query", q }).then(() => ui.openTx(t.id)))}
                                             />

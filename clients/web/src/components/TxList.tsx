@@ -8,7 +8,7 @@ import { routes, type Account, type Transaction } from "@mbm/shared";
 import { call } from "../lib/api";
 import { useAction, type useCategoryIndex } from "../lib/queries";
 import { categoryColor, categoryPath, type CategoryIndex } from "../lib/tree";
-import { dayMonth, fmt, fmtSigned, partyName } from "../lib/format";
+import { dayMonth, fmt, fmtSigned, shownParty, shownPurpose } from "../lib/format";
 import { ui } from "../lib/ui";
 import { Ic, Sym } from "./icons";
 import { Picker } from "./pickers";
@@ -45,8 +45,9 @@ export const TxRow = memo(function TxRow({ tx, idx, accountName, inPending, focu
         }
     };
     const c = tx.categoryId !== null ? idx.byId.get(tx.categoryId) : undefined;
-    const party = partyName(tx);
-    const name = party || tx.remittance || "—";
+    const party = shownParty(tx);
+    const purpose = shownPurpose(tx);
+    const name = party || purpose || "—";
     return (
         <div
             className={`tx ${tx.status === "pending" ? "pending" : ""} ${tx.unread ? "is-new" : ""} ${selected ? "sel" : ""} ${picked ? "is-picked" : ""} ${focused ? "focus" : ""}`}
@@ -129,10 +130,10 @@ export const TxRow = memo(function TxRow({ tx, idx, accountName, inPending, focu
                             <span>{tx.isReturn ? "Rückbuchung" : "zurückgegeben"}</span>
                         </>
                     )}
-                    {tx.remittance && party && (
+                    {purpose && party && (
                         <>
                             <span className="sep">·</span>
-                            <span>{tx.remittance}</span>
+                            <span>{purpose}</span>
                         </>
                     )}
                 </span>

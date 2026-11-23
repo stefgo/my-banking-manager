@@ -237,183 +237,185 @@ export function ImportPage() {
     };
 
     return (
-        <div className={`imp-page ${step === "format" ? "wide" : ""}`}>
+        <>
             <div className="page-head">
                 <div>
                     <h1>Umsätze importieren</h1>
                     <p className="muted">{STEP_TEXT[step]}</p>
                 </div>
             </div>
-            <StepList steps={STEPS} at={at} onPick={step === "done" ? undefined : (i) => goTo(STEP_ORDER[i]!)} />
+            <div className={`imp-page ${step === "format" ? "wide" : ""}`}>
+                <StepList steps={STEPS} at={at} onPick={step === "done" ? undefined : (i) => goTo(STEP_ORDER[i]!)} />
 
-            {step === "file" && (
-                <>
-                    <section className="panel imp-file">
-                        {file && <p className="imp-current">Gewählt: <b>{file.name}</b></p>}
-                        <label
-                            className={`drop ${over ? "over" : ""}`}
-                            onDragOver={(e) => {
-                                e.preventDefault();
-                                setOver(true);
-                            }}
-                            onDragLeave={() => setOver(false)}
-                            onDrop={(e) => {
-                                e.preventDefault();
-                                setOver(false);
-                                const f = e.dataTransfer.files[0];
-                                if (f) void readFile(f);
-                            }}
-                        >
-                            <input type="file" accept=".csv,.txt,text/csv" hidden onChange={(e) => e.target.files?.[0] && void readFile(e.target.files[0])} />
-                            {busy ? <Spinner size={26} /> : <Ic icon={FileUp} size={26} />}
-                            <b>{file ? "Andere CSV-Datei hierher ziehen oder auswählen" : "CSV-Datei hierher ziehen oder auswählen"}</b>
-                            <small>z. B. CSV-Export aus dem Online-Banking, aus einem anderen Finanzprogramm oder ein Kassenbuch</small>
-                        </label>
-                        {error && <Hint tone="bad">{error}</Hint>}
-                        <p className="hint">
-                            <Ic icon={ShieldCheck} size={14} />
-                            Die Datei wird nur gelesen, nicht gespeichert. Schon vorhandene Umsätze werden erkannt.
-                        </p>
-                    </section>
-                    <div className="imp-bar narrow">
-                        <Button className="btn-ghost" icon={ArrowLeft} disabled>Zurück</Button>
-                        <Button className="btn-primary" icon={ArrowRight} disabled={!file || busy} onClick={() => goTo("format")}>Weiter</Button>
-                    </div>
-                </>
-            )}
+                {step === "file" && (
+                    <>
+                        <section className="panel imp-file">
+                            {file && <p className="imp-current">Gewählt: <b>{file.name}</b></p>}
+                            <label
+                                className={`drop ${over ? "over" : ""}`}
+                                onDragOver={(e) => {
+                                    e.preventDefault();
+                                    setOver(true);
+                                }}
+                                onDragLeave={() => setOver(false)}
+                                onDrop={(e) => {
+                                    e.preventDefault();
+                                    setOver(false);
+                                    const f = e.dataTransfer.files[0];
+                                    if (f) void readFile(f);
+                                }}
+                            >
+                                <input type="file" accept=".csv,.txt,text/csv" hidden onChange={(e) => e.target.files?.[0] && void readFile(e.target.files[0])} />
+                                {busy ? <Spinner size={26} /> : <Ic icon={FileUp} size={26} />}
+                                <b>{file ? "Andere CSV-Datei hierher ziehen oder auswählen" : "CSV-Datei hierher ziehen oder auswählen"}</b>
+                                <small>z. B. CSV-Export aus dem Online-Banking, aus einem anderen Finanzprogramm oder ein Kassenbuch</small>
+                            </label>
+                            {error && <Hint tone="bad">{error}</Hint>}
+                            <p className="hint">
+                                <Ic icon={ShieldCheck} size={14} />
+                                Die Datei wird nur gelesen, nicht gespeichert. Schon vorhandene Umsätze werden erkannt.
+                            </p>
+                        </section>
+                        <div className="imp-bar narrow">
+                            <Button className="btn-ghost" icon={ArrowLeft} disabled>Zurück</Button>
+                            <Button className="btn-primary" icon={ArrowRight} disabled={!file || busy} onClick={() => goTo("format")}>Weiter</Button>
+                        </div>
+                    </>
+                )}
 
-            {step === "format" && def && file && (
-                <>
-                    {!dirty && !base && <Hint>Kein passendes Format erkannt, bitte Spalten zuordnen.</Hint>}
-                    <div className="imp-toolbar">
-                        <label className="field">
-                            <span className="flabel">Format</span>
-                            <select className="inp inp-sm" value={baseKey ?? "none"} onChange={(e) => pickFormat(e.target.value)}>
-                                {!base && <option value="none">Automatisch zugeordnet</option>}
-                                <optgroup label="Standardformate">
-                                    {formats.filter((f) => f.builtin).map((f) => <option key={f.key} value={f.key}>{f.name}</option>)}
-                                </optgroup>
-                                {formats.some((f) => !f.builtin) && (
-                                    <optgroup label="Eigene Formate">
-                                        {formats.filter((f) => !f.builtin).map((f) => <option key={f.key} value={f.key}>{f.name}</option>)}
+                {step === "format" && def && file && (
+                    <>
+                        {!dirty && !base && <Hint>Kein passendes Format erkannt, bitte Spalten zuordnen.</Hint>}
+                        <div className="imp-toolbar">
+                            <label className="field">
+                                <span className="flabel">Format</span>
+                                <select className="inp inp-sm" value={baseKey ?? "none"} onChange={(e) => pickFormat(e.target.value)}>
+                                    {!base && <option value="none">Automatisch zugeordnet</option>}
+                                    <optgroup label="Standardformate">
+                                        {formats.filter((f) => f.builtin).map((f) => <option key={f.key} value={f.key}>{f.name}</option>)}
                                     </optgroup>
-                                )}
-                            </select>
-                        </label>
-                        {dirty && <span className="imp-dirty">geändert</span>}
-                        <SaveFormat
-                            base={base}
+                                    {formats.some((f) => !f.builtin) && (
+                                        <optgroup label="Eigene Formate">
+                                            {formats.filter((f) => !f.builtin).map((f) => <option key={f.key} value={f.key}>{f.name}</option>)}
+                                        </optgroup>
+                                    )}
+                                </select>
+                            </label>
+                            {dirty && <span className="imp-dirty">geändert</span>}
+                            <SaveFormat
+                                base={base}
+                                def={def}
+                                dirty={dirty}
+                                formats={formats}
+                                onSaved={(f) => {
+                                    setDef(f.definition);
+                                    setBaseKey(f.key);
+                                    setDirty(false);
+                                }}
+                            />
+                        </div>
+                        <FormatWorkbench
+                            key={formatRun}
                             def={def}
-                            dirty={dirty}
-                            formats={formats}
-                            onSaved={(f) => {
-                                setDef(f.definition);
-                                setBaseKey(f.key);
-                                setDirty(false);
+                            table={table}
+                            sampleName={file.name}
+                            onChange={(next) => {
+                                setDef(next);
+                                setChoice(NO_CHOICE);
+                                setDirty(true);
                             }}
                         />
-                    </div>
-                    <FormatWorkbench
-                        key={formatRun}
-                        def={def}
-                        table={table}
-                        sampleName={file.name}
-                        onChange={(next) => {
-                            setDef(next);
-                            setChoice(NO_CHOICE);
-                            setDirty(true);
-                        }}
+                        {(problem || error) && <Hint tone="bad">{problem || error}</Hint>}
+                        <div className="imp-bar">
+                            <span className="muted">{file.name}</span>
+                            <Button className="btn-ghost" icon={ArrowLeft} onClick={() => goTo("file")}>Zurück</Button>
+                            <Button className="btn-primary" icon={ArrowRight} disabled={!!problem || !table} onClick={() => goTo("account")}>Weiter</Button>
+                        </div>
+                    </>
+                )}
+
+                {step === "account" && file && (
+                    <>
+                        <section className="panel imp-file">
+                            <Field id="imp-acc" label="In Konto" error={accountError}>
+                                <Picker
+                                    items={accountItems}
+                                    value={accountId === undefined ? undefined : String(accountId)}
+                                    onPick={(v) => {
+                                        if (Number(v) !== accountId) setChoice(NO_CHOICE);
+                                        setAccountId(Number(v));
+                                        setAccountError(undefined);
+                                    }}
+                                    placeholder="Konto suchen …"
+                                    trigger={
+                                        <PickerButton {...fieldProps("imp-acc", accountError)} set={!!target} icon={target && <Tile icon={target.icon} color={target.color} size={12} className="ti-s" />}>
+                                            {target ? target.name : "Konto wählen"}
+                                        </PickerButton>
+                                    }
+                                />
+                            </Field>
+                            {error && <Hint tone="bad">{error}</Hint>}
+                        </section>
+                        <div className="imp-bar narrow">
+                            <span className="muted">{file.name}</span>
+                            <Button className="btn-ghost" icon={ArrowLeft} onClick={() => goTo("format")}>Zurück</Button>
+                            <Button className="btn-primary" icon={ArrowRight} busy={busy} onClick={() => void toReview()}>Weiter zur Prüfung</Button>
+                        </div>
+                    </>
+                )}
+
+                {step === "review" && preview && file && (
+                    <ImportReview
+                        preview={preview}
+                        index={index}
+                        fileName={file.name}
+                        accountName={target?.name ?? ""}
+                        formatName={dirty ? `${base?.name ?? "Eigene Zuordnung"} (geändert)` : (base?.name ?? "Automatisch zugeordnet")}
+                        busy={action.pending}
+                        error={error}
+                        choice={choice}
+                        onChoice={setChoice}
+                        onBack={() => goTo("account")}
+                        onCommit={(options) => void commit(options)}
                     />
-                    {(problem || error) && <Hint tone="bad">{problem || error}</Hint>}
-                    <div className="imp-bar">
-                        <span className="muted">{file.name}</span>
-                        <Button className="btn-ghost" icon={ArrowLeft} onClick={() => goTo("file")}>Zurück</Button>
-                        <Button className="btn-primary" icon={ArrowRight} disabled={!!problem || !table} onClick={() => goTo("account")}>Weiter</Button>
-                    </div>
-                </>
-            )}
+                )}
 
-            {step === "account" && file && (
-                <>
-                    <section className="panel imp-file">
-                        <Field id="imp-acc" label="In Konto" error={accountError}>
-                            <Picker
-                                items={accountItems}
-                                value={accountId === undefined ? undefined : String(accountId)}
-                                onPick={(v) => {
-                                    if (Number(v) !== accountId) setChoice(NO_CHOICE);
-                                    setAccountId(Number(v));
-                                    setAccountError(undefined);
+                {step === "done" && result && (
+                    <section className="panel imp-done">
+                        <span className="imp-done-ic"><Ic icon={Check} size={22} /></span>
+                        <h2>{plural(result.imported, "Umsatz", "Umsätze")} importiert</h2>
+                        <p className="muted">
+                            {[
+                                file?.name,
+                                result.filled ? `${plural(result.filled, "Umsatz", "Umsätze")} ergänzt` : "",
+                                result.recategorized ? `${plural(result.recategorized, "Kategorie", "Kategorien")} geändert` : "",
+                                result.createdCategories ? `${plural(result.createdCategories, "Kategorie", "Kategorien")} angelegt` : "",
+                                result.skipped ? `${result.skipped.toLocaleString("de-DE")} schon vorhanden` : "",
+                                result.excluded ? `${result.excluded.toLocaleString("de-DE")} abgewählt` : "",
+                            ].filter(Boolean).join(" · ")}
+                        </p>
+                        <div className="actions">
+                            <button
+                                type="button"
+                                className="btn btn-ghost"
+                                onClick={() => {
+                                    invalidate("imports");
+                                    restart();
                                 }}
-                                placeholder="Konto suchen …"
-                                trigger={
-                                    <PickerButton {...fieldProps("imp-acc", accountError)} set={!!target} icon={target && <Tile icon={target.icon} color={target.color} size={12} className="ti-s" />}>
-                                        {target ? target.name : "Konto wählen"}
-                                    </PickerButton>
-                                }
-                            />
-                        </Field>
-                        {error && <Hint tone="bad">{error}</Hint>}
+                            >
+                                Weitere Datei importieren
+                            </button>
+                            <button
+                                type="button"
+                                className="btn btn-primary"
+                                onClick={() => void (accountId === undefined ? navigate({ to: "/transactions" }) : openTransactions({ kind: "show", search: { scope: `account:${accountId}` } }))}
+                            >
+                                Umsätze ansehen
+                            </button>
+                        </div>
                     </section>
-                    <div className="imp-bar narrow">
-                        <span className="muted">{file.name}</span>
-                        <Button className="btn-ghost" icon={ArrowLeft} onClick={() => goTo("format")}>Zurück</Button>
-                        <Button className="btn-primary" icon={ArrowRight} busy={busy} onClick={() => void toReview()}>Weiter zur Prüfung</Button>
-                    </div>
-                </>
-            )}
-
-            {step === "review" && preview && file && (
-                <ImportReview
-                    preview={preview}
-                    index={index}
-                    fileName={file.name}
-                    accountName={target?.name ?? ""}
-                    formatName={dirty ? `${base?.name ?? "Eigene Zuordnung"} (geändert)` : (base?.name ?? "Automatisch zugeordnet")}
-                    busy={action.pending}
-                    error={error}
-                    choice={choice}
-                    onChoice={setChoice}
-                    onBack={() => goTo("account")}
-                    onCommit={(options) => void commit(options)}
-                />
-            )}
-
-            {step === "done" && result && (
-                <section className="panel imp-done">
-                    <span className="imp-done-ic"><Ic icon={Check} size={22} /></span>
-                    <h2>{plural(result.imported, "Umsatz", "Umsätze")} importiert</h2>
-                    <p className="muted">
-                        {[
-                            file?.name,
-                            result.filled ? `${plural(result.filled, "Umsatz", "Umsätze")} ergänzt` : "",
-                            result.recategorized ? `${plural(result.recategorized, "Kategorie", "Kategorien")} geändert` : "",
-                            result.createdCategories ? `${plural(result.createdCategories, "Kategorie", "Kategorien")} angelegt` : "",
-                            result.skipped ? `${result.skipped.toLocaleString("de-DE")} schon vorhanden` : "",
-                            result.excluded ? `${result.excluded.toLocaleString("de-DE")} abgewählt` : "",
-                        ].filter(Boolean).join(" · ")}
-                    </p>
-                    <div className="actions">
-                        <button
-                            type="button"
-                            className="btn btn-ghost"
-                            onClick={() => {
-                                invalidate("imports");
-                                restart();
-                            }}
-                        >
-                            Weitere Datei importieren
-                        </button>
-                        <button
-                            type="button"
-                            className="btn btn-primary"
-                            onClick={() => void (accountId === undefined ? navigate({ to: "/transactions" }) : openTransactions({ kind: "show", search: { scope: `account:${accountId}` } }))}
-                        >
-                            Umsätze ansehen
-                        </button>
-                    </div>
-                </section>
-            )}
-        </div>
+                )}
+            </div>
+        </>
     );
 }

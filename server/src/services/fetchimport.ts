@@ -4,8 +4,9 @@
 //   plus a running number for equal bookings on one day) keeps every booking once.
 // - Pending: replaced by the bank's current list at every fetch. A category the user gave a
 //   pending booking goes over to its successor (the same pending booking again, or the booked one).
-// - New bookings without category run through the rules; then transfers between own accounts
-//   get the preset category for counter bookings.
+// - New bookings run through the rules, which fill only what is empty; a pending booking that
+//   merely comes back keeps its values and skips them. Then transfers between own accounts get the
+//   preset category for counter bookings.
 // - New bookings are new (unread) for every user; the successor of a pending booking stays read
 //   for whoever had read that one.
 // - Imported: a booked booking the bank delivers for the first time takes over an equal booking
@@ -19,8 +20,7 @@ import { createHash } from "node:crypto";
 import { duplicateKey, normalizeText, sameCounterparty, type ConnectorBalance, type ConnectorTransaction } from "@mbm/shared";
 import type { Db } from "../db/database.js";
 import { alignBankBalance } from "./accounts.js";
-import { activeRules, firstMatch } from "./rules.js";
-import { queryTargets, type QueryRow } from "./querytarget.js";
+import { evaluateNew, writeRuleCategories, writeRuleTexts } from "./rules.js";
 import { cleanIban, inheritReturnCategories, linkReturns } from "./returns.js";
 import { counterDefaultCategoryId } from "./transactions.js";
 import { linkBookedTransfers } from "./transfers.js";
@@ -65,6 +65,8 @@ interface OldPending {
     category_source: string | null;
     /** Users who had not read it; filled before it is deleted. */
     unreadBy: number[];
+    /** Its adjusted texts; filled before it is deleted. */
+    edits: { field: string; value: string | null; source: string }[];
 }
 
 /**
@@ -101,7 +103,15 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
             )
             .all(accountId) as OldPending[];
         const unreadOf = db.prepare("SELECT user_id FROM transaction_unread WHERE transaction_id = ?");
-        for (const p of oldPending) p.unreadBy = (unreadOf.all(p.id) as { user_id: number }[]).map((r) => r.user_id);
+        const editsOf = db.prepare("SELECT field, value, source FROM transaction_edits WHERE transaction_id = ?");
+        for (const p of oldPending) {
+            p.unreadBy = (unreadOf.all(p.id) as { user_id: number }[]).map((r) => r.user_id);
+            p.edits = editsOf.all(p.id) as OldPending["edits"];
+        }
+        const insertEdit = db.prepare("INSERT OR IGNORE INTO transaction_edits (transaction_id, field, value, source) VALUES (?, ?, ?, ?)");
+        const carryEdits = (id: number, from: OldPending) => {
+            for (const e of from.edits) insertEdit.run(id, e.field, e.value, e.source);
+        };
         const usedPending = new Set<number>();
         db.prepare("DELETE FROM transactions WHERE account_id = ? AND source = 'bank' AND status = 'pending'").run(accountId);
 
@@ -114,6 +124,8 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
         const insertCat = db.prepare("INSERT INTO transaction_categories (transaction_id, category_id, amount, source, rule_id) VALUES (?, ?, ?, ?, ?)");
 
         const newIds: number[] = [];
+        // A pending booking that comes back is not new to the rules
+        const returning = new Set<number>();
         let newBooked = 0;
         const insert = (t: ConnectorTransaction, fp: string, carried: OldPending | undefined) => {
             const id = Number(
@@ -121,8 +133,11 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
                     .lastInsertRowid,
             );
             if (carried?.category_id) insertCat.run(id, carried.category_id, t.amount, carried.category_source ?? "manual", null);
-            if (carried) markNewFor(db, id, carried.unreadBy);
-            else markNew(db, [id]);
+            if (carried) {
+                carryEdits(id, carried);
+                if (t.status === "pending") returning.add(id);
+                markNewFor(db, id, carried.unreadBy);
+            } else markNew(db, [id]);
             newIds.push(id);
             return id;
         };
@@ -242,6 +257,7 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
                 adoptImported.run(fp, t.valueDate, t.currency, t.counterpartyName, t.ultimateParty, t.counterpartyIban, t.remittance, t.endToEndId, t.bookingText, referenceOf(t), t.mandateId ?? "", t.creditorId ?? "", t.counterpartyBic ?? "", t.counterpartyAccount, t.counterpartyBankCode, t.isReturn ? 1 : 0, t.returnReason, rawOf(t), importedId);
                 const carried = successorOf(t);
                 if (carried?.category_id && !hasCategory.get(importedId)) insertCat.run(importedId, carried.category_id, t.amount, carried.category_source ?? "manual", null);
+                if (carried) carryEdits(importedId, carried);
                 return;
             }
             insert(t, fp, successorOf(t));
@@ -250,10 +266,15 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
         const pendingFps = fingerprints(pending);
         pending.forEach((t, i) => insert(t, pendingFps[i]!, successorOf(t, pendingFps[i])));
 
-        // Before the rules: a linked return takes the category of its booking, whatever they would say
+        // A linked return takes the category of its booking, whatever the rules say. That booking may
+        // have come with this fetch, so its category is written first; the texts of a return follow.
         const linkedReturns = linkReturns(db, accountId);
-        categorize(db, newIds.filter((id) => !linkedReturns.includes(id)));
+        const linked = new Set(linkedReturns);
+        const results = evaluateNew(db, newIds.filter((id) => !returning.has(id)));
+        writeRuleCategories(db, results, linked);
+        categorizeTransfers(db, newIds.filter((id) => !linked.has(id)));
         inheritReturnCategories(db, linkedReturns);
+        writeRuleTexts(db, results);
         // Transfers from MBM find their booking by the end-to-end ID
         linkBookedTransfers(db, accountId);
 
@@ -268,24 +289,16 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
     })();
 }
 
-/** Rules for new bookings without category, then transfers between own accounts. */
-function categorize(db: Db, ids: number[]): void {
+/** New bookings between own accounts that are still without category get the preset one. */
+function categorizeTransfers(db: Db, ids: number[]): void {
     if (ids.length === 0) return;
-    const uncategorized = (id: number) => !db.prepare("SELECT 1 FROM transaction_categories WHERE transaction_id = ?").get(id);
-    const rows = db
-        .prepare(`SELECT id, account_id, booking_date, amount, counterparty_name, ultimate_party, counterparty_iban, remittance, NULL AS category_id FROM transactions WHERE id IN (${ids.map(() => "?").join(",")})`)
-        .all(...ids) as (QueryRow & { id: number })[];
-    const rules = activeRules(db);
-    const target = queryTargets(db);
-    const insertCat = db.prepare("INSERT INTO transaction_categories (transaction_id, category_id, amount, source, rule_id) VALUES (?, ?, ?, ?, ?)");
-    for (const r of rows) {
-        if (!uncategorized(r.id)) continue;
-        const rule = firstMatch(rules, target(r));
-        if (rule) insertCat.run(r.id, rule.categoryId, r.amount, "rule", rule.id);
-    }
-
     const transferCat = counterDefaultCategoryId(db);
     if (transferCat === null) return;
+    const uncategorized = (id: number) => !db.prepare("SELECT 1 FROM transaction_categories WHERE transaction_id = ?").get(id);
+    const rows = db
+        .prepare(`SELECT id, account_id, booking_date, amount, counterparty_iban FROM transactions WHERE id IN (${ids.map(() => "?").join(",")})`)
+        .all(...ids) as { id: number; account_id: number; booking_date: string; amount: number; counterparty_iban: string | null }[];
+    const insertCat = db.prepare("INSERT INTO transaction_categories (transaction_id, category_id, amount, source, rule_id) VALUES (?, ?, ?, ?, ?)");
     const ownIbans = new Map((db.prepare("SELECT id, iban FROM accounts WHERE iban IS NOT NULL").all() as { id: number; iban: string }[]).map((a) => [a.iban, a.id]));
     for (const r of rows) {
         if (!r.counterparty_iban || !uncategorized(r.id)) continue;

@@ -56,7 +56,8 @@ Gruppe und einen **Anfangssaldo**: den Kontostand vor der ersten Buchung.
 *Ein Offline-Konto: Buchungen erfasst du selbst, importierst sie oder legst sie als Gegenbuchung an.*
 
 - **Buchung erfassen** (++b++ oder im Menü des Kontos): Datum, Betrag, Gegenseite, Zweck,
-  Kategorie. Lässt du die Kategorie leer, entscheiden die Regeln.
+  Kategorie. Regeln wirken auf Buchungen von Hand nur, wenn du sie beim
+  [Ausführen](kategorien-regeln.md#regeln-ausführen) auswählst.
 - **Saldo abgleichen:** Du gibst den gezählten Bestand ein, MBM bucht die Differenz.
 - **Gegenbuchung:** In den Details eines Umsatzes, etwa einer Abhebung am Geldautomaten, legt
   „Gegenbuchung in Offline-Konto“ denselben Betrag mit umgekehrtem Vorzeichen im Offline-Konto

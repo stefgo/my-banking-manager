@@ -111,7 +111,8 @@ export function registerDataRoutes(app: FastifyInstance, ctx: AppContext): void 
     handle(app, ctx, routes.deleteAccount, ({ db, actor, params }) => {
         const row = db.transaction(() => accounts.deleteAccount(db, params.id))();
         logActivity(db, actor, "account_deleted", row.name);
-        events.changed("accounts", "transactions", "categories", "activity");
+        // A rule may have lost its account
+        events.changed("accounts", "transactions", "categories", "rules", "activity");
         return OK;
     });
 
@@ -161,6 +162,18 @@ export function registerDataRoutes(app: FastifyInstance, ctx: AppContext): void 
         const changed = db.transaction(() => tx.assignCategory(db, body.ids, body.categoryId))();
         events.changed("transactions", "categories");
         return { changed };
+    });
+
+    handle(app, ctx, routes.setTransactionEdit, ({ db, params, body }) => {
+        const t = tx.setTransactionEdit(db, params.id, params.field, body.value);
+        events.changed("transactions");
+        return t;
+    });
+
+    handle(app, ctx, routes.clearTransactionEdit, ({ db, params }) => {
+        const t = tx.clearTransactionEdit(db, params.id, params.field);
+        events.changed("transactions");
+        return t;
     });
 
     handle(app, ctx, routes.createCounterBooking, ({ db, actor, params, body }) => {
@@ -231,7 +244,7 @@ export function registerDataRoutes(app: FastifyInstance, ctx: AppContext): void 
     handle(app, ctx, routes.listRules, ({ db }) => rules.listRules(db));
 
     handle(app, ctx, routes.createRule, ({ db, body }) => {
-        // Existing bookings get the category only once the user confirms the preview
+        // Existing bookings change only once the user confirms the check of a run
         const id = rules.createRule(db, body);
         events.changed("rules");
         return rules.getRule(db, id);
@@ -255,11 +268,18 @@ export function registerDataRoutes(app: FastifyInstance, ctx: AppContext): void 
         return OK;
     });
 
-    handle(app, ctx, routes.previewRules, ({ db, query }) => rules.previewRules(db, query.ruleId));
+    handle(app, ctx, routes.testRule, ({ db, body }) => rules.testRule(db, body));
 
-    handle(app, ctx, routes.applyRules, ({ db, body }) => {
-        const changed = db.transaction(() => rules.applyRules(db, body))();
-        if (changed) events.changed("transactions", "categories");
+    handle(app, ctx, routes.previewRules, ({ db, query }) => rules.previewRules(db, query.ruleId, query.mode));
+
+    handle(app, ctx, routes.applyRules, ({ db, actor, body }) => {
+        const changed = db.transaction(() => {
+            const n = rules.commitRuleRun(db, body);
+            // Counts only: rule texts and booking values stay out of the log
+            if (n) logActivity(db, actor, "rules_applied", null, `${n} Umsätze`);
+            return n;
+        })();
+        if (changed) events.changed("transactions", "categories", "rules", "activity");
         return { changed };
     });
 

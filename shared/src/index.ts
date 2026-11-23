@@ -9,6 +9,8 @@ export * from "./returns.js";
 export * from "./importFormat.js";
 export * from "./importPresets.js";
 export * from "./txquery.js";
+export * from "./textExtract.js";
+export * from "./ruleEngine.js";
 export * from "./events.js";
 export * from "./schemas/common.js";
 export * from "./schemas/system.js";

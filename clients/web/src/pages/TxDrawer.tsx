@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { Dialog as RDialog } from "radix-ui";
-import { CheckCheck, CircleDot, Copy, Link2, Pencil, Send, Tag, Trash2, Unlink, Wand2, X } from "lucide-react";
-import { groupIban, quoteTxQueryValue, returnReasonText, routes, type Rule } from "@mbm/shared";
+import { CheckCheck, CircleDot, Copy, Link2, Pencil, PenLine, Send, Tag, Trash2, Unlink, Wand2, X } from "lucide-react";
+import { groupIban, quoteTxQueryValue, returnReasonText, routes, type RuleEdit } from "@mbm/shared";
 import { call } from "../lib/api";
 import { useAccounts, useAction, useCategoryIndex, useGroups, useRules, useTransferAccounts, useTxById } from "../lib/queries";
 import { useStartTransfer } from "../lib/transfer";
-import { ruleCovers, ruleTarget } from "../lib/querytarget";
+import { firstRuleFor } from "../lib/querytarget";
 import { categoryColor, categoryPath } from "../lib/tree";
-import { dateText, fmtSigned, partyName } from "../lib/format";
-import { reviewRules } from "../lib/rules";
+import { dateText, fmtSigned, partyName, shownParty, shownPurpose } from "../lib/format";
+import { openRuleForm, openRunRules } from "../lib/rules";
 import { copyText } from "../lib/clipboard";
 import { markTxs } from "../lib/unread";
 import { ui, useUi } from "../lib/ui";
@@ -16,6 +16,7 @@ import { INSPECTOR_QUERY, useMedia } from "../lib/media";
 import { CatTile, Ic, Sym } from "../components/icons";
 import { Picker, PickerButton } from "../components/pickers";
 import { useCategoryItems } from "../components/pickItems";
+import { TxOriginal, TxTextEditor } from "./TxOriginal";
 
 /**
  * Details of a booking. On wide screens a panel beside the list: the list stays usable and J/K
@@ -28,6 +29,9 @@ export function TxDrawer() {
     // The panel stays mounted while the booking changes; the overlay opens anew for each
     return <Drawer key={panel ? "panel" : id} id={id} panel={panel} />;
 }
+
+/** A shown text as a template: its braces stay plain text. */
+const escapeTemplate = (s: string): string => s.replace(/[\\{}]/g, "\\$&");
 
 function Drawer({ id, panel }: { id: number; panel: boolean }) {
     const tx = useTxById(id);
@@ -46,6 +50,10 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
     const [offerFor, setOfferFor] = useState<{ tx: number; category: number } | null>(null);
     const offer = offerFor?.tx === id ? offerFor.category : null;
     const setOffer = (category: number | null) => setOfferFor(category === null ? null : { tx: id, category });
+    // A first rule without a category keeps a new rule from ever winning, so it is named instead
+    const [blockedFor, setBlockedFor] = useState<{ tx: number; rule: number; name: string } | null>(null);
+    const blocked = blockedFor?.tx === id ? blockedFor : null;
+    const [editingFor, setEditingFor] = useState<number | null>(null);
 
     // Opening a booking reads it, once: marked as new again here, it stays new
     const readFor = useRef<number | null>(null);
@@ -60,18 +68,30 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
     const account = accounts.find((a) => a.id === tx.accountId);
     const offline = accounts.filter((a) => a.kind === "offline" && a.id !== tx.accountId);
     const c = tx.categoryId !== null ? index.byId.get(tx.categoryId) : undefined;
-    const party = partyName(tx);
-    const name = party || tx.remittance || "Umsatz";
-    const rule: Rule | undefined = tx.categorySource === "rule" ? rules.find((r) => r.categoryId === tx.categoryId && r.active) : undefined;
-    const by = tx.categorySource === "rule" ? `über Regel${rule ? ` „${rule.query}“` : ""}` : tx.categorySource === "auto" ? "automatisch erkannt" : tx.categorySource === "manual" ? "von Hand zugeordnet" : "";
+    // Rules and offers read the bank's name; everything shown here is the adjusted one
+    const bankParty = partyName(tx);
+    const party = shownParty(tx);
+    const purpose = shownPurpose(tx);
+    const name = party || purpose || "Umsatz";
+    const by = tx.categorySource === "auto" ? "automatisch erkannt" : tx.categorySource === "manual" ? "von Hand zugeordnet" : "";
+    const makeRule = () => {
+        const edits: RuleEdit[] = [];
+        if (tx.edits.counterparty?.value) edits.push({ op: "set", field: "counterparty", value: escapeTemplate(tx.edits.counterparty.value) });
+        if (tx.edits.remittance?.value) edits.push({ op: "set", field: "remittance", value: escapeTemplate(tx.edits.remittance.value) });
+        ui.openTx(null);
+        openRuleForm({ kind: "draft", draft: { query: `gegenseite:${quoteTxQueryValue(bankParty)}`.slice(0, 200), categoryId: tx.categoryId, edits } });
+    };
 
     const assign = async (v: string) => {
         const categoryId = v === "none" ? null : Number(v);
         const r = await action.run(() => call(routes.assignCategory, { body: { ids: [tx.id], categoryId } }), { topics: ["transactions", "categories"] });
-        // Offer a rule when no active rule covers this booking yet
-        if (r && categoryId !== null && party && !ruleCovers(rules, ruleTarget(tx, accounts, groups))) {
-            setOffer(categoryId);
-        }
+        setBlockedFor(null);
+        setOffer(null);
+        if (!r || categoryId === null || !bankParty) return;
+        // Only the first rule that hits counts: a new one at the end would never win behind it
+        const first = firstRuleFor(rules, tx, accounts, groups);
+        if (!first) setOffer(categoryId);
+        else if (first.rule.categoryId === null) setBlockedFor({ tx: tx.id, rule: first.rule.id, name: first.rule.name || first.rule.query });
     };
 
     const row = (k: string, v: React.ReactNode) => (
@@ -141,7 +161,7 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                                 {by && <span className="faint small">{by}</span>}
                             </>,
                         )}
-                        {tx.remittance && party && row("Verwendungszweck", tx.remittance)}
+                        {purpose && party && row("Verwendungszweck", purpose)}
                         {tx.bookingText && row("Umsatzart", tx.bookingText)}
                         {tx.returnReason && row("Rückgabegrund", returnReasonText(tx.returnReason))}
                         {returnLink !== null &&
@@ -197,18 +217,42 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                                 </>,
                             )}
                     </dl>
+                    <TxOriginal key={tx.id} tx={tx} />
+                    {editingFor === tx.id && <TxTextEditor tx={tx} onClose={() => setEditingFor(null)} />}
+                    {blocked && (
+                        <div className="offer">
+                            <span>
+                                <Ic icon={Wand2} size={15} /> Regel <b>„{blocked.name}“</b> erfasst diesen Umsatz, vergibt aber keine Kategorie.
+                            </span>
+                            <div className="row">
+                                <button
+                                    className="btn btn-sm btn-primary"
+                                    onClick={() => {
+                                        ui.openTx(null);
+                                        openRuleForm({ kind: "edit", ruleId: blocked.rule });
+                                    }}
+                                >
+                                    Regel bearbeiten
+                                </button>
+                                <button className="btn btn-sm btn-ghost" onClick={() => setBlockedFor(null)}>Schließen</button>
+                            </div>
+                        </div>
+                    )}
                     {offer !== null && (
                         <div className="offer">
                             <span>
-                                <Ic icon={Wand2} size={15} /> Für alle Umsätze von <b>„{party}“</b> merken? Neue Umsätze bekommen dann automatisch <b>{categoryPath(index, offer)}</b>.
+                                <Ic icon={Wand2} size={15} /> Für alle Umsätze von <b>„{bankParty}“</b> merken? Neue Umsätze bekommen dann automatisch <b>{categoryPath(index, offer)}</b>.
                             </span>
                             <div className="row">
                                 <button
                                     className="btn btn-sm btn-primary"
                                     onClick={async () => {
-                                        const r = await action.run(() => call(routes.createRule, { body: { query: `gegenseite:${quoteTxQueryValue(party)}`, categoryId: offer } }), { topics: ["rules"] });
+                                        const r = await action.run(() => call(routes.createRule, { body: { name: "", query: `gegenseite:${quoteTxQueryValue(bankParty)}`, categoryId: offer, accountIds: null, extracts: [], edits: [] } }), { topics: ["rules"] });
                                         setOffer(null);
-                                        if (r) await reviewRules({ ruleId: r.id, created: true });
+                                        if (r) {
+                                            ui.openTx(null);
+                                            openRunRules(r.id);
+                                        }
                                     }}
                                 >
                                     Regel anlegen
@@ -228,6 +272,16 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                             >
                                 <Ic icon={Send} size={16} />
                                 Überweisen an …
+                            </button>
+                        )}
+                        <button className="btn" onClick={() => setEditingFor(editingFor === tx.id ? null : tx.id)}>
+                            <Ic icon={PenLine} size={16} />
+                            Anzeige ändern
+                        </button>
+                        {!!bankParty && (
+                            <button className="btn" onClick={makeRule}>
+                                <Ic icon={Wand2} size={16} />
+                                Daraus eine Regel machen
                             </button>
                         )}
                         {tx.source === "manual" && (
@@ -267,7 +321,7 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                             <Ic icon={tx.unread ? CheckCheck : CircleDot} size={16} />
                             {tx.unread ? "Als gelesen markieren" : "Als neu markieren"}
                         </button>
-                        <button className="btn" onClick={() => copyText(`${dateText(tx.bookingDate)}; ${name}; ${tx.remittance}; ${fmtSigned(tx.amount)}`)}>
+                        <button className="btn" onClick={() => copyText(`${dateText(tx.bookingDate)}; ${name}; ${purpose}; ${fmtSigned(tx.amount)}`)}>
                             <Ic icon={Copy} size={16} />
                             Kopieren
                         </button>

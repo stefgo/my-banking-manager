@@ -24,8 +24,7 @@ oder mit **Alle als gelesen markieren** im Menü eines Kontos.
 
 ## Details eines Umsatzes
 
-Ein Klick auf einen Umsatz öffnet die Details daneben: Kategorie (mit der Angabe, ob eine Regel
-oder du sie gesetzt hast), Verwendungszweck, Umsatzart der Bank (etwa „Kartenzahlung“ oder
+Ein Klick auf einen Umsatz öffnet die Details daneben: Kategorie, Verwendungszweck, Umsatzart der Bank (etwa „Kartenzahlung“ oder
 „Lastschrift“), Referenz, Mandat, Gläubiger-ID, Daten, Konto, IBAN oder Kontonummer und BLZ, BIC und
 Herkunft, soweit die Bank oder die [importierte Datei](import.md#umsatzart-und-weitere-angaben) sie
 nennt.
@@ -38,6 +37,12 @@ Bei Kartenzahlungen meldet die Bank als Gegenseite oft nur den Abwickler, etwa e
 den Händler als **abweichenden Empfänger**. MBM zeigt dann in Liste und Titel den Händler. In den
 Details steht der Abwickler als „Kontoinhaber“, ihm gehört die IBAN. Die Suche mit `gegenseite:` und
 Regeln finden den Umsatz unter beiden Namen.
+
+Haben [Regeln](kategorien-regeln.md#regeln) oder du Gegenseite oder Zweck angepasst, zeigen Liste und
+Details das Ergebnis. **Originaldaten** klappt die Werte der Bank auf. Dort zeigt „Verwenden“ für
+dieses Feld wieder das Original und merkt sich das, „Wieder automatisch“ nimmt diese Entscheidung
+zurück. „Anzeige ändern“ setzt einen eigenen Text. Überweisungen nutzen immer Name, IBAN und Zweck der
+Bank. Die Suche findet angepasste und originale Werte.
 
 Ein Umsatz **ohne IBAN** ist normal und zählt wie jeder andere. Das betrifft etwa Entgelte, Zinsen,
 Bargeld und manche Kartenzahlungen. Nennt die Bank stattdessen eine Kontonummer oder BLZ, stehen sie

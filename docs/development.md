@@ -141,17 +141,23 @@ Abfrage höchstens passen kann.
   - `listTransactions` filtert erst per SQL (Konto, Zeitraum, Kategorie, Richtung) und wertet die Suche
     danach in JS aus.
   - Ungültige Suchen weist das Schema `TransactionQuery.q` mit 400 ab.
-- **Regeln** (`category_rules.query`) nutzen dieselbe Syntax im Modus `rule`: ohne `kategorie:`, ohne
+- **Regeln** (`rules.query`) nutzen dieselbe Syntax im Modus `rule`: ohne `kategorie:`, ohne
   `ist:`, ohne relative Daten, mit mindestens einem Suchbegriff.
-  - `rules.ts` parst die aktiven Regeln einmal je Vorgang (`compileRules`).
-  - Alle Stellen, an denen Regeln wirken, gehen über `firstMatch`: neue Buchung, Gegenbuchung lösen,
-    Vorschau, Anwenden, Trefferzahl und CSV-Import.
+  - `shared/src/ruleEngine.ts` wertet sie aus (`evaluateRules`): Die erste treffende Regel gewinnt.
+    Bedingungen und Ausschnitte lesen nur Bankwerte. `shared/src/textExtract.ts` liest Muster und
+    Platzhalter ohne reguläre Ausdrücke aus Nutzereingaben.
+  - Ergebnisse liegen in `transaction_edits` und `transaction_categories`, die Spalten von
+    `transactions` ändert keine Regel. Sie sind fachliche Schlüssel für Duplikate, Vormerkungen,
+    Rücklastschriften und Überweisungen.
+  - `services/rules.ts`: `planRuleRun` rechnet einen Lauf samt Prüfsumme, `commitRuleRun` rechnet neu
+    und schreibt nur bei gleicher Prüfsumme. Neue Umsätze gehen über `evaluateNew`.
 - **Web-Client:**
   - Er prüft Eingaben selbst und sendet nur gültige Suchen.
   - Enthält die Suche eine Datumsbedingung, sendet er `range=all`, und der Verlauf nutzt `dateBounds`
     (`SeriesQuery.from`/`to`, höchstens 730 Tage).
   - Das Info-Popover mit der Syntax ist `components/QueryHelp.tsx`.
-- Hintergrund: `plans/suchsyntax-plan.md` und `plans/suche-regeln-plan.md`.
+- Hintergrund: `plans/suchsyntax-plan.md`, `plans/suche-regeln-plan.md` und
+  `plans/regelbasierte-anpassungen.md`.
 
 ## Termin- und Daueraufträge
 

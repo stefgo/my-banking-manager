@@ -175,8 +175,8 @@ function ReviewList({ rows, index, choice, onToggle, onPart }: { rows: Row[]; in
                             <button type="button" className="rv-row" aria-expanded={expanded} onClick={() => setOpen(expanded ? null : r.line)}>
                                 <span>{r.date ? dateText(r.date) : "?"}</span>
                                 <span className="rv-main">
-                                    <b>{r.name || "—"}</b>
-                                    <small>{r.purpose}</small>
+                                    <b>{r.shownName ?? (r.name || "—")}</b>
+                                    <small>{r.shownPurpose ?? r.purpose}</small>
                                 </span>
                                 <span className="rv-kind">{r.bookingText}</span>
                                 <span className="amt">{r.amount !== null ? fmtSigned(r.amount) : "?"}</span>

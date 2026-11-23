@@ -1,22 +1,39 @@
-// Applying rules to existing bookings always goes through a preview the user confirms.
+// Ways into the rule pages from places without a router hook. The router registers itself here, so
+// this file does not import it. A draft stays in memory only: it holds bank texts, which never go
+// into a URL or the browser's storage.
 
-import { routes } from "@mbm/shared";
-import { call, errorText } from "./api";
-import { ui } from "./ui";
+import type { RuleEdit } from "@mbm/shared";
 
-/**
- * Loads what the rules would categorize and opens the confirmation dialog. With `ruleId` only
- * that rule counts; `created` tells the dialog the rule was just added.
- */
-export async function reviewRules(opts: { ruleId?: number; created?: boolean } = {}): Promise<void> {
-    try {
-        const preview = await call(routes.previewRules, { query: { ruleId: opts.ruleId } });
-        if (preview.total === 0) {
-            ui.toast(opts.created ? "Regel angelegt · keine Umsätze ohne Kategorie passen" : "Keine Umsätze ohne Kategorie passen");
-            return;
-        }
-        ui.open({ kind: "applyRules", ruleId: opts.ruleId, created: opts.created, preview });
-    } catch (err) {
-        ui.toast(errorText(err), "error");
-    }
+export interface RuleDraft {
+    name?: string;
+    query: string;
+    categoryId: number | null;
+    edits: RuleEdit[];
+}
+
+export type RuleIntent = { kind: "draft"; draft: RuleDraft } | { kind: "edit"; ruleId: number };
+
+let goRun: ((ruleId?: number) => void) | null = null;
+let goRules: (() => void) | null = null;
+let pending: RuleIntent | null = null;
+
+export function registerRuleNavigation(run: (ruleId?: number) => void, rules: () => void): void {
+    goRun = run;
+    goRules = rules;
+}
+
+/** Opens the page that checks and runs the rules; nothing is written before it is confirmed. */
+export const openRunRules = (ruleId?: number): void => goRun?.(ruleId);
+
+/** Opens the rules with a filled-in form or with one rule being edited. */
+export function openRuleForm(intent: RuleIntent): void {
+    pending = intent;
+    goRules?.();
+}
+
+/** What the rule page should open with; handed out once. */
+export function takeRuleIntent(): RuleIntent | null {
+    const intent = pending;
+    pending = null;
+    return intent;
 }

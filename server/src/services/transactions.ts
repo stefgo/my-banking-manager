@@ -1,13 +1,17 @@
 import {
     addDaysIso,
+    cleanValue,
     formatCents,
     matchTxQuery,
     parseTxQuery,
     todayIso,
     toIsoDate,
+    RULE_FIELD_LIMITS,
     type AccountScope,
     type Transaction,
     type TransactionList,
+    type TxEdit,
+    type TxEditField,
     type TxRange,
 } from "@mbm/shared";
 import type { Db } from "../db/database.js";
@@ -15,7 +19,6 @@ import { nowIso } from "../db/database.js";
 import { badRequest, conflict, notFound } from "../http/errors.js";
 import { accountsInScope, balanceAt, getAccount, requireAccount, requireOffline } from "./accounts.js";
 import { descendantIds, getSlot } from "./categories.js";
-import { applyRules } from "./rules.js";
 import { queryTargets } from "./querytarget.js";
 
 interface TxRow {
@@ -46,6 +49,10 @@ interface TxRow {
     first_seen_at: string;
     category_id: number | null;
     category_source: "rule" | "manual" | "auto" | null;
+    edit_counterparty: string | null;
+    edit_counterparty_source: TxEdit["source"] | null;
+    edit_remittance: string | null;
+    edit_remittance_source: TxEdit["source"] | null;
     /** 1 when new for the user asking; missing where no user asks. */
     unread?: number;
 }
@@ -55,15 +62,20 @@ const RETURNED_BY = "(SELECT rb.id FROM transactions rb WHERE rb.return_of_id = 
 /** Bookings that count in figures: neither a linked return nor the booking it gave back. */
 const NOT_RETURNED = "t.return_of_id IS NULL AND NOT EXISTS (SELECT 1 FROM transactions rb WHERE rb.return_of_id = t.id)";
 
+const EDIT_COLUMNS = "ec.value AS edit_counterparty, ec.source AS edit_counterparty_source, er.value AS edit_remittance, er.source AS edit_remittance_source";
+const TX_JOINS = `transactions t LEFT JOIN transaction_categories c ON c.transaction_id = t.id
+    LEFT JOIN transaction_edits ec ON ec.transaction_id = t.id AND ec.field = 'counterparty'
+    LEFT JOIN transaction_edits er ON er.transaction_id = t.id AND er.field = 'remittance'`;
+
 const TX_SELECT = `
-    SELECT t.*, ${RETURNED_BY}, c.category_id, c.source AS category_source
-    FROM transactions t LEFT JOIN transaction_categories c ON c.transaction_id = t.id`;
+    SELECT t.*, ${RETURNED_BY}, c.category_id, c.source AS category_source, ${EDIT_COLUMNS}
+    FROM ${TX_JOINS}`;
 
 /** Like TX_SELECT, with `unread` for the user given as the first parameter. */
 const TX_SELECT_FOR_USER = `
-    SELECT t.*, ${RETURNED_BY}, c.category_id, c.source AS category_source,
+    SELECT t.*, ${RETURNED_BY}, c.category_id, c.source AS category_source, ${EDIT_COLUMNS},
            EXISTS (SELECT 1 FROM transaction_unread u WHERE u.transaction_id = t.id AND u.user_id = ?) AS unread
-    FROM transactions t LEFT JOIN transaction_categories c ON c.transaction_id = t.id`;
+    FROM ${TX_JOINS}`;
 
 export const toTransaction = (r: TxRow): Transaction => ({
     id: r.id,
@@ -95,6 +107,10 @@ export const toTransaction = (r: TxRow): Transaction => ({
     categorySource: r.category_source,
     createdAt: r.first_seen_at,
     unread: r.unread === 1,
+    edits: {
+        counterparty: r.edit_counterparty_source ? { value: r.edit_counterparty, source: r.edit_counterparty_source } : null,
+        remittance: r.edit_remittance_source ? { value: r.edit_remittance, source: r.edit_remittance_source } : null,
+    },
 });
 
 export function getTransaction(db: Db, id: number): Transaction {
@@ -249,8 +265,8 @@ export function createManual(db: Db, accountId: number, input: ManualInput, user
             userId,
         ).lastInsertRowid,
     );
-    if (input.categoryId !== undefined) setCategory(db, id, input.categoryId, "manual");
-    else applyRules(db, { ids: [id] });
+    // Rules never run on a booking by hand by themselves
+    if (input.categoryId != null) setCategory(db, id, input.categoryId, "manual");
     return getTransaction(db, id);
 }
 
@@ -278,6 +294,10 @@ export function updateManual(db: Db, id: number, input: Partial<ManualInput>): T
     );
     if (input.categoryId !== undefined) setCategory(db, id, input.categoryId, "manual");
     else db.prepare("UPDATE transaction_categories SET amount = ? WHERE transaction_id = ?").run(input.amount ?? tx.amount, id);
+    // A new text by hand is what the booking says now; an older adjustment of it is obsolete
+    const dropEdit = db.prepare("DELETE FROM transaction_edits WHERE transaction_id = ? AND field = ?");
+    if (input.counterpartyName !== undefined && input.counterpartyName !== tx.counterpartyName) dropEdit.run(id, "counterparty");
+    if (input.remittance !== undefined && input.remittance !== tx.remittance) dropEdit.run(id, "remittance");
     // A counter booking follows its partner's amount and date
     if (tx.counterTransactionId && (input.amount !== undefined || input.bookingDate !== undefined)) {
         db.prepare("UPDATE transactions SET amount = ?, booking_date = ?, value_date = ? WHERE id = ? AND source = 'manual'").run(
@@ -299,6 +319,26 @@ export function deleteManual(db: Db, id: number): Transaction {
     if (tx.counterTransactionId) unlinkCounter(db, id, tx.id < tx.counterTransactionId);
     db.prepare("DELETE FROM transactions WHERE id = ?").run(id);
     return tx;
+}
+
+/** Shows an own text for a field; null shows the bank's value and keeps rules from filling it. */
+export function setTransactionEdit(db: Db, id: number, field: TxEditField, value: string | null): Transaction {
+    const tx = getTransaction(db, id);
+    const bank = field === "counterparty" ? tx.ultimateParty || tx.counterpartyName : tx.remittance;
+    const clean = value === null ? null : cleanValue(value, RULE_FIELD_LIMITS[field]);
+    if (clean === "") throw badRequest("Bitte einen Text eingeben.");
+    db.prepare(
+        `INSERT INTO transaction_edits (transaction_id, field, value, source) VALUES (?, ?, ?, 'manual')
+         ON CONFLICT (transaction_id, field) DO UPDATE SET value = excluded.value, source = 'manual'`,
+    ).run(id, field, clean === bank ? null : clean);
+    return getTransaction(db, id);
+}
+
+/** Takes back the decision for a field: it shows the bank's value and counts as not set again. */
+export function clearTransactionEdit(db: Db, id: number, field: TxEditField): Transaction {
+    getTransaction(db, id);
+    db.prepare("DELETE FROM transaction_edits WHERE transaction_id = ? AND field = ?").run(id, field);
+    return getTransaction(db, id);
 }
 
 export function assignCategory(db: Db, ids: number[], categoryId: number | null): number {
@@ -345,7 +385,7 @@ export function createCounter(db: Db, txId: number, offlineId: number, userId: n
  * Removes the link between a booking and its counter booking. The counter booking is always the
  * younger of the two (the button creates it); it is deleted unless `deleteCounter` is false. The
  * booking it came from loses the category the counter booking gave it, unless either of the two
- * was recategorised since, and goes through the rules again.
+ * was recategorised since. Rules do not run on it again.
  */
 export function unlinkCounter(db: Db, txId: number, deleteCounter = true): void {
     const tx = getTransaction(db, txId);
@@ -354,13 +394,10 @@ export function unlinkCounter(db: Db, txId: number, deleteCounter = true): void 
     const counter = Math.max(tx.id, tx.counterTransactionId);
     db.prepare("UPDATE transactions SET counter_transaction_id = NULL WHERE id IN (?, ?)").run(origin, counter);
     // Both still carry the same automatic category: it came from the counter booking
-    const removed = db
-        .prepare(
-            `DELETE FROM transaction_categories WHERE transaction_id = ? AND source = 'auto'
-               AND category_id IN (SELECT category_id FROM transaction_categories WHERE transaction_id = ? AND source = 'auto')`,
-        )
-        .run(origin, counter).changes;
-    if (removed) applyRules(db, { ids: [origin] });
+    db.prepare(
+        `DELETE FROM transaction_categories WHERE transaction_id = ? AND source = 'auto'
+           AND category_id IN (SELECT category_id FROM transaction_categories WHERE transaction_id = ? AND source = 'auto')`,
+    ).run(origin, counter);
     if (deleteCounter) db.prepare("DELETE FROM transactions WHERE id = ? AND source = 'manual'").run(counter);
 }
 
