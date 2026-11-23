@@ -62,7 +62,7 @@ const FIELD_OF: Record<ImportField, FormatField> = {
     category: "category",
 };
 
-const partKey = (step: string, part: string): string => `${step}\u0000${part}`;
+export const partKey = (step: string, part: string): string => `${step}\u0000${part}`;
 
 /** The parts a later step or a field reads; all others stay in the rest of their step. */
 function usedParts(def: ImportFormatDefinition): Set<string> {
@@ -90,7 +90,7 @@ function findKeyword(text: string, word: string, prefix: string, suffix: string)
     return null;
 }
 
-function runKeywords(text: string, step: Extract<FormatStep, { type: "keywords" }>, isUsed: (part: string) => boolean, out: Map<string, string>): void {
+export function runKeywords(text: string, step: Pick<Extract<FormatStep, { type: "keywords" }>, "id" | "prefix" | "suffix" | "keywords">, isUsed: (part: string) => boolean, out: Map<string, string>): void {
     const hits = step.keywords
         .flatMap((k) => {
             const hit = findKeyword(text, k.text, step.prefix, step.suffix);
@@ -109,7 +109,7 @@ function runKeywords(text: string, step: Extract<FormatStep, { type: "keywords" 
     out.set(partKey(step.id, REST_PART), rest.trim());
 }
 
-function runSeparator(text: string, step: Extract<FormatStep, { type: "separator" }>, isUsed: (part: string) => boolean, out: Map<string, string>): void {
+export function runSeparator(text: string, step: Pick<Extract<FormatStep, { type: "separator" }>, "id" | "separator" | "parts">, isUsed: (part: string) => boolean, out: Map<string, string>): void {
     const pieces = text.split(step.separator);
     step.parts.forEach((part, i) => out.set(partKey(step.id, part), (pieces[i] ?? "").trim()));
     const left = pieces.filter((_, i) => i >= step.parts.length || !isUsed(step.parts[i]!));

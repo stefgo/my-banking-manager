@@ -22,25 +22,68 @@ Unterkategorien.
 
 ## Regeln
 
-Eine **Regel** ist eine [Suche](umsaetze.md#suche) mit einer Kategorie. Jeder neue Umsatz ohne
-Kategorie bekommt die Kategorie der **ersten passenden aktiven Regel**: beim Abruf, beim
-Erfassen, beim Import und beim Lösen einer Gegenbuchung.
+Eine **Regel** besteht aus einer [Suche](umsaetze.md#suche) und einer oder mehreren Aktionen: Sie
+setzt eine Kategorie, ändert die angezeigte Gegenseite oder den angezeigten Verwendungszweck. Die
+Daten der Bank bleiben dabei unverändert.
+
+Je Umsatz wirkt **genau eine Regel: die erste passende aktive**. Neue Umsätze von der Bank und aus
+CSV-Dateien durchlaufen die Regeln einmal, wenn sie ankommen, und bekommen nur Werte für leere Felder.
+Buchungen von Hand durchlaufen sie nie von selbst.
 
 ![Einstellungen, Regeln: Suche, Kategorie und Trefferzahl jeder Regel](../assets/screenshots/einstellungen-regeln-dark.png)
 
-*Einstellungen → Regeln: jede Regel mit ihrer Suche, der Kategorie und wie viele Umsätze sie trifft.*
+*Einstellungen → Regeln: jede Regel mit ihrer Suche, ihren Aktionen und wie viele Umsätze sie trifft.*
 
-- **Anlegen:** Suche eingeben, Kategorie wählen, „Regel anlegen“. Schneller geht es in den
+- **Anlegen:** Suche eingeben, Aktionen wählen, „Speichern & prüfen“. Schneller geht es in den
   Details eines Umsatzes: Setzt du dort eine Kategorie, bietet MBM an, sie für alle Umsätze
-  dieser Gegenseite zu merken, und legt die Regel an.
-- **Reihenfolge:** Die erste passende Regel gewinnt. Ziehe genauere Regeln nach oben.
+  dieser Gegenseite zu merken. „Daraus eine Regel machen“ füllt das Formular mit den Werten des Umsatzes.
+- **Gilt für:** alle Konten oder einzelne Konten. Die Wahl bleibt auch nach dem Umbenennen oder
+  Verschieben eines Kontos gültig. Ist das letzte gewählte Konto gelöscht, zeigt die Regel „Konto
+  fehlt“ und trifft nichts mehr.
+- **Reihenfolge:** Die erste passende Regel gewinnt. Ziehe genauere Regeln nach oben. Die Liste zeigt
+  je Regel ihre Treffer und wie viele davon eine Regel weiter oben erfasst.
 - **Aus- und einschalten** mit dem Schalter, ohne die Regel zu löschen.
-- **Lupe:** zeigt die Umsätze, die eine Regel trifft.
-- **Auf Umsätze ohne Kategorie anwenden:** zeigt zuerst eine Vorschau, welche Umsätze welche
-  Kategorie bekämen, und wendet nur die an, die du bestätigst.
+- **Lupe:** zeigt die Umsätze, auf die ihre Suche passt.
 
-Regeln ändern nie eine Kategorie, die ein Umsatz schon hat. Deshalb gibt es in Regeln kein
-`kategorie:`, kein `ist:neu` und keine relativen Daten wie `-30t`.
+In Regeln gibt es kein `kategorie:`, kein `ist:neu` und keine relativen Daten wie `-30t`, denn Regeln
+lesen nur die Werte der Bank.
+
+### Ausschnitte aus Texten
+
+Eine Regel kann Teile aus den Texten der Buchung herauslösen und in ihren Aktionen einsetzen. Bis zu
+fünf Stufen bauen aufeinander auf. Eine Stufe nutzt ein **Muster**, **Trennzeichen** oder
+**Trennwörter**, die beiden letzten wie im [CSV-Import](import.md).
+
+| Teil des Musters | Bedeutung |
+|---|---|
+| fester Text | muss vorkommen; Groß- und Kleinschreibung, Akzente und die Zahl der Leerzeichen sind egal |
+| `{name}` | Text bis zum nächsten festen Text oder bis zum Ende |
+| `{name:wort}` | Text bis zum nächsten Leerzeichen |
+| `{name:zahl}` | zusammenhängende Ziffern |
+| `*` | Text überspringen |
+| `\*`, `\{`, `\}` | das Zeichen selbst |
+
+Aus `VISA Debit REWE MARKT//MUENCHEN/DE` macht das Muster `VISA Debit {haendler}//{ort}/` die
+Ausschnitte „REWE MARKT“ und „MUENCHEN“. Als Gegenseite ergibt `{haendler:titel}` dann „Rewe Markt“.
+
+In Aktionen setzt `{name}` den Ausschnitt ein, `{name:titel}`, `{name:gross}` und `{name:klein}` ändern
+die Schreibweise. `{gegenseite}`, `{zweck}` und `{umsatzart}` stehen immer bereit. **Fehlt ein
+Ausschnitt, den eine Aktion braucht, trifft die Regel nicht**, und die nächste wird geprüft. Die Probe
+im Formular zeigt das an echten Umsätzen, ohne etwas zu speichern.
+
+### Regeln ausführen
+
+Eine neue oder geänderte Regel ändert **keinen vorhandenen Umsatz von selbst**. Dafür gibt es „Regeln
+ausführen“, für alle aktiven Regeln oder eine einzelne:
+
+- **Nur nicht gesetzte Werte** füllt Felder ohne Wert.
+- **Alle Datensätze** rechnet alles neu und setzt Anpassungen von Regeln zurück, die nicht mehr greifen.
+  Kategorien entfernt es nie.
+
+Der Schritt **Prüfen** zeigt jede Änderung mit Vorher und Nachher. Erst „Übernehmen“ schreibt die
+gewählten Änderungen. Werte von Hand, aus CSV-Dateien oder Gegenbuchungen und alle Buchungen von Hand
+sind anfangs abgewählt. Ersetzte Werte lassen sich nicht wiederherstellen. Hat sich seit der Prüfung
+etwas geändert, speichert MBM nichts und zeigt den neuen Stand.
 
 Die Regeln eines Kategorie-Knotens erreichst du auch über „Regeln“ im Kopf der Kategorie
 (++g++ dann ++r++ führt direkt zur Liste).

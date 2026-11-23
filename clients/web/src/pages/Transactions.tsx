@@ -615,7 +615,7 @@ function ContextHeader({
         const c = none ? undefined : index.byId.get(Number(search.cat));
         const top = !c || c.parentId === null;
         const ids = c ? categorySubtree(index, c.id) : [];
-        const ruleN = rules.filter((r) => ids.includes(r.categoryId)).length;
+        const ruleN = rules.filter((r) => r.categoryId !== null && ids.includes(r.categoryId)).length;
         const kids = c ? (index.children.get(c.id) ?? []) : [];
         const color = c ? categoryColor(index, c.id) : "neutral";
         const kindName = top ? "Kategorie" : `Unterkategorie von ${categoryPath(index, c!.parentId)}`;

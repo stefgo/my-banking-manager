@@ -6,6 +6,7 @@ import { bookingDetails } from "./0003-booking-details.js";
 import { importFormats } from "./0004-import-formats.js";
 import { bookingReturns } from "./0005-booking-returns.js";
 import { counterpartyAccount } from "./0006-counterparty-account.js";
+import { ruleActions } from "./0007-rule-actions.js";
 import { applyMigration } from "./index.js";
 
 const columns = (db: Database.Database, table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
@@ -208,5 +209,42 @@ describe("0006-counterparty-account", () => {
         applyMigration(db, counterpartyAccount);
         expect(db.prepare("SELECT counterparty_account AS a, counterparty_bank_code AS b FROM transactions").get()).toEqual({ a: "", b: "" });
         db.close();
+    });
+});
+
+describe("0007-rule-actions", () => {
+    let db: Database.Database;
+
+    beforeEach(() => {
+        db = new Database(":memory:");
+        db.pragma("foreign_keys = ON");
+        for (const m of [initial, unread, bookingDetails, importFormats, bookingReturns, counterpartyAccount]) applyMigration(db, m);
+        db.exec(`
+            INSERT INTO categories (id, parent_id, name, icon, color, position) VALUES (1, NULL, 'Lebensmittel', 'tag', 'green', 0);
+            INSERT INTO accounts (id, name, kind, icon, color, position, created_at) VALUES (1, 'Giro', 'giro', 'bank', 'blue', 0, '2026-01-01T00:00:00Z');
+            INSERT INTO transactions (id, account_id, booking_date, amount, status, first_seen_at, source) VALUES (1, 1, '2026-01-01', -100, 'booked', '2026-01-01T00:00:00Z', 'bank'), (2, 1, '2026-01-02', -200, 'booked', '2026-01-01T00:00:00Z', 'bank');
+            INSERT INTO category_rules (id, query, category_id, position, active, created_at) VALUES (7, 'gegenseite:rewe konto:giro', 1, 3, 0, '2026-01-01T00:00:00Z'), (9, 'zweck:miete', 1, 1, 1, '2026-01-02T00:00:00Z');
+            INSERT INTO transaction_categories (transaction_id, category_id, amount, source, rule_id) VALUES (1, 1, -100, 'rule', 7);
+        `);
+        applyMigration(db, ruleActions);
+    });
+    afterEach(() => db.close());
+
+    it("keeps ids, order, queries and the link of assigned categories", () => {
+        expect(db.prepare("SELECT id, query, category_id, position, active, name, extracts, edits, all_accounts FROM rules ORDER BY position").all()).toEqual([
+            { id: 9, query: "zweck:miete", category_id: 1, position: 1, active: 1, name: "", extracts: "[]", edits: "[]", all_accounts: 1 },
+            { id: 7, query: "gegenseite:rewe konto:giro", category_id: 1, position: 3, active: 0, name: "", extracts: "[]", edits: "[]", all_accounts: 1 },
+        ]);
+        expect(db.prepare("SELECT rule_id FROM transaction_categories").get()).toEqual({ rule_id: 7 });
+        expect((db.pragma("foreign_key_list(transaction_categories)") as { table: string; from: string }[]).find((f) => f.from === "rule_id")?.table).toBe("rules");
+        db.exec("INSERT INTO transaction_categories (transaction_id, category_id, amount, source, rule_id) VALUES (2, 1, -200, 'rule', 9)");
+        expect(db.prepare("SELECT count(*) AS n FROM transaction_edits").get()).toEqual({ n: 0 });
+    });
+
+    it("clears the link when a rule goes and keeps a rule whose category goes", () => {
+        db.exec("DELETE FROM rules WHERE id = 7");
+        expect(db.prepare("SELECT rule_id FROM transaction_categories").get()).toEqual({ rule_id: null });
+        db.exec("DELETE FROM categories WHERE id = 1");
+        expect(db.prepare("SELECT category_id FROM rules WHERE id = 9").get()).toEqual({ category_id: null });
     });
 });

@@ -186,13 +186,15 @@ export function deleteCategory(db: Db, id: number, moveTo?: number): Category {
             moveTo,
         );
         db.prepare(`UPDATE transaction_categories SET category_id = ?, source = 'manual', rule_id = NULL WHERE category_id IN (${marks})`).run(moveTo, ...ids);
-        db.prepare(`UPDATE category_rules SET category_id = ? WHERE category_id IN (${marks})`).run(moveTo, ...ids);
+        db.prepare(`UPDATE rules SET category_id = ? WHERE category_id IN (${marks})`).run(moveTo, ...ids);
     }
     // "Ohne Kategorie" below the deleted ones takes the deleted category's place
     const order = siblingOrder(db, cat.parentId);
     const slot = getSlot(db);
     const keep = slot.parentId !== null && ids.includes(slot.parentId);
     db.prepare("DELETE FROM categories WHERE id = ?").run(id);
+    // A rule only loses this action; one with nothing left to do goes
+    db.prepare("DELETE FROM rules WHERE category_id IS NULL AND edits = '[]'").run();
     renumber(db, cat.parentId, keep ? order.map((x) => (x === id ? "none" : x)) : order.filter((x) => x !== id));
     return cat;
 }

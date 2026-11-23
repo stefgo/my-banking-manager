@@ -94,6 +94,8 @@ export const routes = {
     assignCategory: r({ method: "PUT", path: "/api/transactions/category", summary: "Assign a category to bookings", tag: "Transactions", access: "user", body: B.AssignCategoryRequest, response: B.AssignCategoryResponse }),
     unreadCounts: r({ method: "GET", path: "/api/transactions/unread", summary: "Number of new bookings of the signed-in user per account", tag: "Transactions", access: "user", response: B.UnreadCounts }),
     markRead: r({ method: "POST", path: "/api/transactions/read", summary: "Mark bookings as read or as new again, for the signed-in user", tag: "Transactions", access: "user", body: B.MarkReadRequest, response: B.MarkReadResponse }),
+    setTransactionEdit: r({ method: "PUT", path: "/api/transactions/:id/edits/:field", summary: "Show an own text instead of the bank's; null shows the bank's value on purpose", tag: "Transactions", access: "user", params: B.TxEditParams, body: B.SetTransactionEditRequest, response: B.Transaction }),
+    clearTransactionEdit: r({ method: "DELETE", path: "/api/transactions/:id/edits/:field", summary: "Take back the own decision for a field; rules may fill it at their next run", tag: "Transactions", access: "user", params: B.TxEditParams, response: B.Transaction }),
     createCounterBooking: r({ method: "POST", path: "/api/transactions/:id/counter", summary: "Book the opposite amount in an offline account", tag: "Transactions", access: "user", params: IdParam, body: B.CounterBookingRequest, response: B.Transaction }),
     deleteCounterBooking: r({ method: "DELETE", path: "/api/transactions/:id/counter", summary: "Remove the counter booking of a booking", tag: "Transactions", access: "user", params: IdParam, response: Ok }),
     payees: r({ method: "GET", path: "/api/payees", summary: "Counterparties used before, most used first", tag: "Transactions", access: "user", query: B.PayeeQuery, response: List(B.Payee) }),
@@ -113,8 +115,9 @@ export const routes = {
     updateRule: r({ method: "PATCH", path: "/api/rules/:id", summary: "Change a rule", tag: "Categories", access: "user", params: IdParam, body: B.UpdateRuleRequest, response: B.Rule }),
     deleteRule: r({ method: "DELETE", path: "/api/rules/:id", summary: "Delete a rule", tag: "Categories", access: "user", params: IdParam, response: Ok }),
     orderRules: r({ method: "PUT", path: "/api/rules/order", summary: "Reorder the rules", tag: "Categories", access: "user", body: B.OrderRulesRequest, response: Ok }),
-    previewRules: r({ method: "GET", path: "/api/rules/preview", summary: "Bookings without category the rules would categorize", tag: "Categories", access: "user", query: B.RulePreviewQuery, response: B.RulePreview }),
-    applyRules: r({ method: "POST", path: "/api/rules/apply", summary: "Categorize confirmed bookings from the preview", tag: "Categories", access: "user", body: B.ApplyRulesRequest, response: B.ApplyRulesResponse }),
+    testRule: r({ method: "POST", path: "/api/rules/test", summary: "Try a rule draft on the stored bookings; writes nothing", tag: "Categories", access: "user", body: B.TestRuleRequest, response: B.RuleTestResult }),
+    previewRules: r({ method: "GET", path: "/api/rules/preview", summary: "Every change a rule run would make; writes nothing", tag: "Categories", access: "user", query: B.RulePreviewQuery, response: B.RulePreview }),
+    applyRules: r({ method: "POST", path: "/api/rules/apply", summary: "Write the chosen changes of a checked rule run", tag: "Categories", access: "user", body: B.ApplyRulesRequest, response: B.ApplyRulesResponse }),
 
     // ---------- CSV import ----------
     importPreview: r({ method: "POST", path: "/api/accounts/:id/import/preview", summary: "Read a CSV file and show what would be imported", tag: "Import", access: "user", params: IdParam, body: B.ImportRequest, response: B.ImportPreview }),

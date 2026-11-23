@@ -2,7 +2,6 @@
 // Kept in memory only; nothing goes to browser storage.
 
 import { useSyncExternalStore } from "react";
-import type { RulePreview } from "@mbm/shared";
 import type { InfoTarget } from "./info";
 
 export type Dialog =
@@ -20,7 +19,6 @@ export type Dialog =
     | { kind: "palette" }
     | { kind: "cardSettings"; cardId: number }
     | { kind: "addCard" }
-    | { kind: "applyRules"; ruleId?: number; created?: boolean; preview: RulePreview }
     | { kind: "info"; target: InfoTarget; id: number }
     /**
      * A step confirmed with the code from the authenticator app or the password: `run` gets the

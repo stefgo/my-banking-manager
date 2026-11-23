@@ -136,7 +136,7 @@ export function registerBankRoutes(app: FastifyInstance, ctx: AppContext): void 
         if (ctx.transfers.activeFor({ connectionId: params.id })) throw new HttpError(409, "transfer_running", "Während eine Überweisung läuft, geht das nicht. Bitte warte, bis sie fertig ist.");
         bank.deleteConnection(db, params.id, query.accounts);
         logActivity(db, actor, "bank_connection_deleted", name, query.accounts === "keep" ? "Konten als Offline-Konten behalten" : "Konten gelöscht");
-        events.changed("connections", "accounts", "transactions", "activity");
+        events.changed("connections", "accounts", "transactions", "rules", "activity");
         return { ok: true as const };
     });
 
@@ -258,7 +258,7 @@ export function registerBankRoutes(app: FastifyInstance, ctx: AppContext): void 
         if (ctx.transfers.active()) throw new HttpError(409, "transfer_running", "Während eine Überweisung läuft, geht das nicht. Bitte warte, bis sie fertig ist.");
         const r = db.transaction(() => bank.detachAccount(db, params.id, body.mode))();
         logActivity(db, actor, body.mode === "keep" ? "account_detached" : "account_deleted", r.name, body.mode === "keep" ? `von ${r.connectionName} gelöst, als Offline-Konto behalten` : `von ${r.connectionName} gelöst und gelöscht`);
-        events.changed("accounts", "connections", "transactions", "categories", "activity");
+        events.changed("accounts", "connections", "transactions", "categories", "rules", "activity");
         return { ok: true as const };
     });
 

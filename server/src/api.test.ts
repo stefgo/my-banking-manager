@@ -452,13 +452,17 @@ describe("categories and rules", () => {
         // A new rule changes no existing booking until the preview is confirmed
         expect((await api<TransactionList>("GET", `/api/transactions?category=${market.id}&range=all`)).body.count).toBe(0);
         const preview = (await api<RulePreview>("GET", `/api/rules/preview?ruleId=${rule.body.id}`)).body;
-        expect(preview).toMatchObject({ total: 1, items: [{ transactionId: before.body.id, categoryId: market.id, ruleId: rule.body.id }] });
-        expect((await api<{ changed: number }>("POST", "/api/rules/apply", { ids: [before.body.id], ruleId: rule.body.id })).body.changed).toBe(1);
+        expect(preview).toMatchObject({ unchanged: 0, items: [{ transactionId: before.body.id, manual: true, ruleId: rule.body.id, changes: [{ field: "category", kind: "fill", after: String(market.id), selected: false }] }] });
+        // A booking by hand is only written when it is chosen
+        const apply = (deviations: object[]) => api<{ changed: number }>("POST", "/api/rules/apply", { ruleId: rule.body.id, mode: "empty", planHash: preview.planHash, deviations });
+        expect((await apply([])).body.changed).toBe(0);
+        expect((await apply([{ key: preview.items[0]!.key, field: "category", selected: true }])).body.changed).toBe(1);
         expect((await api<TransactionList>("GET", `/api/transactions?category=${market.id}&range=all`)).body.count).toBe(1);
+        // Rules never run by themselves on a booking made by hand
         const next = await api<Transaction>("POST", `/api/accounts/${cash.id}/transactions`, { bookingDate: "2026-02-02", amount: -200, counterpartyName: "Réwe City" });
-        expect(next.body).toMatchObject({ categoryId: market.id, categorySource: "rule" });
+        expect(next.body).toMatchObject({ categoryId: null, categorySource: null });
         // The filter of a top-level category includes its subcategories
-        expect((await api<TransactionList>("GET", `/api/transactions?category=${market.parentId}&range=all`)).body.count).toBe(2);
+        expect((await api<TransactionList>("GET", `/api/transactions?category=${market.parentId}&range=all`)).body.count).toBe(1);
     });
 
     it("previews rules and applies only the confirmed bookings", async () => {
@@ -478,35 +482,33 @@ describe("categories and rules", () => {
         const first = (await api<Rule>("POST", "/api/rules", { query: "gegenseite:rewe", categoryId: market.id })).body;
         const second = (await api<Rule>("POST", "/api/rules", { query: "zweck:miete", categoryId: home.id })).body;
 
-        // All rules: the first matching rule wins, newest first, bookings with a category are left out
+        // All rules: the first rule that hits wins, newest first, a stored category stays
         const all = (await api<RulePreview>("GET", "/api/rules/preview")).body;
-        expect(all.total).toBe(3);
         expect(all.items.map((m) => [m.transactionId, m.ruleId])).toEqual([[c, second.id], [b, first.id], [a, first.id]]);
+        expect(all.unchanged).toBe(1);
 
-        // One rule: it applies whatever its position, also where an earlier rule matches too
+        // One rule: only the bookings it wins, so not the one the rule above it takes
         const one = (await api<RulePreview>("GET", `/api/rules/preview?ruleId=${second.id}`)).body;
-        expect(one.items.map((m) => [m.transactionId, m.categoryId])).toEqual([[c, home.id], [a, home.id]]);
+        expect(one.items.map((m) => [m.transactionId, m.changes[0]!.after])).toEqual([[c, String(home.id)]]);
 
-        // Only the confirmed bookings change; bookings that got a category meanwhile are skipped
+        // Only chosen fields are written; a booking changed since the check is refused
+        const choose = (plan: RulePreview, ids: number[]) => plan.items.filter((i) => ids.includes(i.transactionId)).map((i) => ({ key: i.key, field: "category", selected: true }));
         await api("PUT", "/api/transactions/category", { ids: [c], categoryId: market.id });
-        expect((await api<{ changed: number }>("POST", "/api/rules/apply", { ids: [a, c, manual], ruleId: second.id })).body.changed).toBe(1);
+        expect((await api("POST", "/api/rules/apply", { ruleId: second.id, mode: "empty", planHash: one.planHash, deviations: choose(one, [c]) })).status).toBe(409);
+        const fresh = (await api<RulePreview>("GET", "/api/rules/preview")).body;
+        expect((await api<{ changed: number }>("POST", "/api/rules/apply", { mode: "empty", planHash: fresh.planHash, deviations: choose(fresh, [a]) })).body.changed).toBe(1);
         const items = (await api<TransactionList>("GET", "/api/transactions?range=all")).body.items;
         const cat = (id: number) => items.find((x) => x.id === id)!;
-        expect(cat(a)).toMatchObject({ categoryId: home.id, categorySource: "rule" });
+        expect(cat(a)).toMatchObject({ categoryId: market.id, categorySource: "rule" });
         expect(cat(b).categoryId).toBeNull();
         expect(cat(c)).toMatchObject({ categoryId: market.id, categorySource: "manual" });
         expect(cat(manual).categoryId).toBe(home.id);
-
-        // Without a rule id the order counts again
-        expect((await api<{ changed: number }>("POST", "/api/rules/apply", { ids: [b] })).body.changed).toBe(1);
-        expect((await api<RulePreview>("GET", "/api/rules/preview")).body.total).toBe(0);
         expect((await api("POST", "/api/rules/apply", {})).status).toBe(400);
 
         // A rule that is switched off can be neither previewed nor applied on its own
         await api("PATCH", `/api/rules/${first.id}`, { active: false });
-        const d = await book("2026-03-05", "REWE West");
         expect((await api("GET", `/api/rules/preview?ruleId=${first.id}`)).status).toBe(400);
-        expect((await api("POST", "/api/rules/apply", { ids: [d], ruleId: first.id })).status).toBe(400);
+        expect((await api("POST", "/api/rules/apply", { ruleId: first.id, mode: "empty", planHash: fresh.planHash })).status).toBe(400);
         expect((await api("GET", "/api/rules/preview?ruleId=99999")).status).toBe(404);
     });
 
@@ -677,21 +679,21 @@ describe("rules with the search syntax", () => {
 
         const rent = (await api<Rule>("POST", "/api/rules", { query: 'zweck:miete >800 konto:giro', categoryId: home.id })).body;
         expect(rent).toMatchObject({ query: "zweck:miete >800 konto:giro", hits: 0, active: true });
-        // New bookings get the category of the first matching rule
-        expect((await book(giro.id, -95000, "Hausverwaltung", "Miete März")).categoryId).toBe(home.id);
+        // Bookings by hand never run through the rules by themselves
+        expect((await book(giro.id, -95000, "Hausverwaltung", "Miete März")).categoryId).toBeNull();
         expect((await book(giro.id, -5000, "Garage", "Miete Stellplatz")).categoryId).toBeNull();
         expect((await book(cash.id, -95000, "Bar", "Miete März")).categoryId).toBeNull();
 
         const shop = (await api<Rule>("POST", "/api/rules", { query: '"bäckerei" ODER (gegenseite:rewe NICHT zweck:pfand)', categoryId: market.id })).body;
-        const bakery = await book(cash.id, -300, "Bäckerei Huber");
-        expect(bakery.categoryId).toBe(market.id);
+        expect((await book(cash.id, -300, "Bäckerei Huber")).categoryId).toBeNull();
+        expect((await api<Rule[]>("GET", "/api/rules")).body.find((r) => r.id === shop.id)).toMatchObject({ hits: 1, wins: 1 });
 
         const changed = await api<Rule>("PATCH", `/api/rules/${rent.id}`, { query: "zweck:miete" });
         expect(changed.body).toMatchObject({ query: "zweck:miete", hits: 3 });
         // One rule alone counts the same hits as the whole list
         expect((await api<Rule[]>("GET", "/api/rules")).body.find((r) => r.id === rent.id)!.hits).toBe(3);
         const preview = (await api<RulePreview>("GET", `/api/rules/preview?ruleId=${rent.id}`)).body;
-        expect(preview.total).toBe(2);
+        expect(preview.items).toHaveLength(3);
 
         for (const query of ["kat:wohnen", "datum:vormonat", "(miete", "", "   "]) {
             const r = await api<{ message: string }>("POST", "/api/rules", { query, categoryId: home.id });

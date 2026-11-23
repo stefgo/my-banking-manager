@@ -3,6 +3,7 @@ import { Cents, ColorKeySchema as ColorKey, IconKeySchema as IconKey, Id, IsoDat
 import { AccountScope, TxRange } from "./profile.js";
 import { IMPORT_FIELDS } from "../csv.js";
 import { FORMAT_FIELDS, FORMAT_MAX_STEPS, formatIssues } from "../importFormat.js";
+import { RULE_MAX_EDITS, RULE_MAX_EXTRACTS, ruleIssues } from "../ruleEngine.js";
 import { parseTxQuery } from "../txquery.js";
 
 // ---------- Own information on accounts, groups and categories ----------
@@ -123,6 +124,14 @@ export const TxStatus = z.enum(["booked", "pending"]);
 export const TxSource = z.enum(["bank", "manual", "import"]);
 export const CategorySource = z.enum(["rule", "manual", "auto"]);
 
+export const TxEditField = z.enum(["counterparty", "remittance"]);
+export type TxEditField = z.infer<typeof TxEditField>;
+export const TxEdit = z.object({
+    value: z.string().nullable().describe("The text to show; null: the bank's value, chosen on purpose"),
+    source: z.enum(["rule", "manual"]),
+});
+export type TxEdit = z.infer<typeof TxEdit>;
+
 export const Transaction = z.object({
     id: Id,
     accountId: Id,
@@ -162,6 +171,9 @@ export const Transaction = z.object({
     categorySource: CategorySource.nullable(),
     createdAt: Timestamp,
     unread: z.boolean().describe("New: not looked at yet by the signed-in user"),
+    edits: z
+        .object({ counterparty: TxEdit.nullable(), remittance: TxEdit.nullable() })
+        .describe("Values shown instead of the bank's. All other fields keep the bank's values"),
 });
 export type Transaction = z.infer<typeof Transaction>;
 
@@ -199,18 +211,25 @@ export const TransactionList = z.object({
 });
 export type TransactionList = z.infer<typeof TransactionList>;
 
-export const ManualTransactionRequest = z.object({
+const ManualTransactionFields = {
     bookingDate: IsoDate,
     valueDate: IsoDate.nullable().optional(),
     amount: Cents.refine((v) => v !== 0, "Betrag darf nicht 0 sein"),
-    counterpartyName: z.string().trim().max(140).default(""),
+    counterpartyName: z.string().trim().max(140),
     counterpartyIban: z.string().trim().max(40).nullable().optional(),
-    remittance: z.string().trim().max(400).default(""),
-    status: TxStatus.default("booked"),
-    /** Missing: the rules decide; null: no category. */
+    remittance: z.string().trim().max(400),
+    status: TxStatus,
+    /** Missing or null: no category; rules never run on a booking by hand by themselves. */
     categoryId: Id.nullable().optional(),
+};
+export const ManualTransactionRequest = z.object({
+    ...ManualTransactionFields,
+    counterpartyName: ManualTransactionFields.counterpartyName.default(""),
+    remittance: ManualTransactionFields.remittance.default(""),
+    status: ManualTransactionFields.status.default("booked"),
 });
-export const UpdateManualTransactionRequest = ManualTransactionRequest.partial();
+// Without defaults: a field left out of a change stays as it is
+export const UpdateManualTransactionRequest = z.object(ManualTransactionFields).partial();
 
 export const AssignCategoryRequest = z.object({
     ids: z.array(Id).min(1).max(5000),
@@ -341,52 +360,171 @@ const RuleQuery = z
     })
     .describe("Search syntax of the transaction list, without kategorie: and relative dates");
 
+const RuleStepId = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,39}$/, "Kennung: Buchstaben, Ziffern, - und _");
+const RulePartName = z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,23}$/, "Name: Buchstaben, Ziffern und _, beginnend mit einem Buchstaben");
+
+export const RuleSourceField = z.enum(["party", "ultimateParty", "counterpartyName", "remittance", "bookingText", "reference", "mandateId", "creditorId"]);
+export type RuleSourceField = z.infer<typeof RuleSourceField>;
+
+const RuleExtractInput = z.union([z.strictObject({ field: RuleSourceField }), z.strictObject({ step: RuleStepId, part: RulePartName })]);
+
+export const RuleExtract = z
+    .discriminatedUnion("type", [
+        z.strictObject({ id: RuleStepId, input: RuleExtractInput, type: z.literal("pattern"), pattern: z.string().min(1).max(200) }),
+        z.strictObject({ id: RuleStepId, input: RuleExtractInput, type: z.literal("separator"), separator: z.string().min(1).max(40), parts: z.array(RulePartName).min(1).max(20) }),
+        z.strictObject({
+            id: RuleStepId,
+            input: RuleExtractInput,
+            type: z.literal("keywords"),
+            prefix: z.string().max(20),
+            suffix: z.string().max(20),
+            keywords: z.array(z.strictObject({ text: z.string().min(1).max(60), part: RulePartName })).min(1).max(30),
+        }),
+    ])
+    .meta({ id: "RuleExtract" });
+export type RuleExtract = z.infer<typeof RuleExtract>;
+
+export const RuleEdit = z
+    .discriminatedUnion("op", [
+        z.strictObject({ op: z.literal("set"), field: TxEditField, value: z.string().min(1).max(400).describe("Text with placeholders") }),
+        z.strictObject({ op: z.literal("remove"), field: TxEditField, text: z.string().min(1).max(200) }),
+        z.strictObject({ op: z.literal("replace"), field: TxEditField, text: z.string().min(1).max(200), with: z.string().max(400).describe("Text with placeholders") }),
+    ])
+    .meta({ id: "RuleEdit" });
+export type RuleEdit = z.infer<typeof RuleEdit>;
+
+const RuleName = z.string().trim().max(80, "Name: höchstens 80 Zeichen");
+const RuleAccounts = z.array(Id).min(1, "Bitte mindestens ein Konto wählen").max(500).nullable();
+
 export const Rule = z.object({
     id: Id,
+    name: z.string(),
     query: z.string().describe("Search syntax of the transaction list"),
-    categoryId: Id,
+    categoryId: Id.nullable(),
+    accountIds: z.array(Id).nullable().describe("null: all accounts. Empty only when every chosen account was deleted"),
+    extracts: z.array(RuleExtract),
+    edits: z.array(RuleEdit),
     position: z.number().int(),
     active: z.boolean(),
-    hits: z.number().int().describe("Bookings the rule matches"),
+    hits: z.number().int().describe("Bookings the rule hits"),
+    wins: z.number().int().describe("Bookings where it is the first active rule that hits"),
 });
 export type Rule = z.infer<typeof Rule>;
 
-export const CreateRuleRequest = z.object({
+const checkRule = (v: { categoryId?: number | null; extracts?: RuleExtract[]; edits?: RuleEdit[] }, ctx: z.RefinementCtx) => {
+    if (!v.extracts || !v.edits) return;
+    for (const message of ruleIssues({ categoryId: v.categoryId, extracts: v.extracts, edits: v.edits })) ctx.addIssue({ code: "custom", message });
+};
+
+const RuleDraftFields = {
+    name: RuleName.default(""),
     query: RuleQuery,
-    categoryId: Id,
-});
-export const UpdateRuleRequest = z.object({
-    query: RuleQuery.optional(),
-    categoryId: Id.optional(),
-    active: z.boolean().optional(),
-});
+    categoryId: Id.nullable().default(null),
+    accountIds: RuleAccounts.default(null),
+    extracts: z.array(RuleExtract).max(RULE_MAX_EXTRACTS).default([]),
+    edits: z.array(RuleEdit).max(RULE_MAX_EDITS).default([]),
+};
+
+export const CreateRuleRequest = z.object(RuleDraftFields).superRefine(checkRule);
+/** Extracts and actions are sent together, since one reads the other. */
+export const UpdateRuleRequest = z
+    .object({
+        name: RuleName.optional(),
+        query: RuleQuery.optional(),
+        categoryId: Id.nullable().optional(),
+        accountIds: RuleAccounts.optional(),
+        extracts: z.array(RuleExtract).max(RULE_MAX_EXTRACTS).optional(),
+        edits: z.array(RuleEdit).max(RULE_MAX_EDITS).optional(),
+        active: z.boolean().optional(),
+    })
+    .refine((v) => (v.extracts === undefined) === (v.edits === undefined), "Ausschnitte und Aktionen gehören zusammen");
 export const OrderRulesRequest = z.object({ ids: z.array(Id) });
-export const RulePreviewQuery = z.object({
-    ruleId: z.coerce.number().int().positive().optional().describe("Only this rule, whatever its position. Missing: the first matching active rule"),
+
+export const TestRuleRequest = z
+    .object({ ...RuleDraftFields, ruleId: Id.optional().describe("The stored rule this draft replaces, for its place in the order") })
+    // A draft may not have an action yet; what its condition hits still shows
+    .superRefine((v, ctx) => checkRule({ ...v, categoryId: v.categoryId ?? 0 }, ctx));
+export const RuleSample = z.object({
+    transactionId: Id,
+    bookingDate: IsoDate,
+    amount: Cents,
+    counterparty: z.string().describe("Bank's value"),
+    remittance: z.string().describe("Bank's value"),
+    values: z.record(z.string(), z.string()).describe("Extracted values"),
+    newCounterparty: z.string().nullable(),
+    newRemittance: z.string().nullable(),
+    hit: z.boolean().describe("False: the condition fits, but a value the actions need is missing"),
+    takenBy: Id.nullable().describe("The rule further up that takes this booking"),
 });
-export const RuleMatch = z.object({
+export type RuleSample = z.infer<typeof RuleSample>;
+export const RuleTestResult = z.object({
+    matches: z.number().int().describe("Bookings that fit the accounts and the query"),
+    hits: z.number().int().describe("Of those, bookings where every needed value was found"),
+    missed: z.number().int().describe("Bookings that fit but lack a needed value"),
+    wins: z.number().int().describe("Hits no rule further up takes"),
+    takenBy: z.array(z.object({ ruleId: Id, count: z.number().int() })).describe("Rules further up and how many hits each takes"),
+    samples: z.array(RuleSample).max(20),
+});
+export type RuleTestResult = z.infer<typeof RuleTestResult>;
+
+export const RuleRunMode = z.enum(["empty", "all"]).describe("empty: only fields without a value. all: every field with a rule result");
+export type RuleRunMode = z.infer<typeof RuleRunMode>;
+export const RuleChangeField = z.enum(["counterparty", "remittance", "category"]);
+export type RuleChangeField = z.infer<typeof RuleChangeField>;
+export const RuleChangeKind = z.enum(["fill", "change", "replace", "reset"]).describe("fill: no value yet. change: from an earlier rule. replace: set by hand or otherwise. reset: back to the bank's value");
+export type RuleChangeKind = z.infer<typeof RuleChangeKind>;
+
+export const RuleFieldChange = z.object({
+    field: RuleChangeField,
+    kind: RuleChangeKind,
+    before: z.string().nullable().describe("Text shown now; for a category its id as text"),
+    after: z.string().nullable().describe("Text shown afterwards; for a category its id as text"),
+    selected: z.boolean().describe("Chosen at first"),
+});
+export type RuleFieldChange = z.infer<typeof RuleFieldChange>;
+
+export const RuleRunItem = z.object({
+    key: z.string().describe("Stable across fetches: account and fingerprint for a pending booking of the bank, else the booking id"),
     transactionId: Id,
     accountId: Id,
     bookingDate: IsoDate,
     amount: Cents,
-    counterpartyName: z.string(),
-    ultimateParty: z.string(),
-    remittance: z.string(),
-    categoryId: Id,
-    ruleId: Id,
+    counterparty: z.string().describe("Bank's value"),
+    remittance: z.string().describe("Bank's value"),
+    manual: z.boolean().describe("A booking made by hand; never chosen at first"),
+    split: z.boolean().describe("A split booking; rules never replace its categories"),
+    ruleId: Id.nullable().describe("The rule that wins; null when a reset has no rule"),
+    changes: z.array(RuleFieldChange).min(1),
 });
-export type RuleMatch = z.infer<typeof RuleMatch>;
-export const RULE_PREVIEW_LIMIT = 5000;
+export type RuleRunItem = z.infer<typeof RuleRunItem>;
+
+export const RulePreviewQuery = z.object({
+    ruleId: z.coerce.number().int().positive().optional().describe("Only bookings this rule wins in a full run"),
+    mode: RuleRunMode.default("empty"),
+});
 export const RulePreview = z.object({
-    items: z.array(RuleMatch).describe(`Bookings without category a rule would categorize, newest first; at most ${RULE_PREVIEW_LIMIT}`),
-    total: z.number().int(),
+    items: z.array(RuleRunItem).describe("Every change, newest first"),
+    unchanged: z.number().int().describe("Bookings in scope that stay as they are"),
+    planHash: z.string().describe("Sent back with applyRules; a different result is refused"),
 });
 export type RulePreview = z.infer<typeof RulePreview>;
+
 export const ApplyRulesRequest = z.object({
-    ids: z.array(Id).min(1).max(RULE_PREVIEW_LIMIT).describe("The confirmed bookings from the preview"),
-    ruleId: Id.optional().describe("Only this rule, as in the preview"),
+    ruleId: Id.optional().describe("As in the preview"),
+    mode: RuleRunMode,
+    planHash: z.string().min(1).max(128),
+    deviations: z
+        .array(z.object({ key: z.string().max(100), field: RuleChangeField, selected: z.boolean() }))
+        .max(1_000_000)
+        .default([])
+        .describe("Fields whose choice differs from the one the preview made"),
 });
-export const ApplyRulesResponse = z.object({ changed: z.number().int() });
+export const ApplyRulesResponse = z.object({ changed: z.number().int().describe("Bookings written") });
+
+export const TxEditParams = z.object({ id: z.coerce.number().int().positive(), field: TxEditField });
+export const SetTransactionEditRequest = z.object({
+    value: z.string().trim().min(1, "Bitte einen Text eingeben").max(400).nullable().describe("The text to show; null: the bank's value"),
+});
 
 // ---------- CSV import ----------
 
@@ -496,6 +634,8 @@ export const ImportPreviewRow = z.object({
     name: z.string(),
     iban: z.string().nullable(),
     purpose: z.string(),
+    shownName: z.string().nullable().describe("New row: the counterparty after the rules; null: as in the file"),
+    shownPurpose: z.string().nullable().describe("New row: the purpose after the rules; null: as in the file"),
     bookingText: z.string().describe("Kind of booking the file names (\"Lastschrift\" …)"),
     fillsBookingText: z.boolean().describe("Duplicate without a kind of booking that takes the one of the file"),
     reference: z.string(),

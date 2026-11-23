@@ -14,6 +14,9 @@ export interface QueryRow {
     counterparty_iban: string | null;
     remittance: string;
     category_id: number | null;
+    /** Texts shown instead of the bank's; the search finds both. Rules never pass them. */
+    edit_counterparty?: string | null;
+    edit_remittance?: string | null;
     /** 1 when new for the user searching. */
     unread?: number;
 }
@@ -61,7 +64,9 @@ export function queryTargets(db: Db): (row: QueryRow) => TxQueryTarget {
         toTxQueryTarget({
             counterparty: r.counterparty_name,
             ultimateParty: r.ultimate_party,
+            counterpartyEdited: r.edit_counterparty ?? null,
             remittance: r.remittance,
+            remittanceEdited: r.edit_remittance ?? null,
             iban: r.counterparty_iban,
             amount: r.amount,
             category: r.category_id ? (cats.get(r.category_id)?.name ?? "") : "",

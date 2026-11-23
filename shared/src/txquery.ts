@@ -53,7 +53,11 @@ export type TxQueryResult =
 /** A transaction prepared for matching: all texts already folded. */
 export interface TxQueryTarget {
     counterparty: string;
+    /** The counterparty shown instead of the bank's; "" without one. Rules never see it. */
+    counterpartyEdited: string;
     remittance: string;
+    /** The purpose shown instead of the bank's; "" without one. Rules never see it. */
+    remittanceEdited: string;
     iban: string;
     amountText: string;
     amount: number;
@@ -70,7 +74,11 @@ export interface TxQueryInput {
     counterparty: string;
     /** Ultimate party (e.g. the shop of a card payment); `gegenseite:` finds either name. */
     ultimateParty?: string;
+    /** Counterparty shown instead of the bank's; the search finds both. */
+    counterpartyEdited?: string | null;
     remittance: string;
+    /** Purpose shown instead of the bank's; the search finds both. */
+    remittanceEdited?: string | null;
     iban: string | null;
     /** Cents, signed. */
     amount: number;
@@ -92,7 +100,9 @@ const compact = (s: string | null) => foldText(s ?? "").replace(/ /g, "");
 export function toTxQueryTarget(t: TxQueryInput): TxQueryTarget {
     return {
         counterparty: foldText(t.ultimateParty ? `${t.ultimateParty} / ${t.counterparty}` : t.counterparty),
+        counterpartyEdited: foldText(t.counterpartyEdited ?? ""),
         remittance: foldText(t.remittance),
+        remittanceEdited: foldText(t.remittanceEdited ?? ""),
         iban: compact(t.iban),
         amountText: foldText(formatCents(Math.abs(t.amount))),
         amount: t.amount,
@@ -139,9 +149,9 @@ export function matchTxQuery(node: TxQueryNode | null, t: TxQueryTarget): boolea
         case "text":
             switch (node.field) {
                 case "counterparty":
-                    return node.test(t.counterparty);
+                    return node.test(t.counterparty) || (!!t.counterpartyEdited && node.test(t.counterpartyEdited));
                 case "remittance":
-                    return node.test(t.remittance);
+                    return node.test(t.remittance) || (!!t.remittanceEdited && node.test(t.remittanceEdited));
                 case "iban":
                     return node.testCompact(t.iban);
                 case "account":
@@ -151,7 +161,15 @@ export function matchTxQuery(node: TxQueryNode | null, t: TxQueryTarget): boolea
                 case "amount":
                     return node.test(t.amountText);
                 default:
-                    return node.test(t.counterparty) || node.test(t.remittance) || node.testCompact(t.iban) || node.test(t.amountText) || node.test(t.category);
+                    return (
+                        node.test(t.counterparty) ||
+                        node.test(t.remittance) ||
+                        (!!t.counterpartyEdited && node.test(t.counterpartyEdited)) ||
+                        (!!t.remittanceEdited && node.test(t.remittanceEdited)) ||
+                        node.testCompact(t.iban) ||
+                        node.test(t.amountText) ||
+                        node.test(t.category)
+                    );
             }
     }
 }
@@ -382,12 +400,34 @@ class QueryError extends Error {
     }
 }
 
-/** Matcher for a folded pattern with * and ?: substring, or a regular expression with wildcards. */
+/** Where a piece of a wildcard pattern first fits from `from` on; `?` stands for any one character. */
+function findPiece(s: string, piece: string, from: number): number {
+    if (!piece.includes("?")) return s.indexOf(piece, from);
+    for (let at = from; at + piece.length <= s.length; at++) {
+        let i = 0;
+        while (i < piece.length && (piece[i] === "?" || piece[i] === s[at + i])) i++;
+        if (i === piece.length) return at;
+    }
+    return -1;
+}
+
+/**
+ * Matcher for a folded pattern with * and ?. Taking each piece between the stars at its first fit
+ * finds a match whenever there is one and never backtracks, so stored rules and foreign booking
+ * texts cannot stall the server the way a regular expression could.
+ */
 function matcher(pattern: string): (s: string) => boolean {
     if (!/[*?]/.test(pattern)) return (s) => s.includes(pattern);
-    const source = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".");
-    const re = new RegExp(source, "s");
-    return (s) => re.test(s);
+    const pieces = pattern.split("*").filter(Boolean);
+    return (s) => {
+        let from = 0;
+        for (const piece of pieces) {
+            const at = findPiece(s, piece, from);
+            if (at < 0) return false;
+            from = at + piece.length;
+        }
+        return true;
+    };
 }
 
 function textNode(field: TextField | null, raw: string): TxQueryNode {
@@ -508,7 +548,7 @@ class Lexer {
             return;
         }
         const name = f[1]!.toLowerCase();
-        if (field === "category" && this.rule) throw new QueryError("kategorie: geht in Regeln nicht, weil Regeln nur auf Umsätze ohne Kategorie wirken", at);
+        if (field === "category" && this.rule) throw new QueryError("kategorie: geht in Regeln nicht, weil Regeln gespeicherte Kategorien nicht sehen", at);
         if (field === "flag" && this.rule) throw new QueryError("ist: geht in Regeln nicht, weil „neu“ für jeden Benutzer anders ist", at);
         let op = f[2] as Cmp | ":";
         let rest = glued ? "" : f[3]!;

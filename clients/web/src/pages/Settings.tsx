@@ -12,7 +12,7 @@ import { codeProblem, fieldProps, focusFirstError, type FieldErrors } from "../l
 import { copyName } from "../lib/importFormat";
 import { openImport } from "../lib/importNav";
 import { confirmDeleteAccount } from "../lib/menus";
-import { reviewRules } from "../lib/rules";
+import { openRunRules } from "../lib/rules";
 import { THEME_LABELS } from "../lib/theme";
 import { ui } from "../lib/ui";
 import { useOpenTransactions } from "../lib/useOpenTransactions";
@@ -44,9 +44,9 @@ export function SettingsPage() {
                 )}
                 {tab === "rules" && (
                     <div className="head-actions">
-                        <button className="btn" onClick={() => void reviewRules()}>
+                        <button className="btn" onClick={() => openRunRules()}>
                             <Ic icon={Wand2} size={16} />
-                            Auf Umsätze ohne Kategorie anwenden
+                            Regeln ausführen
                         </button>
                     </div>
                 )}

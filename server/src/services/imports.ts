@@ -1,12 +1,11 @@
-import { columnsFromFormat, duplicateKey, formatFromColumns, guessColumns, IMPORT_FIELDS, isReturnText, mapFormatRows, matchFormat, missingColumns, readCsv, readWithFormat, ROTATING_COLORS, sameCounterparty, type ColumnMap, type ImportFillField, type ImportFormatDefinition, type ImportPreview, type ImportRecord, type ImportRow } from "@mbm/shared";
+import { columnsFromFormat, duplicateKey, evaluateRules, formatFromColumns, guessColumns, IMPORT_FIELDS, isReturnText, mapFormatRows, matchFormat, missingColumns, readCsv, readWithFormat, ROTATING_COLORS, sameCounterparty, type ColumnMap, type ImportFillField, type ImportFormatDefinition, type ImportPreview, type ImportRecord, type ImportRow } from "@mbm/shared";
 import type { Db } from "../db/database.js";
 import { nowIso } from "../db/database.js";
 import { badRequest, notFound } from "../http/errors.js";
 import { keepBankBalance, requireAccount } from "./accounts.js";
 import { createCategory } from "./categories.js";
 import { formatCandidates } from "./importFormats.js";
-import { activeRules, firstMatch } from "./rules.js";
-import { queryTargets } from "./querytarget.js";
+import { activeRules, ruleBookings, writeRuleCategories, writeRuleTexts, type StoredResult } from "./rules.js";
 import { inheritReturnCategories, linkReturns } from "./returns.js";
 import { markNew } from "./unread.js";
 
@@ -15,6 +14,8 @@ interface Planned extends ImportRow {
     categoryId: number | null;
     categorySource: "rule" | "auto" | null;
     ruleId: number | null;
+    /** New row: what the rules make of it; written after the returns are linked. */
+    ruleResult: StoredResult | null;
     missing: MissingCategory | null;
     /** Duplicate: the booking already stored, its category and how the file's category compares. */
     storedId: number | null;
@@ -34,7 +35,7 @@ export interface ImportSelection {
     format?: ImportFormatDefinition | undefined;
 }
 
-const NO_CATEGORY = { categoryId: null, categorySource: null, ruleId: null, missing: null, storedId: null, storedCategoryId: null, categoryState: null, fillsBookingText: false, fillsDetails: false, fills: [] } as const;
+const NO_CATEGORY = { categoryId: null, categorySource: null, ruleId: null, ruleResult: null, missing: null, storedId: null, storedCategoryId: null, categoryState: null, fillsBookingText: false, fillsDetails: false, fills: [] } as const;
 
 /** A category the file names that does not exist yet, with the path leading to it. */
 interface MissingCategory {
@@ -159,7 +160,7 @@ function plan(db: Db, accountId: number, content: string, selection: ImportSelec
     }
     const categories = db.prepare("SELECT id, parent_id AS parentId, name FROM categories").all() as CategoryRef[];
     const rules = activeRules(db);
-    const target = queryTargets(db);
+    const book = ruleBookings(db);
     const storedCategories = db.prepare("SELECT category_id FROM transaction_categories WHERE transaction_id = ?").pluck();
     const rows = parsed.map((r): Planned => {
         if (r.error || !r.date || r.amount === null) return { ...r, state: "invalid", ...NO_CATEGORY };
@@ -174,15 +175,30 @@ function plan(db: Db, accountId: number, content: string, selection: ImportSelec
         }
         // The bank delivers pending bookings itself and replaces them; one from a file would stay
         if (r.pending && isBankAccount) return { ...r, state: "invalid", ...NO_CATEGORY, error: "Vorgemerkte Umsätze kommen bei Bankkonten vom Abruf." };
+        // The rules also run on a row with a category of its own, for its texts
+        const ruleResult = evaluateRules(
+            rules,
+            book({
+                account_id: accountId,
+                booking_date: r.date,
+                amount: r.amount,
+                counterparty_name: r.name,
+                ultimate_party: "",
+                counterparty_iban: r.iban,
+                remittance: r.purpose,
+                booking_text: r.bookingText,
+                reference: r.reference,
+                mandate_id: r.mandateId,
+                creditor_id: r.creditorId,
+                category_id: null,
+            }),
+        );
         const fromFile = r.category ? categoryByName(categories, r.category, separator) : null;
-        if (fromFile) return { ...r, state: "new", ...NO_CATEGORY, categoryId: fromFile, categorySource: "auto" };
+        if (fromFile) return { ...r, state: "new", ...NO_CATEGORY, categoryId: fromFile, categorySource: "auto", ruleResult };
         // Unless missing categories get created, the rules decide
         const missing = r.category ? missingCategory(r.category, separator) : null;
-        const rule = firstMatch(
-            rules,
-            target({ account_id: accountId, booking_date: r.date, amount: r.amount, counterparty_name: r.name, ultimate_party: "", counterparty_iban: r.iban, remittance: r.purpose, category_id: null }),
-        );
-        return { ...r, state: "new", ...NO_CATEGORY, categoryId: rule?.categoryId ?? null, categorySource: rule ? "rule" : null, ruleId: rule?.id ?? null, missing };
+        const ruleCategory = ruleResult?.categoryId ?? null;
+        return { ...r, state: "new", ...NO_CATEGORY, categoryId: ruleCategory, categorySource: ruleCategory !== null ? "rule" : null, ruleId: ruleCategory !== null ? ruleResult!.rule.id : null, ruleResult, missing };
     });
     return { header: table.header, columns: columnsFromFormat(format, table.header), format, formatKey, rows };
 }
@@ -276,6 +292,8 @@ export function previewImport(db: Db, accountId: number, content: string, select
             name: r.name,
             iban: r.iban,
             purpose: r.purpose,
+            shownName: r.ruleResult?.counterparty ?? null,
+            shownPurpose: r.ruleResult?.remittance ?? null,
             bookingText: r.bookingText,
             fillsBookingText: r.fillsBookingText,
             reference: r.reference,
@@ -350,9 +368,12 @@ export function commitImport(
     );
     const insertCat = db.prepare("INSERT INTO transaction_categories (transaction_id, category_id, amount, source, rule_id) VALUES (?, ?, ?, ?, ?)");
     const ids: number[] = [];
+    const ruleResults = new Map<number, StoredResult>();
     for (const r of fresh) {
         const id = Number(insertTx.run(accountId, r.date, r.valueDate ?? r.date, r.amount, r.name, r.iban, r.purpose, r.bookingText, r.reference, r.mandateId, r.creditorId, r.counterpartyBic, isReturnText(r.bookingText) ? 1 : 0, r.pending ? "pending" : "booked", now, importId, userId).lastInsertRowid);
-        if (r.categoryId) insertCat.run(id, r.categoryId, r.amount, r.categorySource ?? "auto", r.ruleId);
+        // The category of a rule follows once the returns are linked; the one of the file stays
+        if (r.categoryId && r.categorySource !== "rule") insertCat.run(id, r.categoryId, r.amount, r.categorySource ?? "auto", r.ruleId);
+        if (r.ruleResult) ruleResults.set(id, r.ruleResult);
         ids.push(id);
     }
     // New for the others; the importing user saw them in the preview
@@ -398,7 +419,10 @@ export function commitImport(
     }
     const filled = kept.filter((r) => r.storedId !== null && (r.fillsBookingText || r.fillsDetails || (r.categoryState === "empty" && r.categoryId !== null))).length;
     keepBankBalance(db, accountId, fresh.reduce((sum, r) => sum + (r.amount ?? 0), 0));
-    inheritReturnCategories(db, linkReturns(db, accountId));
+    const linkedReturns = linkReturns(db, accountId);
+    writeRuleCategories(db, ruleResults, new Set(linkedReturns));
+    inheritReturnCategories(db, linkedReturns);
+    writeRuleTexts(db, ruleResults);
     return { importId, imported: fresh.length, skipped, invalid, createdCategories, recategorized, categoriesFilled, bookingTextsFilled, detailsFilled, filled, excluded };
 }
 

@@ -305,6 +305,247 @@ components:
             - step
             - part
           additionalProperties: false
+    RuleEdit:
+      oneOf:
+        - type: object
+          properties:
+            op:
+              type: string
+              const: set
+            field:
+              type: string
+              enum:
+                - counterparty
+                - remittance
+            value:
+              type: string
+              minLength: 1
+              maxLength: 400
+              description: Text with placeholders
+          required:
+            - op
+            - field
+            - value
+          additionalProperties: false
+        - type: object
+          properties:
+            op:
+              type: string
+              const: remove
+            field:
+              type: string
+              enum:
+                - counterparty
+                - remittance
+            text:
+              type: string
+              minLength: 1
+              maxLength: 200
+          required:
+            - op
+            - field
+            - text
+          additionalProperties: false
+        - type: object
+          properties:
+            op:
+              type: string
+              const: replace
+            field:
+              type: string
+              enum:
+                - counterparty
+                - remittance
+            text:
+              type: string
+              minLength: 1
+              maxLength: 200
+            with:
+              type: string
+              maxLength: 400
+              description: Text with placeholders
+          required:
+            - op
+            - field
+            - text
+            - with
+          additionalProperties: false
+    RuleExtract:
+      oneOf:
+        - type: object
+          properties:
+            id:
+              type: string
+              pattern: ^[A-Za-z][A-Za-z0-9_-]{0,39}$
+            input:
+              anyOf:
+                - type: object
+                  properties:
+                    field:
+                      type: string
+                      enum:
+                        - party
+                        - ultimateParty
+                        - counterpartyName
+                        - remittance
+                        - bookingText
+                        - reference
+                        - mandateId
+                        - creditorId
+                  required:
+                    - field
+                  additionalProperties: false
+                - type: object
+                  properties:
+                    step:
+                      type: string
+                      pattern: ^[A-Za-z][A-Za-z0-9_-]{0,39}$
+                    part:
+                      type: string
+                      pattern: ^[A-Za-z][A-Za-z0-9_]{0,23}$
+                  required:
+                    - step
+                    - part
+                  additionalProperties: false
+            type:
+              type: string
+              const: pattern
+            pattern:
+              type: string
+              minLength: 1
+              maxLength: 200
+          required:
+            - id
+            - input
+            - type
+            - pattern
+          additionalProperties: false
+        - type: object
+          properties:
+            id:
+              type: string
+              pattern: ^[A-Za-z][A-Za-z0-9_-]{0,39}$
+            input:
+              anyOf:
+                - type: object
+                  properties:
+                    field:
+                      type: string
+                      enum:
+                        - party
+                        - ultimateParty
+                        - counterpartyName
+                        - remittance
+                        - bookingText
+                        - reference
+                        - mandateId
+                        - creditorId
+                  required:
+                    - field
+                  additionalProperties: false
+                - type: object
+                  properties:
+                    step:
+                      type: string
+                      pattern: ^[A-Za-z][A-Za-z0-9_-]{0,39}$
+                    part:
+                      type: string
+                      pattern: ^[A-Za-z][A-Za-z0-9_]{0,23}$
+                  required:
+                    - step
+                    - part
+                  additionalProperties: false
+            type:
+              type: string
+              const: separator
+            separator:
+              type: string
+              minLength: 1
+              maxLength: 40
+            parts:
+              minItems: 1
+              maxItems: 20
+              type: array
+              items:
+                type: string
+                pattern: ^[A-Za-z][A-Za-z0-9_]{0,23}$
+          required:
+            - id
+            - input
+            - type
+            - separator
+            - parts
+          additionalProperties: false
+        - type: object
+          properties:
+            id:
+              type: string
+              pattern: ^[A-Za-z][A-Za-z0-9_-]{0,39}$
+            input:
+              anyOf:
+                - type: object
+                  properties:
+                    field:
+                      type: string
+                      enum:
+                        - party
+                        - ultimateParty
+                        - counterpartyName
+                        - remittance
+                        - bookingText
+                        - reference
+                        - mandateId
+                        - creditorId
+                  required:
+                    - field
+                  additionalProperties: false
+                - type: object
+                  properties:
+                    step:
+                      type: string
+                      pattern: ^[A-Za-z][A-Za-z0-9_-]{0,39}$
+                    part:
+                      type: string
+                      pattern: ^[A-Za-z][A-Za-z0-9_]{0,23}$
+                  required:
+                    - step
+                    - part
+                  additionalProperties: false
+            type:
+              type: string
+              const: keywords
+            prefix:
+              type: string
+              maxLength: 20
+            suffix:
+              type: string
+              maxLength: 20
+            keywords:
+              minItems: 1
+              maxItems: 30
+              type: array
+              items:
+                type: object
+                properties:
+                  text:
+                    type: string
+                    minLength: 1
+                    maxLength: 60
+                  part:
+                    type: string
+                    pattern: ^[A-Za-z][A-Za-z0-9_]{0,23}$
+                required:
+                  - text
+                  - part
+                additionalProperties: false
+          required:
+            - id
+            - input
+            - type
+            - prefix
+            - suffix
+            - keywords
+          additionalProperties: false
 paths:
   /api/status:
     get:
@@ -4125,6 +4366,52 @@ paths:
                         unread:
                           type: boolean
                           description: "New: not looked at yet by the signed-in user"
+                        edits:
+                          type: object
+                          properties:
+                            counterparty:
+                              anyOf:
+                                - type: object
+                                  properties:
+                                    value:
+                                      description: "The text to show; null: the bank's value, chosen on purpose"
+                                      type:
+                                        - string
+                                        - "null"
+                                    source:
+                                      type: string
+                                      enum:
+                                        - rule
+                                        - manual
+                                  required:
+                                    - value
+                                    - source
+                                  additionalProperties: false
+                                - type: "null"
+                            remittance:
+                              anyOf:
+                                - type: object
+                                  properties:
+                                    value:
+                                      description: "The text to show; null: the bank's value, chosen on purpose"
+                                      type:
+                                        - string
+                                        - "null"
+                                    source:
+                                      type: string
+                                      enum:
+                                        - rule
+                                        - manual
+                                  required:
+                                    - value
+                                    - source
+                                  additionalProperties: false
+                                - type: "null"
+                          required:
+                            - counterparty
+                            - remittance
+                          additionalProperties: false
+                          description: Values shown instead of the bank's. All other fields keep the bank's values
                       required:
                         - id
                         - accountId
@@ -4155,6 +4442,7 @@ paths:
                         - categorySource
                         - createdAt
                         - unread
+                        - edits
                       additionalProperties: false
                   total:
                     type: integer
@@ -4360,6 +4648,52 @@ paths:
                   unread:
                     type: boolean
                     description: "New: not looked at yet by the signed-in user"
+                  edits:
+                    type: object
+                    properties:
+                      counterparty:
+                        anyOf:
+                          - type: object
+                            properties:
+                              value:
+                                description: "The text to show; null: the bank's value, chosen on purpose"
+                                type:
+                                  - string
+                                  - "null"
+                              source:
+                                type: string
+                                enum:
+                                  - rule
+                                  - manual
+                            required:
+                              - value
+                              - source
+                            additionalProperties: false
+                          - type: "null"
+                      remittance:
+                        anyOf:
+                          - type: object
+                            properties:
+                              value:
+                                description: "The text to show; null: the bank's value, chosen on purpose"
+                                type:
+                                  - string
+                                  - "null"
+                              source:
+                                type: string
+                                enum:
+                                  - rule
+                                  - manual
+                            required:
+                              - value
+                              - source
+                            additionalProperties: false
+                          - type: "null"
+                    required:
+                      - counterparty
+                      - remittance
+                    additionalProperties: false
+                    description: Values shown instead of the bank's. All other fields keep the bank's values
                 required:
                   - id
                   - accountId
@@ -4390,6 +4724,7 @@ paths:
                   - categorySource
                   - createdAt
                   - unread
+                  - edits
                 additionalProperties: false
         default:
           description: Error
@@ -4432,7 +4767,6 @@ paths:
                   minimum: -9007199254740991
                   maximum: 9007199254740991
                 counterpartyName:
-                  default: ""
                   type: string
                   maxLength: 140
                 counterpartyIban:
@@ -4441,11 +4775,9 @@ paths:
                       maxLength: 40
                     - type: "null"
                 remittance:
-                  default: ""
                   type: string
                   maxLength: 400
                 status:
-                  default: booked
                   type: string
                   enum:
                     - booked
@@ -4575,6 +4907,52 @@ paths:
                   unread:
                     type: boolean
                     description: "New: not looked at yet by the signed-in user"
+                  edits:
+                    type: object
+                    properties:
+                      counterparty:
+                        anyOf:
+                          - type: object
+                            properties:
+                              value:
+                                description: "The text to show; null: the bank's value, chosen on purpose"
+                                type:
+                                  - string
+                                  - "null"
+                              source:
+                                type: string
+                                enum:
+                                  - rule
+                                  - manual
+                            required:
+                              - value
+                              - source
+                            additionalProperties: false
+                          - type: "null"
+                      remittance:
+                        anyOf:
+                          - type: object
+                            properties:
+                              value:
+                                description: "The text to show; null: the bank's value, chosen on purpose"
+                                type:
+                                  - string
+                                  - "null"
+                              source:
+                                type: string
+                                enum:
+                                  - rule
+                                  - manual
+                            required:
+                              - value
+                              - source
+                            additionalProperties: false
+                          - type: "null"
+                    required:
+                      - counterparty
+                      - remittance
+                    additionalProperties: false
+                    description: Values shown instead of the bank's. All other fields keep the bank's values
                 required:
                   - id
                   - accountId
@@ -4605,6 +4983,7 @@ paths:
                   - categorySource
                   - createdAt
                   - unread
+                  - edits
                 additionalProperties: false
         default:
           description: Error
@@ -4804,6 +5183,477 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /api/transactions/{id}/edits/{field}:
+    put:
+      operationId: setTransactionEdit
+      summary: Show an own text instead of the bank's; null shows the bank's value on purpose
+      tags:
+        - Transactions
+      security:
+        - session: []
+        - device: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            exclusiveMinimum: 0
+            maximum: 9007199254740991
+        - name: field
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - counterparty
+              - remittance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                value:
+                  anyOf:
+                    - type: string
+                      minLength: 1
+                      maxLength: 400
+                    - type: "null"
+                  description: "The text to show; null: the bank's value"
+              required:
+                - value
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 9007199254740991
+                  accountId:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 9007199254740991
+                  bookingDate:
+                    type: string
+                  valueDate:
+                    type:
+                      - string
+                      - "null"
+                  amount:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  currency:
+                    type: string
+                    const: EUR
+                  counterpartyName:
+                    type: string
+                  ultimateParty:
+                    type: string
+                  counterpartyIban:
+                    type:
+                      - string
+                      - "null"
+                  remittance:
+                    type: string
+                  bookingText:
+                    type: string
+                  reference:
+                    type: string
+                  mandateId:
+                    type: string
+                  creditorId:
+                    type: string
+                  counterpartyBic:
+                    type: string
+                    description: BIC of the counterparty; "" if none
+                  counterpartyAccount:
+                    type: string
+                    description: Account of the counterparty when the bank names no IBAN; "" if none
+                  counterpartyBankCode:
+                    type: string
+                    description: National bank code that goes with counterpartyAccount; "" if none
+                  status:
+                    type: string
+                    enum:
+                      - booked
+                      - pending
+                  source:
+                    type: string
+                    enum:
+                      - bank
+                      - manual
+                      - import
+                  importId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                  counterTransactionId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                  isReturn:
+                    type: boolean
+                    description: Gives back an earlier booking (return debit, cancellation)
+                  returnReason:
+                    type: string
+                    description: Reason code of the return as the bank sends it; "" if none
+                  returnOfId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                    description: The booking this return gives back
+                  returnedById:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                    description: The return that gave this booking back
+                  categoryId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                  categorySource:
+                    anyOf:
+                      - type: string
+                        enum:
+                          - rule
+                          - manual
+                          - auto
+                      - type: "null"
+                  createdAt:
+                    type: string
+                    description: ISO 8601 date and time
+                  unread:
+                    type: boolean
+                    description: "New: not looked at yet by the signed-in user"
+                  edits:
+                    type: object
+                    properties:
+                      counterparty:
+                        anyOf:
+                          - type: object
+                            properties:
+                              value:
+                                description: "The text to show; null: the bank's value, chosen on purpose"
+                                type:
+                                  - string
+                                  - "null"
+                              source:
+                                type: string
+                                enum:
+                                  - rule
+                                  - manual
+                            required:
+                              - value
+                              - source
+                            additionalProperties: false
+                          - type: "null"
+                      remittance:
+                        anyOf:
+                          - type: object
+                            properties:
+                              value:
+                                description: "The text to show; null: the bank's value, chosen on purpose"
+                                type:
+                                  - string
+                                  - "null"
+                              source:
+                                type: string
+                                enum:
+                                  - rule
+                                  - manual
+                            required:
+                              - value
+                              - source
+                            additionalProperties: false
+                          - type: "null"
+                    required:
+                      - counterparty
+                      - remittance
+                    additionalProperties: false
+                    description: Values shown instead of the bank's. All other fields keep the bank's values
+                required:
+                  - id
+                  - accountId
+                  - bookingDate
+                  - valueDate
+                  - amount
+                  - currency
+                  - counterpartyName
+                  - ultimateParty
+                  - counterpartyIban
+                  - remittance
+                  - bookingText
+                  - reference
+                  - mandateId
+                  - creditorId
+                  - counterpartyBic
+                  - counterpartyAccount
+                  - counterpartyBankCode
+                  - status
+                  - source
+                  - importId
+                  - counterTransactionId
+                  - isReturn
+                  - returnReason
+                  - returnOfId
+                  - returnedById
+                  - categoryId
+                  - categorySource
+                  - createdAt
+                  - unread
+                  - edits
+                additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    delete:
+      operationId: clearTransactionEdit
+      summary: Take back the own decision for a field; rules may fill it at their next run
+      tags:
+        - Transactions
+      security:
+        - session: []
+        - device: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            exclusiveMinimum: 0
+            maximum: 9007199254740991
+        - name: field
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - counterparty
+              - remittance
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 9007199254740991
+                  accountId:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 9007199254740991
+                  bookingDate:
+                    type: string
+                  valueDate:
+                    type:
+                      - string
+                      - "null"
+                  amount:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  currency:
+                    type: string
+                    const: EUR
+                  counterpartyName:
+                    type: string
+                  ultimateParty:
+                    type: string
+                  counterpartyIban:
+                    type:
+                      - string
+                      - "null"
+                  remittance:
+                    type: string
+                  bookingText:
+                    type: string
+                  reference:
+                    type: string
+                  mandateId:
+                    type: string
+                  creditorId:
+                    type: string
+                  counterpartyBic:
+                    type: string
+                    description: BIC of the counterparty; "" if none
+                  counterpartyAccount:
+                    type: string
+                    description: Account of the counterparty when the bank names no IBAN; "" if none
+                  counterpartyBankCode:
+                    type: string
+                    description: National bank code that goes with counterpartyAccount; "" if none
+                  status:
+                    type: string
+                    enum:
+                      - booked
+                      - pending
+                  source:
+                    type: string
+                    enum:
+                      - bank
+                      - manual
+                      - import
+                  importId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                  counterTransactionId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                  isReturn:
+                    type: boolean
+                    description: Gives back an earlier booking (return debit, cancellation)
+                  returnReason:
+                    type: string
+                    description: Reason code of the return as the bank sends it; "" if none
+                  returnOfId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                    description: The booking this return gives back
+                  returnedById:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                    description: The return that gave this booking back
+                  categoryId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                  categorySource:
+                    anyOf:
+                      - type: string
+                        enum:
+                          - rule
+                          - manual
+                          - auto
+                      - type: "null"
+                  createdAt:
+                    type: string
+                    description: ISO 8601 date and time
+                  unread:
+                    type: boolean
+                    description: "New: not looked at yet by the signed-in user"
+                  edits:
+                    type: object
+                    properties:
+                      counterparty:
+                        anyOf:
+                          - type: object
+                            properties:
+                              value:
+                                description: "The text to show; null: the bank's value, chosen on purpose"
+                                type:
+                                  - string
+                                  - "null"
+                              source:
+                                type: string
+                                enum:
+                                  - rule
+                                  - manual
+                            required:
+                              - value
+                              - source
+                            additionalProperties: false
+                          - type: "null"
+                      remittance:
+                        anyOf:
+                          - type: object
+                            properties:
+                              value:
+                                description: "The text to show; null: the bank's value, chosen on purpose"
+                                type:
+                                  - string
+                                  - "null"
+                              source:
+                                type: string
+                                enum:
+                                  - rule
+                                  - manual
+                            required:
+                              - value
+                              - source
+                            additionalProperties: false
+                          - type: "null"
+                    required:
+                      - counterparty
+                      - remittance
+                    additionalProperties: false
+                    description: Values shown instead of the bank's. All other fields keep the bank's values
+                required:
+                  - id
+                  - accountId
+                  - bookingDate
+                  - valueDate
+                  - amount
+                  - currency
+                  - counterpartyName
+                  - ultimateParty
+                  - counterpartyIban
+                  - remittance
+                  - bookingText
+                  - reference
+                  - mandateId
+                  - creditorId
+                  - counterpartyBic
+                  - counterpartyAccount
+                  - counterpartyBankCode
+                  - status
+                  - source
+                  - importId
+                  - counterTransactionId
+                  - isReturn
+                  - returnReason
+                  - returnOfId
+                  - returnedById
+                  - categoryId
+                  - categorySource
+                  - createdAt
+                  - unread
+                  - edits
+                additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /api/transactions/{id}/counter:
     post:
       operationId: createCounterBooking
@@ -4960,6 +5810,52 @@ paths:
                   unread:
                     type: boolean
                     description: "New: not looked at yet by the signed-in user"
+                  edits:
+                    type: object
+                    properties:
+                      counterparty:
+                        anyOf:
+                          - type: object
+                            properties:
+                              value:
+                                description: "The text to show; null: the bank's value, chosen on purpose"
+                                type:
+                                  - string
+                                  - "null"
+                              source:
+                                type: string
+                                enum:
+                                  - rule
+                                  - manual
+                            required:
+                              - value
+                              - source
+                            additionalProperties: false
+                          - type: "null"
+                      remittance:
+                        anyOf:
+                          - type: object
+                            properties:
+                              value:
+                                description: "The text to show; null: the bank's value, chosen on purpose"
+                                type:
+                                  - string
+                                  - "null"
+                              source:
+                                type: string
+                                enum:
+                                  - rule
+                                  - manual
+                            required:
+                              - value
+                              - source
+                            additionalProperties: false
+                          - type: "null"
+                    required:
+                      - counterparty
+                      - remittance
+                    additionalProperties: false
+                    description: Values shown instead of the bank's. All other fields keep the bank's values
                 required:
                   - id
                   - accountId
@@ -4990,6 +5886,7 @@ paths:
                   - categorySource
                   - createdAt
                   - unread
+                  - edits
                 additionalProperties: false
         default:
           description: Error
@@ -6339,13 +7236,34 @@ paths:
                       type: integer
                       exclusiveMinimum: 0
                       maximum: 9007199254740991
+                    name:
+                      type: string
                     query:
                       type: string
                       description: Search syntax of the transaction list
                     categoryId:
-                      type: integer
-                      exclusiveMinimum: 0
-                      maximum: 9007199254740991
+                      anyOf:
+                        - type: integer
+                          exclusiveMinimum: 0
+                          maximum: 9007199254740991
+                        - type: "null"
+                    accountIds:
+                      anyOf:
+                        - type: array
+                          items:
+                            type: integer
+                            exclusiveMinimum: 0
+                            maximum: 9007199254740991
+                        - type: "null"
+                      description: "null: all accounts. Empty only when every chosen account was deleted"
+                    extracts:
+                      type: array
+                      items:
+                        $ref: "#/components/schemas/RuleExtract"
+                    edits:
+                      type: array
+                      items:
+                        $ref: "#/components/schemas/RuleEdit"
                     position:
                       type: integer
                       minimum: -9007199254740991
@@ -6356,14 +7274,24 @@ paths:
                       type: integer
                       minimum: -9007199254740991
                       maximum: 9007199254740991
-                      description: Bookings the rule matches
+                      description: Bookings the rule hits
+                    wins:
+                      type: integer
+                      minimum: -9007199254740991
+                      maximum: 9007199254740991
+                      description: Bookings where it is the first active rule that hits
                   required:
                     - id
+                    - name
                     - query
                     - categoryId
+                    - accountIds
+                    - extracts
+                    - edits
                     - position
                     - active
                     - hits
+                    - wins
                   additionalProperties: false
         default:
           description: Error
@@ -6386,17 +7314,46 @@ paths:
             schema:
               type: object
               properties:
+                name:
+                  default: ""
+                  type: string
+                  maxLength: 80
                 query:
                   type: string
                   maxLength: 200
                   description: "Search syntax of the transaction list, without kategorie: and relative dates"
                 categoryId:
-                  type: integer
-                  exclusiveMinimum: 0
-                  maximum: 9007199254740991
+                  default: null
+                  anyOf:
+                    - type: integer
+                      exclusiveMinimum: 0
+                      maximum: 9007199254740991
+                    - type: "null"
+                accountIds:
+                  default: null
+                  anyOf:
+                    - minItems: 1
+                      maxItems: 500
+                      type: array
+                      items:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                    - type: "null"
+                extracts:
+                  default: []
+                  maxItems: 5
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/RuleExtract"
+                edits:
+                  default: []
+                  maxItems: 10
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/RuleEdit"
               required:
                 - query
-                - categoryId
       responses:
         "200":
           description: OK
@@ -6409,13 +7366,34 @@ paths:
                     type: integer
                     exclusiveMinimum: 0
                     maximum: 9007199254740991
+                  name:
+                    type: string
                   query:
                     type: string
                     description: Search syntax of the transaction list
                   categoryId:
-                    type: integer
-                    exclusiveMinimum: 0
-                    maximum: 9007199254740991
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                  accountIds:
+                    anyOf:
+                      - type: array
+                        items:
+                          type: integer
+                          exclusiveMinimum: 0
+                          maximum: 9007199254740991
+                      - type: "null"
+                    description: "null: all accounts. Empty only when every chosen account was deleted"
+                  extracts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RuleExtract"
+                  edits:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RuleEdit"
                   position:
                     type: integer
                     minimum: -9007199254740991
@@ -6426,14 +7404,24 @@ paths:
                     type: integer
                     minimum: -9007199254740991
                     maximum: 9007199254740991
-                    description: Bookings the rule matches
+                    description: Bookings the rule hits
+                  wins:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                    description: Bookings where it is the first active rule that hits
                 required:
                   - id
+                  - name
                   - query
                   - categoryId
+                  - accountIds
+                  - extracts
+                  - edits
                   - position
                   - active
                   - hits
+                  - wins
                 additionalProperties: false
         default:
           description: Error
@@ -6465,14 +7453,39 @@ paths:
             schema:
               type: object
               properties:
+                name:
+                  type: string
+                  maxLength: 80
                 query:
                   type: string
                   maxLength: 200
                   description: "Search syntax of the transaction list, without kategorie: and relative dates"
                 categoryId:
-                  type: integer
-                  exclusiveMinimum: 0
-                  maximum: 9007199254740991
+                  anyOf:
+                    - type: integer
+                      exclusiveMinimum: 0
+                      maximum: 9007199254740991
+                    - type: "null"
+                accountIds:
+                  anyOf:
+                    - minItems: 1
+                      maxItems: 500
+                      type: array
+                      items:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                    - type: "null"
+                extracts:
+                  maxItems: 5
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/RuleExtract"
+                edits:
+                  maxItems: 10
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/RuleEdit"
                 active:
                   type: boolean
       responses:
@@ -6487,13 +7500,34 @@ paths:
                     type: integer
                     exclusiveMinimum: 0
                     maximum: 9007199254740991
+                  name:
+                    type: string
                   query:
                     type: string
                     description: Search syntax of the transaction list
                   categoryId:
-                    type: integer
-                    exclusiveMinimum: 0
-                    maximum: 9007199254740991
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                  accountIds:
+                    anyOf:
+                      - type: array
+                        items:
+                          type: integer
+                          exclusiveMinimum: 0
+                          maximum: 9007199254740991
+                      - type: "null"
+                    description: "null: all accounts. Empty only when every chosen account was deleted"
+                  extracts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RuleExtract"
+                  edits:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RuleEdit"
                   position:
                     type: integer
                     minimum: -9007199254740991
@@ -6504,14 +7538,24 @@ paths:
                     type: integer
                     minimum: -9007199254740991
                     maximum: 9007199254740991
-                    description: Bookings the rule matches
+                    description: Bookings the rule hits
+                  wins:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                    description: Bookings where it is the first active rule that hits
                 required:
                   - id
+                  - name
                   - query
                   - categoryId
+                  - accountIds
+                  - extracts
+                  - edits
                   - position
                   - active
                   - hits
+                  - wins
                 additionalProperties: false
         default:
           description: Error
@@ -6599,10 +7643,190 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /api/rules/test:
+    post:
+      operationId: testRule
+      summary: Try a rule draft on the stored bookings; writes nothing
+      tags:
+        - Categories
+      security:
+        - session: []
+        - device: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  default: ""
+                  type: string
+                  maxLength: 80
+                query:
+                  type: string
+                  maxLength: 200
+                  description: "Search syntax of the transaction list, without kategorie: and relative dates"
+                categoryId:
+                  default: null
+                  anyOf:
+                    - type: integer
+                      exclusiveMinimum: 0
+                      maximum: 9007199254740991
+                    - type: "null"
+                accountIds:
+                  default: null
+                  anyOf:
+                    - minItems: 1
+                      maxItems: 500
+                      type: array
+                      items:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                    - type: "null"
+                extracts:
+                  default: []
+                  maxItems: 5
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/RuleExtract"
+                edits:
+                  default: []
+                  maxItems: 10
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/RuleEdit"
+                ruleId:
+                  description: The stored rule this draft replaces, for its place in the order
+                  type: integer
+                  exclusiveMinimum: 0
+                  maximum: 9007199254740991
+              required:
+                - query
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  matches:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                    description: Bookings that fit the accounts and the query
+                  hits:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                    description: Of those, bookings where every needed value was found
+                  missed:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                    description: Bookings that fit but lack a needed value
+                  wins:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                    description: Hits no rule further up takes
+                  takenBy:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        ruleId:
+                          type: integer
+                          exclusiveMinimum: 0
+                          maximum: 9007199254740991
+                        count:
+                          type: integer
+                          minimum: -9007199254740991
+                          maximum: 9007199254740991
+                      required:
+                        - ruleId
+                        - count
+                      additionalProperties: false
+                    description: Rules further up and how many hits each takes
+                  samples:
+                    maxItems: 20
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        transactionId:
+                          type: integer
+                          exclusiveMinimum: 0
+                          maximum: 9007199254740991
+                        bookingDate:
+                          type: string
+                        amount:
+                          type: integer
+                          minimum: -9007199254740991
+                          maximum: 9007199254740991
+                        counterparty:
+                          type: string
+                          description: Bank's value
+                        remittance:
+                          type: string
+                          description: Bank's value
+                        values:
+                          type: object
+                          propertyNames:
+                            type: string
+                          additionalProperties:
+                            type: string
+                          description: Extracted values
+                        newCounterparty:
+                          type:
+                            - string
+                            - "null"
+                        newRemittance:
+                          type:
+                            - string
+                            - "null"
+                        hit:
+                          type: boolean
+                          description: "False: the condition fits, but a value the actions need is missing"
+                        takenBy:
+                          anyOf:
+                            - type: integer
+                              exclusiveMinimum: 0
+                              maximum: 9007199254740991
+                            - type: "null"
+                          description: The rule further up that takes this booking
+                      required:
+                        - transactionId
+                        - bookingDate
+                        - amount
+                        - counterparty
+                        - remittance
+                        - values
+                        - newCounterparty
+                        - newRemittance
+                        - hit
+                        - takenBy
+                      additionalProperties: false
+                required:
+                  - matches
+                  - hits
+                  - missed
+                  - wins
+                  - takenBy
+                  - samples
+                additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /api/rules/preview:
     get:
       operationId: previewRules
-      summary: Bookings without category the rules would categorize
+      summary: Every change a rule run would make; writes nothing
       tags:
         - Categories
       security:
@@ -6613,10 +7837,20 @@ paths:
           in: query
           required: false
           schema:
-            description: "Only this rule, whatever its position. Missing: the first matching active rule"
+            description: Only bookings this rule wins in a full run
             type: integer
             exclusiveMinimum: 0
             maximum: 9007199254740991
+        - name: mode
+          in: query
+          required: false
+          schema:
+            default: empty
+            type: string
+            enum:
+              - empty
+              - all
+            description: "empty: only fields without a value. all: every field with a rule result"
       responses:
         "200":
           description: OK
@@ -6630,6 +7864,9 @@ paths:
                     items:
                       type: object
                       properties:
+                        key:
+                          type: string
+                          description: "Stable across fetches: account and fingerprint for a pending booking of the bank, else the booking id"
                         transactionId:
                           type: integer
                           exclusiveMinimum: 0
@@ -6644,39 +7881,91 @@ paths:
                           type: integer
                           minimum: -9007199254740991
                           maximum: 9007199254740991
-                        counterpartyName:
+                        counterparty:
                           type: string
-                        ultimateParty:
-                          type: string
+                          description: Bank's value
                         remittance:
                           type: string
-                        categoryId:
-                          type: integer
-                          exclusiveMinimum: 0
-                          maximum: 9007199254740991
+                          description: Bank's value
+                        manual:
+                          type: boolean
+                          description: A booking made by hand; never chosen at first
+                        split:
+                          type: boolean
+                          description: A split booking; rules never replace its categories
                         ruleId:
-                          type: integer
-                          exclusiveMinimum: 0
-                          maximum: 9007199254740991
+                          anyOf:
+                            - type: integer
+                              exclusiveMinimum: 0
+                              maximum: 9007199254740991
+                            - type: "null"
+                          description: The rule that wins; null when a reset has no rule
+                        changes:
+                          minItems: 1
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              field:
+                                type: string
+                                enum:
+                                  - counterparty
+                                  - remittance
+                                  - category
+                              kind:
+                                type: string
+                                enum:
+                                  - fill
+                                  - change
+                                  - replace
+                                  - reset
+                                description: "fill: no value yet. change: from an earlier rule. replace: set by hand or otherwise. reset: back to the bank's value"
+                              before:
+                                description: Text shown now; for a category its id as text
+                                type:
+                                  - string
+                                  - "null"
+                              after:
+                                description: Text shown afterwards; for a category its id as text
+                                type:
+                                  - string
+                                  - "null"
+                              selected:
+                                type: boolean
+                                description: Chosen at first
+                            required:
+                              - field
+                              - kind
+                              - before
+                              - after
+                              - selected
+                            additionalProperties: false
                       required:
+                        - key
                         - transactionId
                         - accountId
                         - bookingDate
                         - amount
-                        - counterpartyName
-                        - ultimateParty
+                        - counterparty
                         - remittance
-                        - categoryId
+                        - manual
+                        - split
                         - ruleId
+                        - changes
                       additionalProperties: false
-                    description: Bookings without category a rule would categorize, newest first; at most 5000
-                  total:
+                    description: Every change, newest first
+                  unchanged:
                     type: integer
                     minimum: -9007199254740991
                     maximum: 9007199254740991
+                    description: Bookings in scope that stay as they are
+                  planHash:
+                    type: string
+                    description: Sent back with applyRules; a different result is refused
                 required:
                   - items
-                  - total
+                  - unchanged
+                  - planHash
                 additionalProperties: false
         default:
           description: Error
@@ -6687,7 +7976,7 @@ paths:
   /api/rules/apply:
     post:
       operationId: applyRules
-      summary: Categorize confirmed bookings from the preview
+      summary: Write the chosen changes of a checked rule run
       tags:
         - Categories
       security:
@@ -6700,22 +7989,47 @@ paths:
             schema:
               type: object
               properties:
-                ids:
-                  minItems: 1
-                  maxItems: 5000
-                  type: array
-                  items:
-                    type: integer
-                    exclusiveMinimum: 0
-                    maximum: 9007199254740991
-                  description: The confirmed bookings from the preview
                 ruleId:
-                  description: Only this rule, as in the preview
+                  description: As in the preview
                   type: integer
                   exclusiveMinimum: 0
                   maximum: 9007199254740991
+                mode:
+                  type: string
+                  enum:
+                    - empty
+                    - all
+                  description: "empty: only fields without a value. all: every field with a rule result"
+                planHash:
+                  type: string
+                  minLength: 1
+                  maxLength: 128
+                deviations:
+                  default: []
+                  description: Fields whose choice differs from the one the preview made
+                  maxItems: 1000000
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      key:
+                        type: string
+                        maxLength: 100
+                      field:
+                        type: string
+                        enum:
+                          - counterparty
+                          - remittance
+                          - category
+                      selected:
+                        type: boolean
+                    required:
+                      - key
+                      - field
+                      - selected
               required:
-                - ids
+                - mode
+                - planHash
       responses:
         "200":
           description: OK
@@ -6728,6 +8042,7 @@ paths:
                     type: integer
                     minimum: -9007199254740991
                     maximum: 9007199254740991
+                    description: Bookings written
                 required:
                   - changed
                 additionalProperties: false
@@ -7037,6 +8352,16 @@ paths:
                             - "null"
                         purpose:
                           type: string
+                        shownName:
+                          description: "New row: the counterparty after the rules; null: as in the file"
+                          type:
+                            - string
+                            - "null"
+                        shownPurpose:
+                          description: "New row: the purpose after the rules; null: as in the file"
+                          type:
+                            - string
+                            - "null"
                         bookingText:
                           type: string
                           description: Kind of booking the file names ("Lastschrift" …)
@@ -7113,6 +8438,8 @@ paths:
                         - name
                         - iban
                         - purpose
+                        - shownName
+                        - shownPurpose
                         - bookingText
                         - fillsBookingText
                         - reference
