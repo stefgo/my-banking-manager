@@ -1,3 +1,115 @@
+## [0.4.0](https://github.com/stefgo/my-banking-manager/compare/v0.3.0...v0.4.0) (2026-11-23)
+
+### Umsätze: Kontokopf in schmalen Fenstern
+
+Passt die IBAN oder Kontonummer nicht mehr in eine Zeile, entfällt im Kopf der Umsatzliste das Symbol.
+Kontodaten und Kontostand stehen dann untereinander, sodass die Nummer nicht mehr umbricht. Auf sehr
+schmalen Displays laufen die Umsatzseite und die Regeln in den Einstellungen außerdem nicht mehr
+seitlich über, und die Kategorie im Regel-Formular bleibt in einer Zeile.
+
+### Umsätze: Liste bleibt beim Öffnen der Details stehen
+
+Öffnest oder schließt du die Details eines Umsatzes, bleibt die ausgewählte Zeile an ihrer Stelle,
+auch wenn Kopfbereich und Filter dabei umbrechen. Mit `J` und `K` scrollt die Liste jetzt immer mit,
+die aktuelle Zeile bleibt vollständig sichtbar.
+
+### Umsätze: Buchungen ohne IBAN richtig anzeigen
+
+MBM übernimmt jetzt genauer, was die Bank zu Buchungen ohne IBAN liefert.
+
+- Nennt die Bank statt der IBAN eine Kontonummer oder BLZ, stehen sie in den Details. Bei vorhandenen
+  Umsätzen kommen sie mit dem nächsten Abruf dazu, solange die Bank den Umsatz noch liefert.
+- Eine Sammelbuchung zeigt die Gesamtsumme mit der Anzahl der Posten. Sie steht nicht mehr unter Name
+  und IBAN des ersten Empfängers. Vorhandene Sammelbuchungen korrigiert der nächste Abruf, ihre
+  Kategorie bleibt. Was die Bank nicht mehr liefert, bleibt unverändert.
+- Eine vorgemerkte Buchung ohne Namen gibt Kategorie und Gelesen-Status nicht mehr an eine fremde
+  Buchung mit gleichem Betrag weiter.
+
+### Umsätze: Rücklastschriften erkennen und richtig auswerten
+
+MBM erkennt jetzt, wenn die Bank eine Lastschrift zurückgibt, und verknüpft die Rückbuchung mit der
+ursprünglichen Buchung.
+
+- Die Rückbuchung nennt die richtige Gegenseite und übernimmt die Kategorie der Lastschrift.
+- In den Details stehen der Rückgabegrund und ein Sprung zur anderen Buchung.
+- Ein verknüpftes Paar zählt nicht mehr in „Eingänge und Ausgaben“ und in den Kategoriesummen, auch
+  über Monatsgrenzen. Die Zahlen des ursprünglichen Monats sinken also, sobald die Rückgabe eintrifft.
+  Saldo und Umsatzliste bleiben unverändert.
+- Eine zurückgekommene Buchung bestätigt keine Überweisung mehr als ausgeführt.
+- Vorhandene Rücklastschriften werden beim nächsten Abruf oder Import des Kontos verknüpft.
+
+### Import: Umsätze ohne Gegenseite genauer erkennen
+
+Fehlt bei einem Vergleich der Name der Gegenseite, gilt ein Umsatz nicht mehr automatisch als schon
+vorhanden. Der Verwendungszweck aus der Datei muss jetzt im Verwendungszweck des Umsatzes in MBM
+enthalten sein. Das gilt auch, wenn die Bank später einen Umsatz liefert, der schon aus einer Datei da
+ist.
+
+### Kontenliste: Laufende Aktualisierung sichtbar
+
+Während eines Abrufs dreht sich neben jedem betroffenen Konto ein Symbol. Liegt das Konto in einer
+zugeklappten Gruppe, steht das Symbol an der Gruppe. Nach einer unterbrochenen Verbindung holt MBM den
+aktuellen Stand der Abrufe nach, sodass kein Symbol hängen bleibt.
+
+### Server-Log: Wer den Server entsperrt hat
+
+Die Log-Zeilen `unlocked` und `unlocked with the recovery key` nennen jetzt die Benutzer-ID der
+Anmeldung, die den Server entsperrt hat. Der Name steht bewusst nicht im Log, weil Logs nicht
+verschlüsselt sind. Im Terminal stehen solche Angaben jetzt in derselben Zeile, zum Beispiel
+`unlocked (userId: 1)`.
+
+### Docker: Start mit Terminal
+
+Läuft der Container mit Terminal (`docker run -t` oder `tty: true`), startet der Server jetzt
+zuverlässig und schreibt sein Log wie gewohnt als JSON.
+
+### Umsätze: Details schließen sich mit der Auswahl
+
+Wechselst du das Konto oder änderst Suche oder Filter und der geöffnete Umsatz steht nicht mehr in
+der Liste, schließen sich seine Details. Bleibt er in der Liste, bleiben sie offen.
+
+### Import: Saldo von Bankkonten bleibt richtig
+
+Importierst du ältere Umsätze in ein Bankkonto, bleibt der heutige Saldo jetzt auf dem Stand der Bank,
+und der Verlauf stimmt sofort. Das gilt auch, wenn du einen Import rückgängig machst.
+
+- Liefert die Bank einen Umsatz, der schon aus einer Datei da ist, steht er nicht mehr doppelt in der
+  Liste. Er behält seine Kategorie und lässt sich nicht mehr über „Import rückgängig“ entfernen.
+- Vorgemerkte Zeilen aus einer Datei übernimmt MBM bei Bankkonten nicht mehr, weil die Bank sie selbst
+  liefert.
+- Schon vorhandene doppelte Umsätze bleiben bestehen. Du kannst den betroffenen Import rückgängig
+  machen und die Datei neu einspielen.
+
+### Import: Kategorien direkt in der Zeilenauswahl entscheiden
+
+Im Schritt „Prüfen“ entscheidest du jetzt je Zeile, ob eine abweichende Kategorie ersetzt wird. Die
+Sammeloption „abweichende Kategorien überschreiben“ entfällt.
+
+- Abweichende Kategorien stehen im Filter **Abweichend** und sind anfangs nicht gewählt, deine
+  Kategorie bleibt also erhalten.
+- Vorhandene Umsätze **ohne Kategorie** bekommen die Kategorie aus der Datei jetzt als normale
+  Ergänzung. Wenn du das nicht möchtest, wählst du die Zeile ab.
+- Bei einer Zeile mit abweichender Kategorie und leeren Angaben entscheidest du in den Details getrennt
+  über beides.
+
+### Features
+
+* **import:** Kategorien beim Prüfen je Zeile entscheiden ([2c210f4](https://github.com/stefgo/my-banking-manager/commit/2c210f4d679efcecbaab1d38959eae79e96a06a9))
+* **konten:** Laufende Aktualisierung in der Kontohierarchie anzeigen ([de678ad](https://github.com/stefgo/my-banking-manager/commit/de678adf243ba0df44e8c5bbc1467901c024fbe5))
+* **server:** Benutzer-ID beim Entsperren ins Log schreiben ([4a82bfd](https://github.com/stefgo/my-banking-manager/commit/4a82bfd92b96cd9d57b0cf761dd2ce65e0f7f518))
+* **server:** Log-Felder im Terminal in einer Zeile ausgeben ([5a3107f](https://github.com/stefgo/my-banking-manager/commit/5a3107f65a6b8b6903c0fd3eaba6cd58044e6cb4))
+* **umsätze:** Rücklastschriften erkennen und verrechnen ([3e823e3](https://github.com/stefgo/my-banking-manager/commit/3e823e35abfb67a7efb7d353bd8440985e281d80))
+
+### Bug Fixes
+
+* **import:** Doppelten Hinweis auf Abweichungen aus der Leiste entfernen ([22dc9ec](https://github.com/stefgo/my-banking-manager/commit/22dc9ece53db57ca686cfa1407248d07b4aa115f))
+* **import:** Saldo von Bankkonten beim Import korrekt halten ([0a8ab25](https://github.com/stefgo/my-banking-manager/commit/0a8ab252e7ccf9f0ce724a5f4415dcc1a7b2e788))
+* **import:** Umsätze ohne Gegenseite über den Verwendungszweck vergleichen ([3117b99](https://github.com/stefgo/my-banking-manager/commit/3117b99075351d1d23a721927215fdba3e519af4))
+* **umsätze:** Buchungen ohne IBAN richtig abbilden ([5375626](https://github.com/stefgo/my-banking-manager/commit/5375626913411c81af0a2b1906526052adcc587a))
+* **umsätze:** Details nur bei gültiger Auswahl anzeigen ([6f29535](https://github.com/stefgo/my-banking-manager/commit/6f2953579bd34e404667160606f9292c3ba01bdb))
+* **umsätze:** Kontokopf und Überlauf in schmalen Fenstern beheben ([ad8c4e5](https://github.com/stefgo/my-banking-manager/commit/ad8c4e51f04fb261a1a580a06a1ac2dae3d3cd66))
+* **umsätze:** Zeile beim Öffnen der Details an ihrer Stelle halten ([38d880f](https://github.com/stefgo/my-banking-manager/commit/38d880f92a100e081f97de71ac30e2b62a1665e0))
+
 ## [0.3.0](https://github.com/stefgo/my-banking-manager/compare/v0.2.0...v0.3.0) (2026-11-21)
 
 ### Neu
