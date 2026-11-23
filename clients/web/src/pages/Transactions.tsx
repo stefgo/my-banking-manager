@@ -273,6 +273,8 @@ function TransactionList() {
                 if (!t) return;
                 setFocus(t.id);
                 if (inPanel) ui.openTx(t.id);
+                // A virtual list follows the focus itself
+                document.querySelector(`main .txlist:not(.vlist) .tx[data-tx="${t.id}"]`)?.scrollIntoView({ block: "nearest" });
             };
             if (k === "j" || e.key === "ArrowDown") {
                 e.preventDefault();

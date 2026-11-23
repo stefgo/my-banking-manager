@@ -10,6 +10,12 @@ dev keeps the text; the stable release from main empties this file again.
 Nothing inside an HTML comment is published.
 -->
 
+### Umsätze: Liste bleibt beim Öffnen der Details stehen
+
+Öffnest oder schließt du die Details eines Umsatzes, bleibt die ausgewählte Zeile an ihrer Stelle,
+auch wenn Kopfbereich und Filter dabei umbrechen. Mit `J` und `K` scrollt die Liste jetzt immer mit,
+die aktuelle Zeile bleibt vollständig sichtbar.
+
 ### Umsätze: Buchungen ohne IBAN richtig anzeigen
 
 MBM übernimmt jetzt genauer, was die Bank zu Buchungen ohne IBAN liefert.
