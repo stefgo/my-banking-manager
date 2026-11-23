@@ -216,8 +216,15 @@ export function TxList({ items, balances, accounts, cat, showAccount = true, foc
 function VirtualRows({ rows, render, focusId }: { rows: ListRow[]; render: (r: ListRow) => React.ReactNode; focusId: number | null }) {
     const ref = useRef<HTMLDivElement>(null);
     const [margin, setMargin] = useState(0);
+    // The content above the list changes height, for example when the details panel narrows the page
     useLayoutEffect(() => {
-        setMargin(ref.current ? ref.current.getBoundingClientRect().top + window.scrollY : 0);
+        const list = ref.current;
+        if (!list) return;
+        const update = () => setMargin(list.getBoundingClientRect().top + window.scrollY);
+        update();
+        const observer = new ResizeObserver(update);
+        observer.observe(list.closest("main") ?? document.body);
+        return () => observer.disconnect();
     }, []);
     const v = useWindowVirtualizer({
         count: rows.length,

@@ -16,6 +16,7 @@ import { INSPECTOR_QUERY, useMedia } from "../lib/media";
 import { Toasts } from "../components/common";
 import { Sidebar } from "./Sidebar";
 import { DialogHost } from "./DialogHost";
+import { KeepRowInPlace } from "./KeepRowInPlace";
 import { useShortcuts } from "./shortcuts";
 import { TxDrawer } from "../pages/TxDrawer";
 import { OrderDrawer } from "../pages/OrderDrawer";
@@ -94,6 +95,7 @@ export function Shell({ me }: { me: Me }) {
                     <Outlet />
                 </main>
             </div>
+            <KeepRowInPlace inspector={panelOpen && wide} />
             <Tabbar path={path} />
             <TxDrawer />
             <OrderDrawer />

@@ -305,7 +305,9 @@ function RuleForm({
                             set={!!cat}
                             icon={cat ? <CatTile idx={index} id={cat} size={12} className="ti-s" /> : <Ic icon={Tag} size={15} />}
                         >
-                            <span>{cat ? categoryPath(index, cat) : "Kategorie wählen"}</span>
+                            <span className="picker-text" title={cat ? categoryPath(index, cat) : undefined}>
+                                {cat ? categoryPath(index, cat) : "Kategorie wählen"}
+                            </span>
                         </PickerButton>
                     }
                 />

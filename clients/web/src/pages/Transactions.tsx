@@ -24,6 +24,7 @@ import { CHART_STYLE_IDS, CHART_STYLES, SERIES_GROUP_IDS, SERIES_GROUPS } from "
 import { InfoPanel, InfoToggle } from "../components/InfoPanel";
 import { QueryHelp } from "../components/QueryHelp";
 import { SuggestList } from "../components/SuggestList";
+import { useStackedHead } from "../lib/useStackedHead";
 import { useSuggest } from "../lib/useSuggest";
 import { TxList } from "../components/TxList";
 import { SkeletonRows } from "../components/Skeleton";
@@ -273,6 +274,8 @@ function TransactionList() {
                 if (!t) return;
                 setFocus(t.id);
                 if (inPanel) ui.openTx(t.id);
+                // A virtual list follows the focus itself
+                document.querySelector(`main .txlist:not(.vlist) .tx[data-tx="${t.id}"]`)?.scrollIntoView({ block: "nearest" });
             };
             if (k === "j" || e.key === "ArrowDown") {
                 e.preventDefault();
@@ -604,7 +607,7 @@ function ContextHeader({
     const transferAccounts = useTransferAccounts().data;
     const startTransfer = useStartTransfer();
     const unreadOf = useUnreadByAccount();
-
+    const stackedHead = useStackedHead();
 
     // The view of one category; the filter of several always shows the account view
     if (isCategoryView(search)) {
@@ -683,7 +686,7 @@ function ContextHeader({
 
     return (
         <section className="hero ctx">
-            <div className="ctx-top">
+            <div className="ctx-top" ref={stackedHead}>
                 {node ? (
                     <StylePicker
                         open={styleOpen}
