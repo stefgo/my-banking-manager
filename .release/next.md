@@ -40,7 +40,13 @@ aktuellen Stand der Abrufe nach, sodass kein Symbol hängen bleibt.
 
 Die Log-Zeilen `unlocked` und `unlocked with the recovery key` nennen jetzt die Benutzer-ID der
 Anmeldung, die den Server entsperrt hat. Der Name steht bewusst nicht im Log, weil Logs nicht
-verschlüsselt sind.
+verschlüsselt sind. Im Terminal stehen solche Angaben jetzt in derselben Zeile, zum Beispiel
+`unlocked (userId: 1)`.
+
+### Docker: Start mit Terminal
+
+Läuft der Container mit Terminal (`docker run -t` oder `tty: true`), startet der Server jetzt
+zuverlässig und schreibt sein Log wie gewohnt als JSON.
 
 ### Umsätze: Details schließen sich mit der Auswahl
 
