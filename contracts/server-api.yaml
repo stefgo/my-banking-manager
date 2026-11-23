@@ -4056,6 +4056,12 @@ paths:
                         counterpartyBic:
                           type: string
                           description: BIC of the counterparty; "" if none
+                        counterpartyAccount:
+                          type: string
+                          description: Account of the counterparty when the bank names no IBAN; "" if none
+                        counterpartyBankCode:
+                          type: string
+                          description: National bank code that goes with counterpartyAccount; "" if none
                         status:
                           type: string
                           enum:
@@ -4079,6 +4085,26 @@ paths:
                               exclusiveMinimum: 0
                               maximum: 9007199254740991
                             - type: "null"
+                        isReturn:
+                          type: boolean
+                          description: Gives back an earlier booking (return debit, cancellation)
+                        returnReason:
+                          type: string
+                          description: Reason code of the return as the bank sends it; "" if none
+                        returnOfId:
+                          anyOf:
+                            - type: integer
+                              exclusiveMinimum: 0
+                              maximum: 9007199254740991
+                            - type: "null"
+                          description: The booking this return gives back
+                        returnedById:
+                          anyOf:
+                            - type: integer
+                              exclusiveMinimum: 0
+                              maximum: 9007199254740991
+                            - type: "null"
+                          description: The return that gave this booking back
                         categoryId:
                           anyOf:
                             - type: integer
@@ -4115,10 +4141,16 @@ paths:
                         - mandateId
                         - creditorId
                         - counterpartyBic
+                        - counterpartyAccount
+                        - counterpartyBankCode
                         - status
                         - source
                         - importId
                         - counterTransactionId
+                        - isReturn
+                        - returnReason
+                        - returnOfId
+                        - returnedById
                         - categoryId
                         - categorySource
                         - createdAt
@@ -4259,6 +4291,12 @@ paths:
                   counterpartyBic:
                     type: string
                     description: BIC of the counterparty; "" if none
+                  counterpartyAccount:
+                    type: string
+                    description: Account of the counterparty when the bank names no IBAN; "" if none
+                  counterpartyBankCode:
+                    type: string
+                    description: National bank code that goes with counterpartyAccount; "" if none
                   status:
                     type: string
                     enum:
@@ -4282,6 +4320,26 @@ paths:
                         exclusiveMinimum: 0
                         maximum: 9007199254740991
                       - type: "null"
+                  isReturn:
+                    type: boolean
+                    description: Gives back an earlier booking (return debit, cancellation)
+                  returnReason:
+                    type: string
+                    description: Reason code of the return as the bank sends it; "" if none
+                  returnOfId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                    description: The booking this return gives back
+                  returnedById:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                    description: The return that gave this booking back
                   categoryId:
                     anyOf:
                       - type: integer
@@ -4318,10 +4376,16 @@ paths:
                   - mandateId
                   - creditorId
                   - counterpartyBic
+                  - counterpartyAccount
+                  - counterpartyBankCode
                   - status
                   - source
                   - importId
                   - counterTransactionId
+                  - isReturn
+                  - returnReason
+                  - returnOfId
+                  - returnedById
                   - categoryId
                   - categorySource
                   - createdAt
@@ -4442,6 +4506,12 @@ paths:
                   counterpartyBic:
                     type: string
                     description: BIC of the counterparty; "" if none
+                  counterpartyAccount:
+                    type: string
+                    description: Account of the counterparty when the bank names no IBAN; "" if none
+                  counterpartyBankCode:
+                    type: string
+                    description: National bank code that goes with counterpartyAccount; "" if none
                   status:
                     type: string
                     enum:
@@ -4465,6 +4535,26 @@ paths:
                         exclusiveMinimum: 0
                         maximum: 9007199254740991
                       - type: "null"
+                  isReturn:
+                    type: boolean
+                    description: Gives back an earlier booking (return debit, cancellation)
+                  returnReason:
+                    type: string
+                    description: Reason code of the return as the bank sends it; "" if none
+                  returnOfId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                    description: The booking this return gives back
+                  returnedById:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                    description: The return that gave this booking back
                   categoryId:
                     anyOf:
                       - type: integer
@@ -4501,10 +4591,16 @@ paths:
                   - mandateId
                   - creditorId
                   - counterpartyBic
+                  - counterpartyAccount
+                  - counterpartyBankCode
                   - status
                   - source
                   - importId
                   - counterTransactionId
+                  - isReturn
+                  - returnReason
+                  - returnOfId
+                  - returnedById
                   - categoryId
                   - categorySource
                   - createdAt
@@ -4795,6 +4891,12 @@ paths:
                   counterpartyBic:
                     type: string
                     description: BIC of the counterparty; "" if none
+                  counterpartyAccount:
+                    type: string
+                    description: Account of the counterparty when the bank names no IBAN; "" if none
+                  counterpartyBankCode:
+                    type: string
+                    description: National bank code that goes with counterpartyAccount; "" if none
                   status:
                     type: string
                     enum:
@@ -4818,6 +4920,26 @@ paths:
                         exclusiveMinimum: 0
                         maximum: 9007199254740991
                       - type: "null"
+                  isReturn:
+                    type: boolean
+                    description: Gives back an earlier booking (return debit, cancellation)
+                  returnReason:
+                    type: string
+                    description: Reason code of the return as the bank sends it; "" if none
+                  returnOfId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                    description: The booking this return gives back
+                  returnedById:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                    description: The return that gave this booking back
                   categoryId:
                     anyOf:
                       - type: integer
@@ -4854,10 +4976,16 @@ paths:
                   - mandateId
                   - creditorId
                   - counterpartyBic
+                  - counterpartyAccount
+                  - counterpartyBankCode
                   - status
                   - source
                   - importId
                   - counterTransactionId
+                  - isReturn
+                  - returnReason
+                  - returnOfId
+                  - returnedById
                   - categoryId
                   - categorySource
                   - createdAt

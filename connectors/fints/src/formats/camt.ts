@@ -2,9 +2,10 @@
 // Only the elements needed for a transaction list are read; names are matched without
 // namespace, so the schema versions differ only where noted.
 
+import { isReturnText } from "@mbm/shared";
 import { XMLParser } from "fast-xml-parser";
 import { arr, at, obj, str } from "./xml.js";
-import { cleanRef, emptyTransaction, partiesOf, splitSepaPurpose, type Transaction } from "./transaction.js";
+import { cleanAccountId, cleanRef, emptyTransaction, partiesOf, splitSepaPurpose, type Transaction } from "./transaction.js";
 
 const parser = new XMLParser({
     ignoreAttributes: false,
@@ -25,10 +26,73 @@ export function parseCamt(xml: string | Uint8Array, status: "booked" | "pending"
     const root = obj(at(doc, "Document", "BkToCstmrAcctRpt")) ?? obj(at(doc, "Document", "BkToCstmrStmt"));
     if (!root) return [];
     const reports = [...arr(root.Rpt), ...arr(root.Stmt)];
-    return reports.flatMap((r) => arr(obj(r)?.Ntry).map((n) => entry(n, status)).filter((t): t is Transaction => t !== null));
+    return reports.flatMap((r) => {
+        const ownIban = str(at(r, "Acct", "Id", "IBAN"));
+        return arr(obj(r)?.Ntry).map((n) => entry(n, status, ownIban)).filter((t): t is Transaction => t !== null);
+    });
 }
 
-function entry(n: unknown, fallback: "booked" | "pending"): Transaction | null {
+const partyNameOf = (parties: unknown, role: string): string => str(at(parties, role, "Nm")) || str(at(parties, role, "Pty", "Nm"));
+const ibanOf = (parties: unknown, role: string): string => str(at(parties, `${role}Acct`, "Id", "IBAN"));
+const sameIban = (a: string, b: string): boolean => !!a && a.replace(/\s/g, "").toUpperCase() === b.replace(/\s/g, "").toUpperCase();
+
+/** Is the entry a return? By the reversal mark, the return details or the bank's transaction code. */
+function isReturnEntry(n: unknown, tx: unknown): boolean {
+    if (["true", "1"].includes(str(at(n, "RvslInd")).toLowerCase()) || at(tx, "RtrInf") !== undefined) return true;
+    return [n, tx].some((v) => {
+        const domain = at(v, "BkTxCd", "Domn");
+        return str(at(domain, "Cd")) === "PMNT" && str(at(domain, "Fmly", "Cd")) === "IDDT" && str(at(domain, "Fmly", "SubFmlyCd")) === "UPDD";
+    });
+}
+
+/**
+ * The counterparty is usually the debtor of a credit and the creditor of a debit. A return may keep
+ * the roles of the original booking, which makes the account holder that side: the counterparty is
+ * then the side that is not this account, and without its IBAN the opposite of the usual role.
+ */
+function counterpartyIsDebtor(parties: unknown, credit: boolean, isReturn: boolean, ownIban: string): boolean {
+    const usual = credit ? "Dbtr" : "Cdtr";
+    const other = credit ? "Cdtr" : "Dbtr";
+    const usualIban = ibanOf(parties, usual);
+    const otherIban = ibanOf(parties, other);
+    if ((!otherIban && !partyNameOf(parties, other)) || sameIban(otherIban, ownIban)) return credit;
+    if (sameIban(usualIban, ownIban)) return !credit;
+    if (ownIban && usualIban) return credit;
+    return isReturn ? !credit : credit;
+}
+
+/** Number of single payments in an entry: the details it lists, or the count of its batch. */
+function batchSize(n: unknown): number {
+    const details = arr(obj(n)?.NtryDtls);
+    const listed = details.reduce<number>((sum, d) => sum + arr(obj(d)?.TxDtls).length, 0);
+    return Math.max(listed, ...details.map((d) => Number(str(at(d, "Btch", "NbOfTxs"))) || 0));
+}
+
+/**
+ * A batch has no single counterparty, so nothing of one item may stand for the whole amount. What
+ * the first item said stays in `replaces`: earlier versions stored the booking under it.
+ */
+function asBatch(t: Transaction, n: unknown, size: number): void {
+    const bookingText = str(at(n, "AddtlNtryInf"));
+    Object.assign(t, {
+        replaces: { counterpartyIban: t.counterpartyIban, remittance: t.remittance, endToEndId: t.endToEndId },
+        counterpartyName: "",
+        ultimateParty: "",
+        counterpartyIban: null,
+        counterpartyBic: null,
+        counterpartyAccount: "",
+        counterpartyBankCode: "",
+        remittance: `Sammelbuchung mit ${size} Posten`,
+        endToEndId: null,
+        mandateId: null,
+        creditorId: null,
+        bookingText,
+        isReturn: isReturnEntry(n, undefined) || isReturnText(bookingText),
+        returnReason: "",
+    });
+}
+
+function entry(n: unknown, fallback: "booked" | "pending", ownIban: string): Transaction | null {
     const amt = at(n, "Amt");
     const value = str(amt);
     if (!/^\d+(\.\d+)?$/.test(value)) return null;
@@ -53,19 +117,24 @@ function entry(n: unknown, fallback: "booked" | "pending"): Transaction | null {
     if (!t.bookingDate) return null;
 
     const tx = arr(obj(arr(obj(n)?.NtryDtls)[0])?.TxDtls)[0];
+    t.isReturn = isReturnEntry(n, tx) || isReturnText(t.bookingText || str(at(tx, "AddtlTxInf")));
+    if (t.isReturn) t.returnReason = str(at(tx, "RtrInf", "Rsn", "Cd")) || str(at(tx, "RtrInf", "Rsn", "Prtry"));
     if (tx) {
         t.endToEndId = cleanRef(str(at(tx, "Refs", "EndToEndId")));
         t.mandateId = cleanRef(str(at(tx, "Refs", "MndtId")));
-        // The counterparty is the creditor of a debit and the debtor of a credit.
-        const party = credit ? "Dbtr" : "Cdtr";
-        const ultimate = credit ? "UltmtDbtr" : "UltmtCdtr";
         const parties = at(tx, "RltdPties");
+        const party = counterpartyIsDebtor(parties, credit, t.isReturn, ownIban) ? "Dbtr" : "Cdtr";
+        const ultimate = `Ultmt${party}`;
         // .02: Dbtr/Nm; from .08: Dbtr/Pty/Nm
-        const name = str(at(parties, party, "Nm")) || str(at(parties, party, "Pty", "Nm"));
-        const ultimateName = str(at(parties, ultimate, "Nm")) || str(at(parties, ultimate, "Pty", "Nm"));
-        t.counterpartyIban = str(at(parties, `${party}Acct`, "Id", "IBAN")) || null;
-        const agent = credit ? "DbtrAgt" : "CdtrAgt";
+        const name = partyNameOf(parties, party);
+        const ultimateName = partyNameOf(parties, ultimate);
+        t.counterpartyIban = ibanOf(parties, party) || null;
+        const agent = `${party}Agt`;
         t.counterpartyBic = str(at(tx, "RltdAgts", agent, "FinInstnId", "BICFI")) || str(at(tx, "RltdAgts", agent, "FinInstnId", "BIC")) || null;
+        if (!t.counterpartyIban) {
+            t.counterpartyAccount = cleanAccountId(str(at(parties, `${party}Acct`, "Id", "Othr", "Id")));
+            t.counterpartyBankCode = cleanAccountId(str(at(tx, "RltdAgts", agent, "FinInstnId", "ClrSysMmbId", "MmbId")));
+        }
         t.creditorId = cleanRef(str(at(parties, "Cdtr", "Id", "PrvtId", "Othr", "Id")) || str(at(parties, "Cdtr", "Pty", "Id", "PrvtId", "Othr", "Id")));
         const lines = arr(at(tx, "RmtInf", "Ustrd")).map(str);
         const joined = lines.join("");
@@ -78,6 +147,8 @@ function entry(n: unknown, fallback: "booked" | "pending"): Transaction | null {
         const info = str(at(tx, "AddtlTxInf"));
         if (info && !t.bookingText) t.bookingText = info;
     }
+    const size = batchSize(n);
+    if (size > 1) asBatch(t, n, size);
     return t;
 }
 

@@ -1,15 +1,19 @@
 import { pino } from "pino";
 import { buildApp } from "./app.js";
 import { loadConfig } from "./config.js";
+import { createPrettyOutput } from "./logFormat.js";
 import { Vault } from "./vault.js";
 
 const config = loadConfig();
-const logger = pino({
-    level: config.logLevel,
-    // Never log credentials or bank data
-    redact: { paths: ["req.headers.cookie", "req.headers.authorization", "*.password", "*.recoveryKey", "*.pin", "*.code"], remove: true },
-    ...(process.stdout.isTTY ? { transport: { target: "pino-pretty", options: { translateTime: "SYS:HH:MM:ss", ignore: "pid,hostname" } } } : {}),
-});
+const prettyOutput = process.stdout.isTTY ? await createPrettyOutput() : undefined;
+const logger = pino(
+    {
+        level: config.logLevel,
+        // Never log credentials or bank data
+        redact: { paths: ["req.headers.cookie", "req.headers.authorization", "*.password", "*.recoveryKey", "*.pin", "*.code"], remove: true },
+    },
+    prettyOutput,
+);
 
 const vault = new Vault(config, logger);
 const { app } = await buildApp(config, vault, logger);

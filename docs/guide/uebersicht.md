@@ -14,9 +14,9 @@ zusammenstellt.
 | **Saldo mit Verlauf** | Saldo eines Kontos, einer Gruppe oder aller Konten, die Änderung seit Monatsbeginn und den Verlauf über 30 oder 90 Tage. Die gestrichelte Linie ist die Vorschau aus den Dauer- und Terminaufträgen. |
 | **Kontogruppen** | Den Kontenbaum mit den Summen je Gruppe, bis zu vier Ebenen tief |
 | **Letzte Umsätze** | Die neuesten Umsätze, auf Wunsch nur eines Kontos, einer Kategorie oder nur vorgemerkte |
-| **Eingänge und Ausgaben** | Summen im Monat, Vormonat oder in 30 bzw. 90 Tagen, ohne Umbuchungen zwischen eigenen Konten |
+| **Eingänge und Ausgaben** | Summen im Monat, Vormonat oder in 30 bzw. 90 Tagen, ohne Umbuchungen zwischen eigenen Konten und ohne [zurückgegebene Lastschriften](umsaetze.md#details-eines-umsatzes) |
 | **Demnächst** | Die nächsten Termine der Dauer- und Terminaufträge |
-| **Kategorie im Monat** | Die Summe einer Kategorie im gewählten Zeitraum |
+| **Kategorie im Monat** | Die Summe einer Kategorie im gewählten Zeitraum, ohne zurückgegebene Lastschriften |
 
 **Karte hinzufügen** und **Anordnen** stehen unter den Karten. Das Menü `…` einer Karte stellt
 Konto, Zeitraum, Anzahl und Titel ein. Beim Anordnen ziehst du Karten an ihren Platz und änderst

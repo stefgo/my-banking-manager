@@ -100,20 +100,40 @@ describe("duplicateKey", () => {
 
 describe("sameCounterparty", () => {
     const IBAN = "DE02120300000000202051";
+    const party = (iban: string | null, name: string, purpose = "") => ({ iban, name, purpose });
+
     it("compares the IBANs when both have one, regardless of the name", () => {
-        expect(sameCounterparty({ iban: IBAN, name: "Bäckerei Huber" }, { iban: "DE02 1203 0000 0000 2020 51", name: "Huber GmbH" })).toBe(true);
-        expect(sameCounterparty({ iban: IBAN, name: "Bäckerei Huber" }, { iban: "DE89370400440532013000", name: "Bäckerei Huber" })).toBe(false);
+        expect(sameCounterparty(party(IBAN, "Bäckerei Huber"), party("DE02 1203 0000 0000 2020 51", "Huber GmbH"))).toBe(true);
+        expect(sameCounterparty(party(IBAN, "Bäckerei Huber"), party("DE89370400440532013000", "Bäckerei Huber"))).toBe(false);
     });
 
     it("compares the normalized names when one IBAN is missing", () => {
-        expect(sameCounterparty({ iban: IBAN, name: "Bäckerei Müller GmbH" }, { iban: null, name: "BACKEREI MULLER GMBH." })).toBe(true);
-        expect(sameCounterparty({ iban: "", name: "Bäckerei Müller" }, { iban: null, name: "Huber" })).toBe(false);
+        expect(sameCounterparty(party(IBAN, "Bäckerei Müller GmbH"), party(null, "BACKEREI MULLER GMBH."))).toBe(true);
+        expect(sameCounterparty(party("", "Bäckerei Müller"), party(null, "Huber"))).toBe(false);
     });
 
-    it("takes a missing name as matching, but not against two different IBANs", () => {
-        expect(sameCounterparty({ iban: null, name: "" }, { iban: null, name: "Entgeltabrechnung" })).toBe(true);
-        expect(sameCounterparty({ iban: IBAN, name: "Huber" }, { iban: null, name: " – " })).toBe(true);
-        expect(sameCounterparty({ iban: IBAN, name: "" }, { iban: "DE89370400440532013000", name: "" })).toBe(false);
+    it("ignores the purpose while both names are there", () => {
+        expect(sameCounterparty(party(null, "Huber", "Miete"), party(null, "Huber", "Strom"))).toBe(true);
+        expect(sameCounterparty(party(null, "Huber", "Miete"), party(null, "Müller", "Miete"))).toBe(false);
+    });
+
+    it("needs the purpose of the file inside the stored one when a name is missing", () => {
+        expect(sameCounterparty(party(null, "", "Entgelt Oktober 2026, Kontofuehrung"), party(null, "Entgeltabrechnung", "ENTGELT oktober 2026"))).toBe(true);
+        expect(sameCounterparty(party(IBAN, "Huber", "Rechnung 4711 vom Mai"), party(null, " – ", "Rechnung 4711"))).toBe(true);
+        expect(sameCounterparty(party(null, "", "Entgelt Oktober"), party(null, "Entgeltabrechnung", "Entgelt November"))).toBe(false);
+    });
+
+    it("does not take a longer purpose of the file as contained", () => {
+        expect(sameCounterparty(party(null, "", "Rechnung 4711"), party(null, "Huber", "Rechnung 4711 vom Mai"))).toBe(false);
+    });
+
+    it("matches an empty purpose of the file only against an empty one", () => {
+        expect(sameCounterparty(party(null, ""), party(null, ""))).toBe(true);
+        expect(sameCounterparty(party(null, "", "Entgelt"), party(null, "Huber"))).toBe(false);
+    });
+
+    it("never matches two different IBANs, even with the same purpose", () => {
+        expect(sameCounterparty(party(IBAN, "", "Miete"), party("DE89370400440532013000", "", "Miete"))).toBe(false);
     });
 });
 

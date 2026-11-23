@@ -123,6 +123,12 @@ export const TxRow = memo(function TxRow({ tx, idx, accountName, inPending, focu
                             Ohne Kategorie
                         </span>
                     )}
+                    {(tx.isReturn || tx.returnedById !== null) && (
+                        <>
+                            <span className="sep">·</span>
+                            <span>{tx.isReturn ? "Rückbuchung" : "zurückgegeben"}</span>
+                        </>
+                    )}
                     {tx.remittance && party && (
                         <>
                             <span className="sep">·</span>

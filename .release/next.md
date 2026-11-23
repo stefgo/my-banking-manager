@@ -10,6 +10,38 @@ dev keeps the text; the stable release from main empties this file again.
 Nothing inside an HTML comment is published.
 -->
 
+### Umsätze: Buchungen ohne IBAN richtig anzeigen
+
+MBM übernimmt jetzt genauer, was die Bank zu Buchungen ohne IBAN liefert.
+
+- Nennt die Bank statt der IBAN eine Kontonummer oder BLZ, stehen sie in den Details. Bei vorhandenen
+  Umsätzen kommen sie mit dem nächsten Abruf dazu, solange die Bank den Umsatz noch liefert.
+- Eine Sammelbuchung zeigt die Gesamtsumme mit der Anzahl der Posten. Sie steht nicht mehr unter Name
+  und IBAN des ersten Empfängers. Vorhandene Sammelbuchungen korrigiert der nächste Abruf, ihre
+  Kategorie bleibt. Was die Bank nicht mehr liefert, bleibt unverändert.
+- Eine vorgemerkte Buchung ohne Namen gibt Kategorie und Gelesen-Status nicht mehr an eine fremde
+  Buchung mit gleichem Betrag weiter.
+
+### Umsätze: Rücklastschriften erkennen und richtig auswerten
+
+MBM erkennt jetzt, wenn die Bank eine Lastschrift zurückgibt, und verknüpft die Rückbuchung mit der
+ursprünglichen Buchung.
+
+- Die Rückbuchung nennt die richtige Gegenseite und übernimmt die Kategorie der Lastschrift.
+- In den Details stehen der Rückgabegrund und ein Sprung zur anderen Buchung.
+- Ein verknüpftes Paar zählt nicht mehr in „Eingänge und Ausgaben“ und in den Kategoriesummen, auch
+  über Monatsgrenzen. Die Zahlen des ursprünglichen Monats sinken also, sobald die Rückgabe eintrifft.
+  Saldo und Umsatzliste bleiben unverändert.
+- Eine zurückgekommene Buchung bestätigt keine Überweisung mehr als ausgeführt.
+- Vorhandene Rücklastschriften werden beim nächsten Abruf oder Import des Kontos verknüpft.
+
+### Import: Umsätze ohne Gegenseite genauer erkennen
+
+Fehlt bei einem Vergleich der Name der Gegenseite, gilt ein Umsatz nicht mehr automatisch als schon
+vorhanden. Der Verwendungszweck aus der Datei muss jetzt im Verwendungszweck des Umsatzes in MBM
+enthalten sein. Das gilt auch, wenn die Bank später einen Umsatz liefert, der schon aus einer Datei da
+ist.
+
 ### Kontenliste: Laufende Aktualisierung sichtbar
 
 Während eines Abrufs dreht sich neben jedem betroffenen Konto ein Symbol. Liegt das Konto in einer
@@ -20,7 +52,13 @@ aktuellen Stand der Abrufe nach, sodass kein Symbol hängen bleibt.
 
 Die Log-Zeilen `unlocked` und `unlocked with the recovery key` nennen jetzt die Benutzer-ID der
 Anmeldung, die den Server entsperrt hat. Der Name steht bewusst nicht im Log, weil Logs nicht
-verschlüsselt sind.
+verschlüsselt sind. Im Terminal stehen solche Angaben jetzt in derselben Zeile, zum Beispiel
+`unlocked (userId: 1)`.
+
+### Docker: Start mit Terminal
+
+Läuft der Container mit Terminal (`docker run -t` oder `tty: true`), startet der Server jetzt
+zuverlässig und schreibt sein Log wie gewohnt als JSON.
 
 ### Umsätze: Details schließen sich mit der Auswahl
 

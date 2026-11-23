@@ -100,6 +100,10 @@ export const ConnectorTransaction = z.object({
     ultimateParty: z.string().default(""),
     counterpartyIban: z.string().nullable(),
     counterpartyBic: z.string().nullable(),
+    /** Account of the counterparty when the bank names no IBAN; "" if none. Older connectors leave it out. */
+    counterpartyAccount: z.string().default(""),
+    /** National bank code that goes with `counterpartyAccount`; "" if none. Older connectors leave it out. */
+    counterpartyBankCode: z.string().default(""),
     remittance: z.string(),
     endToEndId: z.string().nullable(),
     mandateId: z.string().nullable(),
@@ -108,6 +112,15 @@ export const ConnectorTransaction = z.object({
     bookingText: z.string(),
     /** Reference of the bank for this booking, if it sends one. */
     bankReference: z.string().nullable(),
+    /** Gives back an earlier booking (return debit, cancellation). Older connectors leave it out. */
+    isReturn: z.boolean().default(false),
+    /** Reason code of the return as the bank sends it; "" if none. Older connectors leave it out. */
+    returnReason: z.string().default(""),
+    /**
+     * For a batch booking: the values of its first item, which earlier versions stored as the whole
+     * booking. They give its old fingerprint, so that the stored booking is corrected, not doubled.
+     */
+    replaces: z.object({ counterpartyIban: z.string().nullable(), remittance: z.string(), endToEndId: z.string().nullable() }).nullable().default(null),
 });
 export type ConnectorTransaction = z.infer<typeof ConnectorTransaction>;
 

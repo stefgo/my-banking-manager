@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Dialog as RDialog } from "radix-ui";
 import { CheckCheck, CircleDot, Copy, Link2, Pencil, Send, Tag, Trash2, Unlink, Wand2, X } from "lucide-react";
-import { groupIban, quoteTxQueryValue, routes, type Rule } from "@mbm/shared";
+import { groupIban, quoteTxQueryValue, returnReasonText, routes, type Rule } from "@mbm/shared";
 import { call } from "../lib/api";
 import { useAccounts, useAction, useCategoryIndex, useGroups, useRules, useTransferAccounts, useTxById } from "../lib/queries";
 import { useStartTransfer } from "../lib/transfer";
@@ -38,6 +38,8 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
     const catItems = useCategoryItems({ none: true });
     const action = useAction();
     const partner = useTxById(tx?.counterTransactionId ?? null);
+    const returnLink = tx?.returnOfId ?? tx?.returnedById ?? null;
+    const returnPartner = useTxById(returnLink);
     const canTransfer = (useTransferAccounts().data ?? []).length > 0;
     const startTransfer = useStartTransfer();
     // The rule offer belongs to the booking it was made for
@@ -141,6 +143,20 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                         )}
                         {tx.remittance && party && row("Verwendungszweck", tx.remittance)}
                         {tx.bookingText && row("Umsatzart", tx.bookingText)}
+                        {tx.returnReason && row("Rückgabegrund", returnReasonText(tx.returnReason))}
+                        {returnLink !== null &&
+                            row(
+                                tx.returnOfId !== null ? "Rückgabe von" : "Zurückgegeben durch",
+                                <button className="link" onClick={() => ui.openTx(returnLink)}>
+                                    {returnPartner ? (
+                                        <>
+                                            {dateText(returnPartner.bookingDate)} · <span className="amt">{fmtSigned(returnPartner.amount)}</span>
+                                        </>
+                                    ) : (
+                                        "Umsatz öffnen"
+                                    )}
+                                </button>,
+                            )}
                         {tx.reference && row("Referenz", <span className="mono">{tx.reference}</span>)}
                         {tx.mandateId && row("Mandat", <span className="mono">{tx.mandateId}</span>)}
                         {tx.creditorId && row("Gläubiger-ID", <span className="mono">{tx.creditorId}</span>)}
@@ -158,6 +174,8 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                                     </button>
                                 </>,
                             )}
+                        {tx.counterpartyAccount && row("Kontonummer", <span className="mono">{tx.counterpartyAccount}</span>)}
+                        {tx.counterpartyBankCode && row("BLZ", <span className="mono">{tx.counterpartyBankCode}</span>)}
                         {tx.counterpartyBic && row("BIC", <span className="mono">{tx.counterpartyBic}</span>)}
                         {row("Herkunft", tx.source === "manual" ? "von Hand erfasst" : tx.source === "import" ? "CSV-Import" : "Abruf von der Bank")}
                         {tx.counterTransactionId &&

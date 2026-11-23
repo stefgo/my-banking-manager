@@ -35,6 +35,22 @@ describe("MT940", () => {
         expect(b).toMatchObject({ amount: 300, valueDate: "2026-01-02", bookingDate: "2025-12-31" });
     });
 
+    it("recognizes returns by mark, business code and text, and keeps the reason as sent", () => {
+        const text = [
+            ":60F:C261030EUR100,",
+            ":61:2610301102RD50,NRTINONREF", ":86:166?00GUTSCHRIFT?20Strom?32Stadtwerke?34901",
+            ":61:2610301102C20,NRTINONREF", ":86:109?00GUTSCHRIFT?20Gas?32Stadtwerke?34902",
+            ":61:2610301102C10,NRTINONREF", ":86:166?00RUECKLASTSCHRIFT?20Wasser?32Stadtwerke",
+            ":61:2610301102C5,NTRFNONREF", ":86:166?00GUTSCHRIFT?20Rest?32Anna?34997",
+            "-",
+        ].join("\n");
+        const [byMark, byCode, byText, plain] = parseMt940(text, "booked");
+        expect(byMark).toMatchObject({ amount: 5000, isReturn: true, returnReason: "901" });
+        expect(byCode).toMatchObject({ isReturn: true, returnReason: "902" });
+        expect(byText).toMatchObject({ isReturn: true, returnReason: "" });
+        expect(plain).toMatchObject({ isReturn: false, returnReason: "" });
+    });
+
     it("leaves the statement's own :86: after the closing balance to the statement", () => {
         const text = [
             ":20:STARTUMS", ":25:70054306/1234567", ":28C:1", ":60F:C261110EUR100,",
@@ -69,6 +85,20 @@ describe("MT940", () => {
         // Without a name the ultimate party is the name
         expect(bakery).toMatchObject({ counterpartyName: "Baeckerei", ultimateParty: "" });
     });
+
+    it("keeps an account number and bank code without an IBAN, but no zero fillers", () => {
+        const text = [
+            ":60F:C261110EUR100,",
+            ":61:2611101110C5,NTRFNONREF", ":86:166?00GUTSCHRIFT?2010?3012030000?311234567?32Anna",
+            ":61:2611101110D1,NCHGNONREF", ":86:808?00ENTGELT?20Konto?3000000000?310000000000",
+            ":61:2611101110C2,NTRFNONREF", ":86:166?00GUTSCHRIFT?2020?3012030000?31DE89370400440532013000?32Ben",
+            "-",
+        ].join("\n");
+        const [national, fee, sepa] = parseMt940(text, "booked");
+        expect(national).toMatchObject({ counterpartyIban: null, counterpartyAccount: "1234567", counterpartyBankCode: "12030000" });
+        expect(fee).toMatchObject({ counterpartyIban: null, counterpartyAccount: "", counterpartyBankCode: "" });
+        expect(sepa).toMatchObject({ counterpartyIban: "DE89370400440532013000", counterpartyAccount: "", counterpartyBankCode: "" });
+    });
 });
 
 describe("camt.052", () => {
@@ -99,6 +129,75 @@ describe("camt.052", () => {
     it("skips entries it cannot read", () => {
         expect(parseCamt("<Document><BkToCstmrAcctRpt><Rpt><Ntry><Amt>1.234</Amt><CdtDbtInd>CRDT</CdtDbtInd><BookgDt><Dt>2026-11-01</Dt></BookgDt></Ntry></Rpt></BkToCstmrAcctRpt></Document>", "booked")).toEqual([]);
         expect(parseCamt("<Other/>", "booked")).toEqual([]);
+    });
+
+    const wrap = (details: string, info = "") =>
+        `<Document><BkToCstmrAcctRpt><Rpt><Ntry><Amt Ccy="EUR">30.00</Amt><CdtDbtInd>DBIT</CdtDbtInd><Sts><Cd>BOOK</Cd></Sts><BookgDt><Dt>2026-11-10</Dt></BookgDt>${info}${details}</Ntry></Rpt></BkToCstmrAcctRpt></Document>`;
+    const item = (name: string, iban: string, purpose: string) =>
+        `<TxDtls><Refs><EndToEndId>E-${name}</EndToEndId></Refs><RltdPties><Cdtr><Nm>${name}</Nm></Cdtr><CdtrAcct><Id><IBAN>${iban}</IBAN></Id></CdtrAcct></RltdPties><RmtInf><Ustrd>${purpose}</Ustrd></RmtInf></TxDtls>`;
+
+    it("keeps another account id and the bank code without an IBAN, but no fillers", () => {
+        const details = (account: string, code: string) =>
+            wrap(`<NtryDtls><TxDtls><RltdPties><Cdtr><Nm>Laden</Nm></Cdtr><CdtrAcct><Id><Othr><Id>${account}</Id></Othr></Id></CdtrAcct></RltdPties><RltdAgts><CdtrAgt><FinInstnId><ClrSysMmbId><MmbId>${code}</MmbId></ClrSysMmbId></FinInstnId></CdtrAgt></RltdAgts></TxDtls></NtryDtls>`);
+        expect(parseCamt(details("1234567", "12030000"), "booked")[0]).toMatchObject({ counterpartyIban: null, counterpartyAccount: "1234567", counterpartyBankCode: "12030000" });
+        expect(parseCamt(details("0000000", "NOTPROVIDED"), "booked")[0]).toMatchObject({ counterpartyAccount: "", counterpartyBankCode: "" });
+    });
+
+    it("gives a batch no counterparty and remembers what its first item said", () => {
+        const items = item("Anna", "DE89370400440532013000", "Rechnung 1") + item("Ben", "DE44500105175407324931", "Rechnung 2");
+        const [batch] = parseCamt(wrap(`<NtryDtls>${items}</NtryDtls>`, "<AddtlNtryInf>SAMMLER</AddtlNtryInf>"), "booked");
+        expect(batch).toMatchObject({
+            amount: -3000,
+            counterpartyName: "",
+            counterpartyIban: null,
+            endToEndId: null,
+            remittance: "Sammelbuchung mit 2 Posten",
+            bookingText: "SAMMLER",
+            replaces: { counterpartyIban: "DE89370400440532013000", remittance: "Rechnung 1", endToEndId: "E-Anna" },
+        });
+    });
+
+    it("counts a batch over all details and by its stated number", () => {
+        const two = `<NtryDtls>${item("Anna", "DE89370400440532013000", "A")}</NtryDtls><NtryDtls>${item("Ben", "DE44500105175407324931", "B")}</NtryDtls>`;
+        expect(parseCamt(wrap(two), "booked")[0]).toMatchObject({ remittance: "Sammelbuchung mit 2 Posten", counterpartyIban: null });
+        const stated = `<NtryDtls><Btch><NbOfTxs>5</NbOfTxs></Btch>${item("Anna", "DE89370400440532013000", "A")}</NtryDtls>`;
+        expect(parseCamt(wrap(stated), "booked")[0]).toMatchObject({ remittance: "Sammelbuchung mit 5 Posten", counterpartyName: "" });
+    });
+
+    it("leaves a single payment as it is", () => {
+        const single = `<NtryDtls><Btch><NbOfTxs>1</NbOfTxs></Btch>${item("Anna", "DE89370400440532013000", "A")}</NtryDtls>`;
+        expect(parseCamt(wrap(single), "booked")[0]).toMatchObject({ counterpartyName: "Anna", counterpartyIban: "DE89370400440532013000", remittance: "A", replaces: null });
+    });
+});
+
+describe("camt.052 returns", () => {
+    const OWN = "DE02120300000000202051";
+    const WERKE = "DE89370400440532013000";
+    const side = (role: string, name: string, iban: string) => `<${role}><Nm>${name}</Nm></${role}><${role}Acct><Id><IBAN>${iban}</IBAN></Id></${role}Acct>`;
+    const original = side("Dbtr", "Konto Inhaber", OWN) + side("Cdtr", "Stadtwerke", WERKE);
+    const swapped = side("Dbtr", "Stadtwerke", WERKE) + side("Cdtr", "Konto Inhaber", OWN);
+    const report = (parties: string, marks = "<RvslInd>true</RvslInd>", details = "<RtrInf><Rsn><Cd>AM04</Cd></Rsn></RtrInf>", account = `<Acct><Id><IBAN>${OWN}</IBAN></Id></Acct>`) =>
+        `<Document><BkToCstmrAcctRpt><Rpt>${account}<Ntry><Amt Ccy="EUR">50.00</Amt><CdtDbtInd>CRDT</CdtDbtInd>${marks}<Sts>BOOK</Sts><BookgDt><Dt>2026-11-02</Dt></BookgDt><NtryDtls><TxDtls><RltdPties>${parties}</RltdPties>${details}</TxDtls></NtryDtls></Ntry></Rpt></BkToCstmrAcctRpt></Document>`;
+
+    it("takes the side that is not this account, whichever roles the bank keeps", () => {
+        for (const parties of [original, swapped]) {
+            expect(parseCamt(report(parties), "booked")[0]).toMatchObject({ amount: 5000, counterpartyName: "Stadtwerke", counterpartyIban: WERKE, isReturn: true, returnReason: "AM04" });
+        }
+    });
+
+    it("assumes the original roles of a return when the report names no account", () => {
+        expect(parseCamt(report(original, undefined, undefined, ""), "booked")[0]).toMatchObject({ counterpartyName: "Stadtwerke", counterpartyIban: WERKE });
+    });
+
+    it("recognizes a return by its details or transaction code alone", () => {
+        expect(parseCamt(report(original, ""), "booked")[0]).toMatchObject({ isReturn: true });
+        const code = "<BkTxCd><Domn><Cd>PMNT</Cd><Fmly><Cd>IDDT</Cd><SubFmlyCd>UPDD</SubFmlyCd></Fmly></Domn></BkTxCd>";
+        expect(parseCamt(report(original, code, ""), "booked")[0]).toMatchObject({ isReturn: true, returnReason: "" });
+    });
+
+    it("leaves an ordinary credit from someone else as it is", () => {
+        const credit = side("Dbtr", "Muster GmbH", WERKE) + side("Cdtr", "Konto Inhaber", OWN);
+        expect(parseCamt(report(credit, "", ""), "booked")[0]).toMatchObject({ counterpartyName: "Muster GmbH", isReturn: false, returnReason: "" });
     });
 });
 
