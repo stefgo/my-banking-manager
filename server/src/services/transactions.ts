@@ -33,6 +33,8 @@ interface TxRow {
     mandate_id: string;
     creditor_id: string;
     counterparty_bic: string;
+    counterparty_account: string;
+    counterparty_bank_code: string;
     status: "booked" | "pending";
     source: "bank" | "manual" | "import";
     import_id: number | null;
@@ -79,6 +81,8 @@ export const toTransaction = (r: TxRow): Transaction => ({
     mandateId: r.mandate_id,
     creditorId: r.creditor_id,
     counterpartyBic: r.counterparty_bic,
+    counterpartyAccount: r.counterparty_account,
+    counterpartyBankCode: r.counterparty_bank_code,
     status: r.status,
     source: r.source,
     importId: r.import_id,

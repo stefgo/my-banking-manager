@@ -174,6 +174,8 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                                     </button>
                                 </>,
                             )}
+                        {tx.counterpartyAccount && row("Kontonummer", <span className="mono">{tx.counterpartyAccount}</span>)}
+                        {tx.counterpartyBankCode && row("BLZ", <span className="mono">{tx.counterpartyBankCode}</span>)}
                         {tx.counterpartyBic && row("BIC", <span className="mono">{tx.counterpartyBic}</span>)}
                         {row("Herkunft", tx.source === "manual" ? "von Hand erfasst" : tx.source === "import" ? "CSV-Import" : "Abruf von der Bank")}
                         {tx.counterTransactionId &&

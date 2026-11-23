@@ -10,6 +10,18 @@ dev keeps the text; the stable release from main empties this file again.
 Nothing inside an HTML comment is published.
 -->
 
+### Umsätze: Buchungen ohne IBAN richtig anzeigen
+
+MBM übernimmt jetzt genauer, was die Bank zu Buchungen ohne IBAN liefert.
+
+- Nennt die Bank statt der IBAN eine Kontonummer oder BLZ, stehen sie in den Details. Bei vorhandenen
+  Umsätzen kommen sie mit dem nächsten Abruf dazu, solange die Bank den Umsatz noch liefert.
+- Eine Sammelbuchung zeigt die Gesamtsumme mit der Anzahl der Posten. Sie steht nicht mehr unter Name
+  und IBAN des ersten Empfängers. Vorhandene Sammelbuchungen korrigiert der nächste Abruf, ihre
+  Kategorie bleibt. Was die Bank nicht mehr liefert, bleibt unverändert.
+- Eine vorgemerkte Buchung ohne Namen gibt Kategorie und Gelesen-Status nicht mehr an eine fremde
+  Buchung mit gleichem Betrag weiter.
+
 ### Umsätze: Rücklastschriften erkennen und richtig auswerten
 
 MBM erkennt jetzt, wenn die Bank eine Lastschrift zurückgibt, und verknüpft die Rückbuchung mit der

@@ -148,6 +148,8 @@ export const Transaction = z.object({
     /** SEPA creditor identifier of a direct debit; "" if none. */
     creditorId: z.string(),
     counterpartyBic: z.string().describe("BIC of the counterparty; \"\" if none"),
+    counterpartyAccount: z.string().describe("Account of the counterparty when the bank names no IBAN; \"\" if none"),
+    counterpartyBankCode: z.string().describe("National bank code that goes with counterpartyAccount; \"\" if none"),
     status: TxStatus,
     source: TxSource,
     importId: Id.nullable(),

@@ -4056,6 +4056,12 @@ paths:
                         counterpartyBic:
                           type: string
                           description: BIC of the counterparty; "" if none
+                        counterpartyAccount:
+                          type: string
+                          description: Account of the counterparty when the bank names no IBAN; "" if none
+                        counterpartyBankCode:
+                          type: string
+                          description: National bank code that goes with counterpartyAccount; "" if none
                         status:
                           type: string
                           enum:
@@ -4135,6 +4141,8 @@ paths:
                         - mandateId
                         - creditorId
                         - counterpartyBic
+                        - counterpartyAccount
+                        - counterpartyBankCode
                         - status
                         - source
                         - importId
@@ -4283,6 +4291,12 @@ paths:
                   counterpartyBic:
                     type: string
                     description: BIC of the counterparty; "" if none
+                  counterpartyAccount:
+                    type: string
+                    description: Account of the counterparty when the bank names no IBAN; "" if none
+                  counterpartyBankCode:
+                    type: string
+                    description: National bank code that goes with counterpartyAccount; "" if none
                   status:
                     type: string
                     enum:
@@ -4362,6 +4376,8 @@ paths:
                   - mandateId
                   - creditorId
                   - counterpartyBic
+                  - counterpartyAccount
+                  - counterpartyBankCode
                   - status
                   - source
                   - importId
@@ -4490,6 +4506,12 @@ paths:
                   counterpartyBic:
                     type: string
                     description: BIC of the counterparty; "" if none
+                  counterpartyAccount:
+                    type: string
+                    description: Account of the counterparty when the bank names no IBAN; "" if none
+                  counterpartyBankCode:
+                    type: string
+                    description: National bank code that goes with counterpartyAccount; "" if none
                   status:
                     type: string
                     enum:
@@ -4569,6 +4591,8 @@ paths:
                   - mandateId
                   - creditorId
                   - counterpartyBic
+                  - counterpartyAccount
+                  - counterpartyBankCode
                   - status
                   - source
                   - importId
@@ -4867,6 +4891,12 @@ paths:
                   counterpartyBic:
                     type: string
                     description: BIC of the counterparty; "" if none
+                  counterpartyAccount:
+                    type: string
+                    description: Account of the counterparty when the bank names no IBAN; "" if none
+                  counterpartyBankCode:
+                    type: string
+                    description: National bank code that goes with counterpartyAccount; "" if none
                   status:
                     type: string
                     enum:
@@ -4946,6 +4976,8 @@ paths:
                   - mandateId
                   - creditorId
                   - counterpartyBic
+                  - counterpartyAccount
+                  - counterpartyBankCode
                   - status
                   - source
                   - importId

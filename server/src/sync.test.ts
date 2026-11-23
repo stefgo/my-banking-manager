@@ -1,3 +1,4 @@
+import { ConnectorTransaction } from "@mbm/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { confirmCode, createTestApp, setUpSignedIn, type TestApp } from "./testing/testApp.js";
 import { startFakeConnector, type FakeConnector } from "./testing/fakeConnector.js";
@@ -95,7 +96,7 @@ describe("CSV import into a bank account", () => {
     const HEAD = "Buchungstag;Betrag;Beguenstigter/Zahlungspflichtiger;Verwendungszweck;Kategorie;Status";
     const OLD = [HEAD, "01.10.2026;-50,00;Hausverwaltung;Miete;;", "02.10.2026;10,00;Erstattung;Rückzahlung;;"].join("\n");
     const bank = (booked: number) => ({ externalId: GIRO.externalId!, booked, currency: "EUR", date: "2026-11-20", pending: null, available: null, creditLine: null });
-    const fetched = (txs: unknown[], booked: number | null) => applyFetch(t.vault.database, accountId, txs as never, booked === null ? null : bank(booked), null);
+    const fetched = (txs: unknown[], booked: number | null) => applyFetch(t.vault.database, accountId, ConnectorTransaction.array().parse(txs), booked === null ? null : bank(booked), null);
     const account = async () => (await api<{ id: number; balance: number; transactionCount: number }[]>("GET", "/api/accounts")).body.find((a) => a.id === accountId)!;
     const importCsv = async (content: string) => (await api<{ importId: number; imported: number; invalid: number }>("POST", `/api/accounts/${accountId}/import`, { fileName: "alt.csv", content })).body;
     const rowsOf = (amount: number) => t.vault.database.prepare("SELECT id, source, import_id FROM transactions WHERE account_id = ? AND amount = ?").all(accountId, amount) as { id: number; source: string; import_id: number | null }[];
@@ -145,6 +146,13 @@ describe("CSV import into a bank account", () => {
         await api("DELETE", `/api/imports/${importId}`);
         expect(rowsOf(-700)).toHaveLength(1);
         expect((await account()).balance).toBe(99300);
+    });
+
+    it("takes over an imported booking that names a batch by its first item", async () => {
+        await importCsv([HEAD, "01.10.2026;-30,00;;Rechnung 1;;"].join("\n"));
+        fetched([tx({ bookingDate: "2026-10-01", valueDate: "2026-10-01", amount: -3000, remittance: "Sammelbuchung mit 2 Posten", replaces: { counterpartyIban: null, remittance: "Rechnung 1", endToEndId: null } })], null);
+        const rows = t.vault.database.prepare("SELECT remittance, source FROM transactions WHERE account_id = ? AND amount = -3000").all(accountId);
+        expect(rows).toEqual([{ remittance: "Sammelbuchung mit 2 Posten", source: "bank" }]);
     });
 
     it("takes over one imported booking per booking of the bank", async () => {
@@ -242,6 +250,67 @@ describe("fetching", () => {
         // would otherwise meet another booking under it
         const booked = t.vault.database.prepare("SELECT id FROM transactions WHERE account_id = ? AND counterparty_name = 'Kiosk'").get(ids.giro) as { id: number };
         expect(booked.id).toBeGreaterThan(pendingId);
+    });
+
+    it("adds an account number to a stored booking at the next fetch, without doubling it", async () => {
+        const { ids } = await setUpAccess();
+        giroTxs = [tx({ amount: -700, remittance: "Barzahlung" })];
+        await api("POST", "/api/sync", { accountId: ids.giro });
+        await waitFor((r) => r[0]?.status === "done");
+        giroTxs = [tx({ amount: -700, remittance: "Barzahlung", counterpartyAccount: "1234567", counterpartyBankCode: "12030000" })];
+        await api("POST", "/api/sync", { accountId: ids.giro });
+        await waitFor((r) => r.filter((x) => x.status === "done").length === 2);
+        expect(t.vault.database.prepare("SELECT counterparty_account AS a, counterparty_bank_code AS b FROM transactions WHERE account_id = ?").all(ids.giro)).toEqual([{ a: "1234567", b: "12030000" }]);
+    });
+
+    it("corrects a batch stored under its first item, once and with its category", async () => {
+        const { ids } = await setUpAccess();
+        const first = { counterpartyIban: "DE89370400440532013000", remittance: "Rechnung 1", endToEndId: "E-1" };
+        giroTxs = [tx({ amount: -3000, counterpartyName: "Anna", mandateId: "M-1", ...first })];
+        await api("POST", "/api/sync", { accountId: ids.giro });
+        await waitFor((r) => r[0]?.status === "done");
+        const db = t.vault.database;
+        const stored = (db.prepare("SELECT id FROM transactions WHERE account_id = ?").get(ids.giro) as { id: number }).id;
+        const category = (await api<{ id: number }>("POST", "/api/categories", { name: "Rechnungen", parentId: null, icon: "tag", color: "blue" })).body.id;
+        await api("PUT", "/api/transactions/category", { ids: [stored], categoryId: category });
+
+        giroTxs = [tx({ amount: -3000, remittance: "Sammelbuchung mit 2 Posten", bookingText: "SAMMLER", replaces: first })];
+        for (const runs of [2, 3]) {
+            await api("POST", "/api/sync", { accountId: ids.giro });
+            await waitFor((r) => r.filter((x) => x.status === "done").length === runs);
+        }
+        const rows = db
+            .prepare("SELECT t.id, t.counterparty_name AS name, t.counterparty_iban AS iban, t.remittance, t.mandate_id AS mandate, tc.category_id AS category FROM transactions t LEFT JOIN transaction_categories tc ON tc.transaction_id = t.id WHERE t.account_id = ?")
+            .all(ids.giro);
+        expect(rows).toEqual([{ id: stored, name: "", iban: null, remittance: "Sammelbuchung mit 2 Posten", mandate: "", category }]);
+    });
+
+    it("passes nothing from a pending booking without a name to an unrelated one", async () => {
+        const { ids } = await setUpAccess();
+        giroTxs = [tx({ amount: -500, status: "pending", remittance: "Automat Hauptstrasse", bookingDate: "2026-11-15", valueDate: null })];
+        await api("POST", "/api/sync", { accountId: ids.giro });
+        await waitFor((r) => r[0]?.status === "done");
+        const db = t.vault.database;
+        const pendingId = (db.prepare("SELECT id FROM transactions WHERE status = 'pending'").get() as { id: number }).id;
+        const category = (await api<{ id: number }>("POST", "/api/categories", { name: "Bargeld", parentId: null, icon: "tag", color: "green" })).body.id;
+        await api("PUT", "/api/transactions/category", { ids: [pendingId], categoryId: category });
+
+        giroTxs = [tx({ amount: -500, remittance: "Kontoentgelt", bookingDate: "2026-11-16" })];
+        await api("POST", "/api/sync", { accountId: ids.giro });
+        await waitFor((r) => r.filter((x) => x.status === "done").length === 2);
+        const categoryOf = (remittance: string) => (db.prepare("SELECT tc.category_id AS c FROM transactions t LEFT JOIN transaction_categories tc ON tc.transaction_id = t.id WHERE t.account_id = ? AND t.remittance = ?").get(ids.giro, remittance) as { c: number | null }).c;
+        expect(categoryOf("Kontoentgelt")).toBeNull();
+
+        // The same payment, with more text once it is booked, does keep its category
+        giroTxs = [tx({ amount: -500, status: "pending", remittance: "Automat Hauptstrasse", bookingDate: "2026-11-17", valueDate: null })];
+        await api("POST", "/api/sync", { accountId: ids.giro });
+        await waitFor((r) => r.filter((x) => x.status === "done").length === 3);
+        const next = (db.prepare("SELECT id FROM transactions WHERE status = 'pending'").get() as { id: number }).id;
+        await api("PUT", "/api/transactions/category", { ids: [next], categoryId: category });
+        giroTxs = [tx({ amount: -500, remittance: "Automat Hauptstrasse 12", bookingDate: "2026-11-18" })];
+        await api("POST", "/api/sync", { accountId: ids.giro });
+        await waitFor((r) => r.filter((x) => x.status === "done").length === 4);
+        expect(categoryOf("Automat Hauptstrasse 12")).toBe(category);
     });
 
     it("keeps the ultimate party and the booking text; gegenseite: finds either name", async () => {

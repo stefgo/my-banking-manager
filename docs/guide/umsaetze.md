@@ -25,8 +25,9 @@ oder mit **Alle als gelesen markieren** im Menü eines Kontos.
 
 Ein Klick auf einen Umsatz öffnet die Details daneben: Kategorie (mit der Angabe, ob eine Regel
 oder du sie gesetzt hast), Verwendungszweck, Umsatzart der Bank (etwa „Kartenzahlung“ oder
-„Lastschrift“), Referenz, Mandat, Gläubiger-ID, Daten, Konto, IBAN, BIC und Herkunft, soweit die
-Bank oder die [importierte Datei](import.md#umsatzart-und-weitere-angaben) sie nennt.
+„Lastschrift“), Referenz, Mandat, Gläubiger-ID, Daten, Konto, IBAN oder Kontonummer und BLZ, BIC und
+Herkunft, soweit die Bank oder die [importierte Datei](import.md#umsatzart-und-weitere-angaben) sie
+nennt.
 
 Die Details bleiben offen, solange der Umsatz in der gezeigten Liste steht. Wechselst du das Konto
 oder änderst Suche oder Filter und der Umsatz fällt heraus, schließen sie sich. Änderst du in einer
@@ -36,6 +37,12 @@ Bei Kartenzahlungen meldet die Bank als Gegenseite oft nur den Abwickler, etwa e
 den Händler als **abweichenden Empfänger**. MBM zeigt dann in Liste und Titel den Händler. In den
 Details steht der Abwickler als „Kontoinhaber“, ihm gehört die IBAN. Die Suche mit `gegenseite:` und
 Regeln finden den Umsatz unter beiden Namen.
+
+Ein Umsatz **ohne IBAN** ist normal und zählt wie jeder andere. Das betrifft etwa Entgelte, Zinsen,
+Bargeld und manche Kartenzahlungen. Nennt die Bank stattdessen eine Kontonummer oder BLZ, stehen sie
+in den Details. „Überweisen an …“ gibt es nur mit IBAN. Fasst die Bank mehrere Zahlungen in einer
+**Sammelbuchung** zusammen, zeigt MBM die Gesamtsumme mit der Anzahl der Posten und ohne Gegenseite.
+Die einzelnen Posten zeigt MBM nicht.
 
 Gibt die Bank eine Lastschrift zurück, etwa mangels Deckung oder nach deinem Widerspruch, erscheint
 eine **Rückbuchung** als eigener Umsatz. MBM verknüpft sie mit der ursprünglichen Buchung, wenn

@@ -209,6 +209,8 @@ function book(b: Booking): Transaction | null {
         mandateId: "",
         creditorId: "",
         counterpartyBic: "",
+        counterpartyAccount: "",
+        counterpartyBankCode: "",
         status: b.pending ? "pending" : "booked",
         source: bank ? "bank" : "manual",
         importId: null,

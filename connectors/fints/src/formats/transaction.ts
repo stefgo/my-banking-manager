@@ -14,6 +14,8 @@ export const emptyTransaction = (): Transaction => ({
     ultimateParty: "",
     counterpartyIban: null,
     counterpartyBic: null,
+    counterpartyAccount: "",
+    counterpartyBankCode: "",
     remittance: "",
     endToEndId: null,
     mandateId: null,
@@ -22,12 +24,19 @@ export const emptyTransaction = (): Transaction => ({
     bankReference: null,
     isReturn: false,
     returnReason: "",
+    replaces: null,
 });
 
 /** SEPA references that are no references (DFÜ-Abkommen fill value). */
 export const cleanRef = (s: string | null | undefined): string | null => {
     const t = (s ?? "").trim();
     return t === "" || t === "NOTPROVIDED" ? null : t;
+};
+
+/** An account number or bank code; banks fill the field with zeros when there is none. */
+export const cleanAccountId = (s: string | null | undefined): string => {
+    const t = cleanRef(s);
+    return t === null || /^0+$/.test(t) ? "" : t;
 };
 
 /**

@@ -5,6 +5,7 @@ import { unread } from "./0002-unread.js";
 import { bookingDetails } from "./0003-booking-details.js";
 import { importFormats } from "./0004-import-formats.js";
 import { bookingReturns } from "./0005-booking-returns.js";
+import { counterpartyAccount } from "./0006-counterparty-account.js";
 import { applyMigration } from "./index.js";
 
 const columns = (db: Database.Database, table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
@@ -191,6 +192,21 @@ describe("0005-booking-returns", () => {
         expect(() => db.exec("UPDATE transactions SET return_of_id = 1 WHERE id = 3")).toThrow();
         db.exec("DELETE FROM transactions WHERE id = 1");
         expect(db.prepare("SELECT return_of_id AS r FROM transactions WHERE id = 2").get()).toEqual({ r: null });
+        db.close();
+    });
+});
+
+describe("0006-counterparty-account", () => {
+    it("adds account and bank code, empty for bookings already there", () => {
+        const db = new Database(":memory:");
+        db.pragma("foreign_keys = ON");
+        for (const m of [initial, unread, bookingDetails, importFormats, bookingReturns]) applyMigration(db, m);
+        db.exec(`
+            INSERT INTO accounts (id, kind, name, icon, color, position, created_at) VALUES (1, 'giro', 'Giro', 'landmark', 'blue', 0, '2026-01-01T00:00:00Z');
+            INSERT INTO transactions (id, account_id, booking_date, amount, status, first_seen_at, source) VALUES (1, 1, '2026-01-02', -100, 'booked', 'x', 'bank');
+        `);
+        applyMigration(db, counterpartyAccount);
+        expect(db.prepare("SELECT counterparty_account AS a, counterparty_bank_code AS b FROM transactions").get()).toEqual({ a: "", b: "" });
         db.close();
     });
 });

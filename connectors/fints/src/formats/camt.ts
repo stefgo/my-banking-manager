@@ -5,7 +5,7 @@
 import { isReturnText } from "@mbm/shared";
 import { XMLParser } from "fast-xml-parser";
 import { arr, at, obj, str } from "./xml.js";
-import { cleanRef, emptyTransaction, partiesOf, splitSepaPurpose, type Transaction } from "./transaction.js";
+import { cleanAccountId, cleanRef, emptyTransaction, partiesOf, splitSepaPurpose, type Transaction } from "./transaction.js";
 
 const parser = new XMLParser({
     ignoreAttributes: false,
@@ -61,6 +61,37 @@ function counterpartyIsDebtor(parties: unknown, credit: boolean, isReturn: boole
     return isReturn ? !credit : credit;
 }
 
+/** Number of single payments in an entry: the details it lists, or the count of its batch. */
+function batchSize(n: unknown): number {
+    const details = arr(obj(n)?.NtryDtls);
+    const listed = details.reduce<number>((sum, d) => sum + arr(obj(d)?.TxDtls).length, 0);
+    return Math.max(listed, ...details.map((d) => Number(str(at(d, "Btch", "NbOfTxs"))) || 0));
+}
+
+/**
+ * A batch has no single counterparty, so nothing of one item may stand for the whole amount. What
+ * the first item said stays in `replaces`: earlier versions stored the booking under it.
+ */
+function asBatch(t: Transaction, n: unknown, size: number): void {
+    const bookingText = str(at(n, "AddtlNtryInf"));
+    Object.assign(t, {
+        replaces: { counterpartyIban: t.counterpartyIban, remittance: t.remittance, endToEndId: t.endToEndId },
+        counterpartyName: "",
+        ultimateParty: "",
+        counterpartyIban: null,
+        counterpartyBic: null,
+        counterpartyAccount: "",
+        counterpartyBankCode: "",
+        remittance: `Sammelbuchung mit ${size} Posten`,
+        endToEndId: null,
+        mandateId: null,
+        creditorId: null,
+        bookingText,
+        isReturn: isReturnEntry(n, undefined) || isReturnText(bookingText),
+        returnReason: "",
+    });
+}
+
 function entry(n: unknown, fallback: "booked" | "pending", ownIban: string): Transaction | null {
     const amt = at(n, "Amt");
     const value = str(amt);
@@ -100,6 +131,10 @@ function entry(n: unknown, fallback: "booked" | "pending", ownIban: string): Tra
         t.counterpartyIban = ibanOf(parties, party) || null;
         const agent = `${party}Agt`;
         t.counterpartyBic = str(at(tx, "RltdAgts", agent, "FinInstnId", "BICFI")) || str(at(tx, "RltdAgts", agent, "FinInstnId", "BIC")) || null;
+        if (!t.counterpartyIban) {
+            t.counterpartyAccount = cleanAccountId(str(at(parties, `${party}Acct`, "Id", "Othr", "Id")));
+            t.counterpartyBankCode = cleanAccountId(str(at(tx, "RltdAgts", agent, "FinInstnId", "ClrSysMmbId", "MmbId")));
+        }
         t.creditorId = cleanRef(str(at(parties, "Cdtr", "Id", "PrvtId", "Othr", "Id")) || str(at(parties, "Cdtr", "Pty", "Id", "PrvtId", "Othr", "Id")));
         const lines = arr(at(tx, "RmtInf", "Ustrd")).map(str);
         const joined = lines.join("");
@@ -112,6 +147,8 @@ function entry(n: unknown, fallback: "booked" | "pending", ownIban: string): Tra
         const info = str(at(tx, "AddtlTxInf"));
         if (info && !t.bookingText) t.bookingText = info;
     }
+    const size = batchSize(n);
+    if (size > 1) asBatch(t, n, size);
     return t;
 }
 

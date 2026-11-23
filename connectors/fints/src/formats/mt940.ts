@@ -2,7 +2,7 @@
 // (HIKAZ, format "SRG 2001" with the SEPA allocation of the DFÜ-Abkommen).
 
 import { isReturnText } from "@mbm/shared";
-import { emptyTransaction, partiesOf, splitSepaPurpose, type Transaction } from "./transaction.js";
+import { cleanAccountId, emptyTransaction, partiesOf, splitSepaPurpose, type Transaction } from "./transaction.js";
 
 /** Business transaction code of a returned SEPA core direct debit. */
 const GVC_RETURN_DEBIT = "109";
@@ -119,6 +119,10 @@ function apply86(t: Transaction, value: string): void {
     const account = (sub["31"] ?? "").trim();
     const bank = (sub["30"] ?? "").trim();
     if (/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(account)) t.counterpartyIban = account;
+    else {
+        t.counterpartyAccount = cleanAccountId(account);
+        if (/^\d{8}$/.test(bank)) t.counterpartyBankCode = cleanAccountId(bank);
+    }
     if (/^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(bank)) t.counterpartyBic = bank;
     const sepa = splitSepaPurpose(purpose.join(""));
     t.remittance = sepa.remittance || purpose.join(" ").trim();

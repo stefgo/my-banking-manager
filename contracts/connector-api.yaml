@@ -1064,6 +1064,12 @@ paths:
                                   type:
                                     - string
                                     - "null"
+                                counterpartyAccount:
+                                  default: ""
+                                  type: string
+                                counterpartyBankCode:
+                                  default: ""
+                                  type: string
                                 remittance:
                                   type: string
                                 endToEndId:
@@ -1090,6 +1096,27 @@ paths:
                                 returnReason:
                                   default: ""
                                   type: string
+                                replaces:
+                                  default: null
+                                  anyOf:
+                                    - type: object
+                                      properties:
+                                        counterpartyIban:
+                                          type:
+                                            - string
+                                            - "null"
+                                        remittance:
+                                          type: string
+                                        endToEndId:
+                                          type:
+                                            - string
+                                            - "null"
+                                      required:
+                                        - counterpartyIban
+                                        - remittance
+                                        - endToEndId
+                                      additionalProperties: false
+                                    - type: "null"
                               required:
                                 - bookingDate
                                 - valueDate
@@ -1100,6 +1127,8 @@ paths:
                                 - ultimateParty
                                 - counterpartyIban
                                 - counterpartyBic
+                                - counterpartyAccount
+                                - counterpartyBankCode
                                 - remittance
                                 - endToEndId
                                 - mandateId
@@ -1108,6 +1137,7 @@ paths:
                                 - bankReference
                                 - isReturn
                                 - returnReason
+                                - replaces
                               additionalProperties: false
                         required:
                           - transactions
@@ -1321,6 +1351,12 @@ paths:
                                   type:
                                     - string
                                     - "null"
+                                counterpartyAccount:
+                                  default: ""
+                                  type: string
+                                counterpartyBankCode:
+                                  default: ""
+                                  type: string
                                 remittance:
                                   type: string
                                 endToEndId:
@@ -1347,6 +1383,27 @@ paths:
                                 returnReason:
                                   default: ""
                                   type: string
+                                replaces:
+                                  default: null
+                                  anyOf:
+                                    - type: object
+                                      properties:
+                                        counterpartyIban:
+                                          type:
+                                            - string
+                                            - "null"
+                                        remittance:
+                                          type: string
+                                        endToEndId:
+                                          type:
+                                            - string
+                                            - "null"
+                                      required:
+                                        - counterpartyIban
+                                        - remittance
+                                        - endToEndId
+                                      additionalProperties: false
+                                    - type: "null"
                               required:
                                 - bookingDate
                                 - valueDate
@@ -1357,6 +1414,8 @@ paths:
                                 - ultimateParty
                                 - counterpartyIban
                                 - counterpartyBic
+                                - counterpartyAccount
+                                - counterpartyBankCode
                                 - remittance
                                 - endToEndId
                                 - mandateId
@@ -1365,6 +1424,7 @@ paths:
                                 - bankReference
                                 - isReturn
                                 - returnReason
+                                - replaces
                               additionalProperties: false
                           balance:
                             anyOf:

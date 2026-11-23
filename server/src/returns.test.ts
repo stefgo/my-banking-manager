@@ -1,3 +1,4 @@
+import { ConnectorTransaction } from "@mbm/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTestApp, setUpSignedIn, type TestApp } from "./testing/testApp.js";
 import { applyFetch } from "./services/fetchimport.js";
@@ -28,7 +29,7 @@ let api: Awaited<ReturnType<typeof setUpSignedIn>>["api"];
 let accountId: number;
 
 const fetched = (txs: unknown[], booked: number | null = null) =>
-    applyFetch(t.vault.database, accountId, txs as never, booked === null ? null : { externalId: OWN, booked, currency: "EUR", date: "2026-11-20", pending: null, available: null, creditLine: null }, null);
+    applyFetch(t.vault.database, accountId, ConnectorTransaction.array().parse(txs), booked === null ? null : { externalId: OWN, booked, currency: "EUR", date: "2026-11-20", pending: null, available: null, creditLine: null }, null);
 const list = async () => (await api<{ items: Tx[] }>("GET", "/api/transactions?range=all")).body.items.sort((a, b) => a.id - b.id);
 const flow = async (from: string, to: string) => (await api<{ income: number; expenses: number; count: number }>("GET", `/api/stats/cashflow?scope=account:${accountId}&from=${from}&to=${to}`)).body;
 
