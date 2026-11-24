@@ -18,3 +18,4 @@ Nothing inside an HTML comment is published.
 ### Verbessert
 
 - Konten mit seltenen Buchungen verlangen beim Abruf nicht mehr jedes Mal eine Freigabe in der App: Ein Abruf beginnt jetzt zwei Wochen vor dem letzten Abruf des Kontos statt zwei Wochen vor seiner neuesten Buchung, die Monate zurückliegen kann. Nach dem Update gilt für jedes Konto beim ersten Abruf noch die alte Regel.
+- Das Fenster „Abruf“, das sich für eine Freigabe öffnet, schließt sich nach einem erfolgreichen Abruf von selbst; das Ergebnis meldet wie gewohnt eine Nachricht. Offen bleibt es nur, wenn es etwas zu lesen gibt, etwa neue oder fehlende Konten bei der Bank. Statt „Alle abrufen“ bietet es bei einem fehlgeschlagenen Abruf „Erneut abrufen“ für diesen Bankzugang an.
