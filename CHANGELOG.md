@@ -1,3 +1,60 @@
+## [0.5.0](https://github.com/stefgo/my-banking-manager/compare/v0.4.0...v0.5.0) (2026-11-24)
+
+### Regeln können jetzt mehr
+
+- Regeln ändern neben der Kategorie auch die angezeigte Gegenseite und den Verwendungszweck. Muster, Trennzeichen und Trennwörter lösen dafür Teile wie Händler, Ort oder Rechnungsnummer aus dem Text.
+- Regeln gelten für alle oder für ausgewählte Konten. Je Umsatz wirkt die erste passende Regel.
+- „Regeln ausführen“ zeigt jede Änderung zur Prüfung und schreibt nur, was du übernimmst. Gibt es nichts zu ändern oder ist nichts gewählt, beendest du den Lauf ohne Änderung.
+- Jede Regel lässt sich über ihr Menü „…“ einzeln ausführen, dort liegen jetzt alle ihre Aktionen. Neue Regeln legst du über „Regel hinzufügen“ oben rechts an.
+- „Speichern“ ändert nur die Regel. „Speichern & ausführen“ wendet sie danach auf vorhandene Umsätze an, und die Ausführen-Seite zeigt zuerst, was die Regel tut und wie viele Umsätze sie trifft.
+- Die Details zeigen die Originaldaten der Bank. Dort kannst du das Original wieder verwenden oder einen eigenen Text setzen. Überweisungen nutzen immer die Daten der Bank.
+
+### Zugang und Sicherheit neu geordnet
+
+- Die Einstellungen trennen jetzt, wen etwas betrifft: **Profil** (nur du), **Benutzer** (andere) und **System** (alle). „Geräte“ und „Sicherheit“ gehen darin auf, alte Links führen weiter.
+- Eigenes Passwort und eigenen Authenticator änderst du im Profil mit Passwort und Code. Der bisherige Authenticator gilt, bis der neue bestätigt ist, und du bleibst dabei angemeldet.
+- „Zugang wiederherstellen“ auf dem Anmeldebildschirm hilft jetzt auch, wenn das Telefon fehlt oder Passwort und Telefon fehlen. Bisher kam ein einzelner Benutzer ohne Telefon auch mit dem Wiederherstellungsschlüssel nicht mehr hinein.
+- Ein neuer Wiederherstellungsschlüssel braucht jetzt Passwort und Code, weil er den bisherigen für alle Benutzer ersetzt.
+- Behoben: Das eigene Passwort über die Benutzerliste zu setzen löschte die gespeicherten Bank-Anmeldedaten. Dasselbe konnte passieren, wenn sich MBM während einer Passwortänderung sperrte.
+
+### Geändertes Verhalten
+
+- Buchungen von Hand durchlaufen Regeln nicht mehr von selbst, auch nicht beim Lösen einer Gegenbuchung.
+- Eine verknüpfte Rücklastschrift erbt beim CSV-Import jetzt wie beim Abruf die Kategorie ihrer Buchung.
+- Beim Löschen einer Kategorie bleiben Regeln mit weiteren Aktionen erhalten.
+- Die Suche mit `*` und `?` kann den Server nicht mehr durch ungünstige Muster blockieren.
+- Beim Ändern einer Buchung von Hand bleiben Felder, die nicht mitgesendet werden, jetzt erhalten.
+- Überschrift und Beschreibung der Seiten für den Import und das Ausführen von Regeln nutzen jetzt in jedem Schritt die volle Breite.
+- „Benutzer hinzufügen“ liegt jetzt wie bei Konten und Regeln oben rechts in den Einstellungen.
+
+### Update
+
+Die Datenbank wird beim Start migriert. Bestehende Regeln gelten unverändert für alle Konten, und kein Umsatz ändert sich dabei.
+
+### ⚠ BREAKING CHANGES
+
+* **einstellungen:** changePassword und newRecoveryKey verlangen einen
+TOTP-Code. setUserPassword und resetUserTotp lehnen das eigene Konto mit
+409 self ab. recover antwortet mit RecoverResponse.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* **regeln:** Regel-Routen der API ändern sich. previewRules liefert
+Änderungen je Feld mit Prüfsumme, applyRules verlangt mode und planHash.
+Rule hat neue Felder, categoryId darf null sein.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+### Features
+
+* **einstellungen:** Benutzer über den Seitenkopf hinzufügen ([d32398e](https://github.com/stefgo/my-banking-manager/commit/d32398e16455423001b09d592f212685ff66897b))
+* **einstellungen:** Zugang und Sicherheit nach Wirkung neu ordnen ([60b8da2](https://github.com/stefgo/my-banking-manager/commit/60b8da28627236b253b0f182578428b9e5461643))
+* **regeln:** Speichern und Ausführen von Regeln trennen ([a9d3055](https://github.com/stefgo/my-banking-manager/commit/a9d30557c6f103f7a8ecc093611baf42fd5fd2e3))
+* **regeln:** Umsätze regelbasiert anpassen und Regeln geprüft ausführen ([2e3650b](https://github.com/stefgo/my-banking-manager/commit/2e3650b6f7ce3b8e7ddef6e3b9504e009b7e4b28))
+
+### Bug Fixes
+
+* **regeln:** Prüfung auch ohne gewählte Änderungen beenden ([62441ec](https://github.com/stefgo/my-banking-manager/commit/62441eca725968fab10abfa39c46e112af8f1663))
+
 ## [0.4.0](https://github.com/stefgo/my-banking-manager/compare/v0.3.0...v0.4.0) (2026-11-23)
 
 ### Umsätze: Kontokopf in schmalen Fenstern
