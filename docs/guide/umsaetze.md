@@ -88,6 +88,7 @@ Das ⓘ daneben zeigt die ganze Syntax.
 | `"rewe markt"` | genau diese Zeichenfolge |
 | `Test*strasse` · `M??er` | `*` beliebig viele, `?` genau ein Zeichen |
 | `gegenseite:rewe` · `zweck:miete` · `iban:DE89*` | nur in diesem Feld (Gegenseite: auch der abweichende Empfänger) |
+| `umsatzart:lastschrift` · `art:karten*` | nur in der Umsatzart der Bank; ohne Feld sucht MBM nicht darin |
 | `konto:giro` · `kategorie:Wohnen` | Konto oder Gruppe, Kategorie samt Unterkategorien |
 | `ist:neu` | nur neue Umsätze |
 | `>50` · `<=12,99` · `<-100` | Betrag; negativ heißt Ausgabe |
@@ -97,7 +98,7 @@ Das ⓘ daneben zeigt die ganze Syntax.
 
 `UND`, `ODER` und `NICHT` (oder `AND`, `OR`, `NOT`) schreibst du in Großbuchstaben; Klammern
 gruppieren. Die Felder gibt es auch mit englischen Namen: `counterparty:`, `purpose:`,
-`account:`, `category:` (`cat:`), `amount:`, `date:` und `is:new`. Ebenso die Zeiträume: `today`,
+`type:`, `account:`, `category:` (`cat:`), `amount:`, `date:` und `is:new`. Ebenso die Zeiträume: `today`,
 `yesterday`, `week`, `month`, `quarter`, `year`, mit `last…` davor (`lastmonth`), und `-30d`, `-1y`. Ein Datum in der Suche ersetzt den Zeitraum-Filter. ++esc++ leert das Feld.
 
 ## Am Handy

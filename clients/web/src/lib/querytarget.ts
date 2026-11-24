@@ -21,6 +21,7 @@ export function ruleBooking(tx: Transaction, accounts: Account[], groups: Accoun
             counterparty: tx.counterpartyName,
             ultimateParty: tx.ultimateParty,
             remittance: tx.remittance,
+            bookingText: tx.bookingText,
             iban: tx.counterpartyIban,
             amount: tx.amount,
             category: "",
