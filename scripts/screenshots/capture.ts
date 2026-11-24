@@ -114,10 +114,9 @@ const SHOTS: Shot[] = [
         },
     },
     { name: "einstellungen-regeln", route: "/settings?tab=rules", themes: ["dark"] },
-    { name: "einstellungen-benutzer", route: "/settings?tab=users", themes: ["dark"] },
-    { name: "einstellungen-geraete", route: "/settings?tab=devices", themes: ["dark"] },
     { name: "einstellungen-profil", route: "/settings?tab=profile", themes: ["dark"] },
-    { name: "einstellungen-sicherheit", route: "/settings?tab=security", themes: ["dark"] },
+    { name: "einstellungen-benutzer", route: "/settings?tab=users", themes: ["dark"] },
+    { name: "einstellungen-system", route: "/settings?tab=system", themes: ["dark"] },
     { name: "einstellungen-importe", route: "/settings?tab=imports", themes: ["dark"] },
     {
         name: "import-pruefen",

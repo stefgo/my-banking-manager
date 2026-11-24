@@ -39,10 +39,12 @@ Benutzer noch kein TOTP eingerichtet, öffnet schon das Passwort, damit er es ei
 Anmeldungen bleiben gültig: Zum Entsperren genügt das Passwort, ohne TOTP. Solange eine
 Überweisung läuft, lehnt der Server das Sperren ab, sonst ginge ihr Ergebnis verloren.
 
-**Passwort vergessen:** Auf dem Anmeldebildschirm öffnet der Wiederherstellungsschlüssel die
-Datenbank und setzt für einen Benutzer ein neues Passwort. Dessen Sitzungen enden; er meldet sich
-mit dem neuen Passwort und seinem TOTP-Code an. Ist der Server offen, kann auch ein anderer
-Benutzer das Passwort unter *Einstellungen → Benutzer* neu setzen.
+**Zugang wiederherstellen:** Auf dem Anmeldebildschirm öffnet der Wiederherstellungsschlüssel die
+Datenbank. Fehlt das Passwort, setzt er für einen Benutzer ein neues; dessen Sitzungen enden und
+der Benutzerschlüssel geht verloren. Fehlt das Telefon, richtet der Benutzer mit Passwort und
+Schlüssel ein neues TOTP ein; der Benutzerschlüssel bleibt. Fehlt beides, geschieht beides. Ein
+altes TOTP gilt, bis das neue bestätigt ist. Ist der Server offen, kann auch ein anderer Benutzer
+unter *Einstellungen → Benutzer* helfen.
 
 ## Sperren bei Inaktivität
 
@@ -88,7 +90,7 @@ setzt diese Werte zurück.
 
 Jeder Benutzer hat Passwort und TOTP. Browser bekommen ein HttpOnly-Cookie (SameSite=Strict, über
 HTTPS mit `Secure`), das nach 30 Tagen ohne Nutzung abläuft. Geräte-Tokens für den macOS-Client
-erzeugst du unter *Einstellungen → Geräte*; sie gelten, bis sie abgemeldet werden. Nach fünf
+erzeugst du unter *Einstellungen → Profil*; sie gelten, bis sie abgemeldet werden. Nach fünf
 Fehlversuchen wartet die Anmeldung, jedes Mal doppelt so lange; das gilt auch, solange der Server
 gesperrt ist. Jede Passwortprüfung rechnet scrypt mit 128 MiB, der Server prüft sie nacheinander.
 
@@ -99,21 +101,25 @@ dauerhaften Zugang zu verschaffen. Der angemeldete Benutzer bestätigt jedes Mal
 |---|---|
 | Geräte-Token erzeugen | Code aus der eigenen Authenticator-App |
 | Benutzer hinzufügen | Code aus der eigenen Authenticator-App |
-| Passwort eines Benutzers setzen | Code aus der eigenen Authenticator-App |
+| Passwort eines anderen Benutzers zurücksetzen | Code aus der eigenen Authenticator-App |
 | Benutzer entfernen | Code aus der eigenen Authenticator-App |
-| Authenticator eines Benutzers zurücksetzen | eigenes Passwort |
+| Authenticator eines anderen Benutzers zurücksetzen | eigenes Passwort |
+| Eigenes Passwort ändern | bisheriges Passwort und Code |
+| Eigenen Authenticator wechseln | Passwort und Code, ohne Telefon Passwort und Wiederherstellungsschlüssel |
+| Neuer Wiederherstellungsschlüssel | Passwort und Code |
 
-Das Zurücksetzen verlangt das Passwort, damit es auch ohne Telefon geht. Wer seinen eigenen
-Authenticator zurücksetzt, wird dabei abgemeldet und richtet die App bei der nächsten Anmeldung
-neu ein. Ein Code gilt nur einmal; direkt nach der Anmeldung wartet man also bis zum nächsten Code.
+Eine Übernahme eines anderen Benutzers (Authenticator zurücksetzen und Passwort setzen) braucht
+damit beide Faktoren. Die Routen für andere Benutzer lehnen das eigene Konto ab (409 `self`), weil
+das Zurücksetzen des Passworts die Bank-Anmeldungen verwirft. Der eigene Authenticator wird
+ersetzt, ohne dass die Sitzung endet: Der neue gilt ab seiner Bestätigung, andere Sitzungen enden
+dann. Ein Code gilt nur einmal; direkt nach der Anmeldung wartet man also bis zum nächsten Code.
 Ein neues Geräte-Token gilt nicht als „Passwort gerade eingegeben“: Vor seiner ersten Überweisung
 fragt MBM das Passwort ab.
 
-**Fehlversuche je Sitzung.** Falsche Codes und falsche Passwörter einer angemeldeten Sitzung
-zählen zusammen: beim Entsperren, bei den Bestätigungen oben, vor einer Überweisung, beim Ändern
-des eigenen Passworts und beim neuen Wiederherstellungsschlüssel. Der fünfte meldet die Sitzung ab.
-Ein richtiger Code oder ein richtiges Passwort setzt die Zählung zurück. Jeder Fehlversuch steht im
-Aktivitätsprotokoll.
+**Fehlversuche je Sitzung.** Falsche Codes, Passwörter und Wiederherstellungsschlüssel einer
+angemeldeten Sitzung zählen zusammen: beim Entsperren, bei den Bestätigungen oben und vor einer
+Überweisung. Der fünfte meldet die Sitzung ab. Eine richtige Eingabe setzt die Zählung zurück.
+Jeder Fehlversuch steht im Aktivitätsprotokoll.
 
 Ab M4 hinterlegt jeder Benutzer seine eigene Anmeldung bei der Bank (Anmeldename und PIN). Sie ist
 mit einem Schlüssel verschlüsselt, den nur seine Anmeldung an MBM öffnet. Der Server kann sie also
@@ -202,7 +208,7 @@ Der FinTS-Konnektor hat keinen Port. Mit `mbm-server-full` läuft er im Prozess 
   Passwort). Bei „PIN nicht speichern“ liegt die PIN nirgends; der Client fragt sie bei jedem
   Abruf. Während ein Vorgang auf eine Freigabe wartet, hält der Konnektor die PIN im
   Arbeitsspeicher, höchstens 5 Minuten.
-- **Passwort neu gesetzt** (durch einen anderen Benutzer oder mit dem Wiederherstellungsschlüssel):
+- **Passwort zurückgesetzt** (durch einen anderen Benutzer oder mit dem Wiederherstellungsschlüssel):
   Der Benutzerschlüssel ist verloren, die Bank-Anmeldungen dieses Benutzers verlangen Anmeldename
   und PIN neu. Konten und Umsätze bleiben.
 - **Abruf:** nur von Hand (je Konto, je Bankzugang, alle). Sitzung und Server sperren sich nicht,

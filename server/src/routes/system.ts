@@ -7,7 +7,7 @@ import { handle, SESSION_COOKIE, tokenOf, type AppContext } from "../http/route.
 import { Throttle } from "../http/throttle.js";
 import { ensureCards } from "../services/profile.js";
 import { serverVersion } from "../version.js";
-import { attachUserKey, forgetUserKey, rewrapUserKey, userKeyAtLogin, userKeyOfSession } from "../services/userkey.js";
+import { attachUserKey, forgetUserKey, rewrapForPassword, storeRewrappedKey, userKeyAtLogin, userKeyOfSession } from "../services/userkey.js";
 import {
     createDevice,
     createUser,
@@ -50,15 +50,47 @@ export function registerSystemRoutes(app: FastifyInstance, ctx: AppContext): voi
         return `${request.ip}|${name.trim().toLowerCase()}`;
     }
 
+    /** One try with the recovery key: wrong keys of a client count together, on every route. */
+    async function withRecoveryThrottle<T>(request: FastifyRequest, attempt: () => Promise<T>): Promise<T> {
+        const key = throttleKey(request, "recovery-key");
+        const release = throttle.begin(key);
+        try {
+            const result = await attempt();
+            throttle.succeed(key);
+            return result;
+        } catch (err) {
+            if (err instanceof HttpError && (err.code === "wrong_secret" || err.code === "wrong_recovery_key")) throttle.fail(key);
+            throw err;
+        } finally {
+            release();
+        }
+    }
+
     // ---------- TOTP set-up in progress ----------
 
-    const pendingTotp = new Map<string, { userId: number; secret: string; expires: number; userKey: Buffer | null }>();
+    // The stored secret stays valid until a new one is confirmed: giving up changes nothing
+    interface PendingTotp {
+        userId: number;
+        secret: string;
+        expires: number;
+        userKey: Buffer | null;
+        /** Replaces a second factor at sign-in: the user's old sessions end with the confirmation. */
+        replaces: boolean;
+        /** Started in this signed-in session and confirmed only there, without a new sign-in. */
+        deviceId: number | null;
+    }
 
-    function startTotpSetup(user: Pick<UserRow, "id" | "name">, userKey: Buffer | null = null): { setupToken: string; secret: string; uri: string } {
+    const pendingTotp = new Map<string, PendingTotp>();
+
+    function startTotpSetup(
+        user: Pick<UserRow, "id" | "name">,
+        userKey: Buffer | null = null,
+        { replaces = false, deviceId = null }: { replaces?: boolean; deviceId?: number | null } = {},
+    ): { setupToken: string; secret: string; uri: string } {
         for (const [k, v] of pendingTotp) if (v.expires < Date.now() || v.userId === user.id) pendingTotp.delete(k);
         const setupToken = newToken();
         const secret = newTotpSecret();
-        pendingTotp.set(setupToken, { userId: user.id, secret, expires: Date.now() + 10 * 60_000, userKey });
+        pendingTotp.set(setupToken, { userId: user.id, secret, expires: Date.now() + 10 * 60_000, userKey, replaces, deviceId });
         return { setupToken, secret, uri: totpUri(secret, user.name) };
     }
 
@@ -115,10 +147,8 @@ export function registerSystemRoutes(app: FastifyInstance, ctx: AppContext): voi
     });
 
     handle(app, ctx, routes.recover, async ({ body, request }) => {
-        const key = throttleKey(request, "recovery-key");
-        const release = throttle.begin(key);
-        try {
-            await vault.recover(
+        const user = await withRecoveryThrottle(request, () =>
+            vault.recover(
                 body.recoveryKey,
                 body.password,
                 (db) => findUserByName(db, body.name),
@@ -128,16 +158,36 @@ export function registerSystemRoutes(app: FastifyInstance, ctx: AppContext): voi
                     forgetUserKey(db, user.id);
                     logActivity(db, { userId: user.id, userName: user.name, deviceId: null }, "password_recovered", null, "mit Wiederherstellungsschlüssel");
                 },
-            );
-        } catch (err) {
-            if (err instanceof HttpError && err.code === "wrong_secret") throttle.fail(key);
-            throw err;
-        } finally {
-            release();
-        }
-        throttle.succeed(key);
+            ),
+        );
         events.changed("devices", "activity");
-        return { ok: true as const };
+        if (!body.resetTotp) return { ok: true as const };
+        // The phone is gone as well: a new secret, which replaces the old one once confirmed
+        const userKey = await userKeyAtLogin(vault.database, user.id, body.password, vault.kdf);
+        return { ok: true as const, totp: startTotpSetup(user, userKey, { replaces: true }) };
+    });
+
+    // Phone lost, password known: the bank logins stay, because the password still opens the user key
+    handle(app, ctx, routes.recoverTotp, async ({ body, request }) => {
+        // One answer for all three, so a try does not tell which of them was right
+        const wrong = () => new HttpError(401, "wrong_secret", "Name, Passwort oder Wiederherstellungsschlüssel stimmt nicht.");
+        const user = await withRecoveryThrottle(request, async () => {
+            if (!(await vault.checkRecoveryKey(body.recoveryKey))) throw wrong();
+            try {
+                return await vault.attempt<UserRow>({ name: body.name }, body.password, ({ db, userId, wasLocked }) => {
+                    const row = getUserRow(db, userId);
+                    if (!row) throw new WrongSecretError();
+                    if (wasLocked) logActivity(db, { userId: row.id, userName: row.name, deviceId: null }, "unlock");
+                    return { keep: true, value: row };
+                });
+            } catch (err) {
+                if (err instanceof WrongSecretError) throw wrong();
+                throw err;
+            }
+        });
+        const userKey = await userKeyAtLogin(vault.database, user.id, body.password, vault.kdf);
+        events.changed("activity");
+        return startTotpSetup(user, userKey, { replaces: true });
     });
 
     handle(app, ctx, routes.lock, ({ db, actor }) => {
@@ -150,7 +200,9 @@ export function registerSystemRoutes(app: FastifyInstance, ctx: AppContext): voi
 
     handle(app, ctx, routes.newRecoveryKey, async (req) => {
         const { body, actor } = req;
+        // The password first: a wrong one must not use up the code
         await reauth.password(req, body.password);
+        reauth.code(req, body.code);
         const recoveryKey = await vault.replaceRecoveryKey((db) => logActivity(db, actor, "recovery_key_replaced"));
         events.changed("activity");
         return { recoveryKey };
@@ -241,15 +293,49 @@ export function registerSystemRoutes(app: FastifyInstance, ctx: AppContext): voi
 
     handle(app, ctx, routes.confirmTotp, ({ db, fields, body, request, reply }) => {
         const pending = pendingTotp.get(body.setupToken);
-        if (!pending || pending.expires < Date.now()) throw new HttpError(401, "setup_expired", "Die Einrichtung ist abgelaufen. Bitte noch einmal anmelden.");
+        // A change started in a session is no way to sign in
+        if (!pending || pending.expires < Date.now() || pending.deviceId !== null) throw new HttpError(401, "setup_expired", "Die Einrichtung ist abgelaufen. Bitte noch einmal anmelden.");
         const step = verifyTotp(pending.secret, body.code, null);
         if (step === null) throw new HttpError(401, "wrong_code", "Der Code stimmt nicht. Stimmt die Uhrzeit auf dem Telefon?");
         pendingTotp.delete(body.setupToken);
         setTotp(db, pending.userId, fields.seal(pending.secret), step);
         const user = requireUser(db, pending.userId);
         setTotpStep(db, user.id, step);
-        logActivity(db, { userId: user.id, userName: user.name, deviceId: null }, "totp_set_up");
+        const who = { userId: user.id, userName: user.name, deviceId: null };
+        if (pending.replaces) {
+            for (const id of revokeUserDevices(db, user.id)) events.signOutDevice(id);
+            logActivity(db, who, "totp_changed", null, "mit Wiederherstellungsschlüssel");
+            events.changed("users");
+        } else {
+            logActivity(db, who, "totp_set_up");
+        }
         return signIn(request, reply, user, body.client, body.deviceName, pending.userKey);
+    });
+
+    // Changing the own second factor needs both factors; without the phone, the recovery key
+    // stands in for the code. The old secret stays valid until the new one is confirmed.
+    handle(app, ctx, routes.startTotpChange, async (req) => {
+        const { body, session } = req;
+        await reauth.password(req, body.password);
+        if ("code" in body) reauth.code(req, body.code);
+        else await withRecoveryThrottle(req.request, () => reauth.recoveryKey(req, body.recoveryKey));
+        return startTotpSetup(requireUser(req.db, session.userId), null, { deviceId: session.deviceId });
+    });
+
+    handle(app, ctx, routes.confirmTotpChange, ({ db, fields, session, actor, body }) => {
+        const pending = pendingTotp.get(body.setupToken);
+        if (!pending || pending.expires < Date.now() || pending.deviceId !== session.deviceId) {
+            throw new HttpError(401, "setup_expired", "Die Einrichtung ist abgelaufen. Bitte noch einmal beginnen.");
+        }
+        const step = verifyTotp(pending.secret, body.code, null);
+        if (step === null) throw new HttpError(401, "wrong_code", "Der Code stimmt nicht. Stimmt die Uhrzeit auf dem Telefon?");
+        pendingTotp.delete(body.setupToken);
+        setTotp(db, session.userId, fields.seal(pending.secret), step);
+        // Other sessions end; this one stays
+        for (const id of revokeUserDevices(db, session.userId, session.deviceId)) events.signOutDevice(id);
+        logActivity(db, actor, "totp_changed");
+        events.changed("users", "devices", "activity");
+        return { ok: true as const };
     });
 
     handle(app, ctx, routes.logout, ({ db, session, actor, request, reply }) => {
@@ -273,17 +359,20 @@ export function registerSystemRoutes(app: FastifyInstance, ctx: AppContext): voi
 
     handle(app, ctx, routes.changePassword, async (req) => {
         const { session, actor, body } = req;
+        // The password first: a wrong one must not use up the code
         await reauth.password(req, body.current, "Das bisherige Passwort stimmt nicht.");
+        reauth.code(req, body.code);
+        // Same user key, wrapped for the new password before that password takes effect
+        const rewrapped = await rewrapForPassword(req.db, session.userId, body.current, body.next, vault.kdf);
         await vault.setUserPassword(body.next, {
             user: (db) => requireUser(db, session.userId),
             then: (db, user) => {
+                if (rewrapped) storeRewrappedKey(db, rewrapped);
                 // Other sessions of the user end; this one stays
                 for (const id of revokeUserDevices(db, user.id, session.deviceId)) events.signOutDevice(id);
                 logActivity(db, actor, "password_changed");
             },
         });
-        // Same user key, now wrapped with the new password
-        await rewrapUserKey(vault.database, session.userId, body.current, body.next, vault.kdf);
         events.changed("devices", "activity");
         return { ok: true as const };
     });
@@ -323,13 +412,15 @@ export function registerSystemRoutes(app: FastifyInstance, ctx: AppContext): voi
     });
 
     handle(app, ctx, routes.setUserPassword, async (req) => {
-        const { db, actor, params, body } = req;
+        const { db, session, actor, params, body } = req;
+        // This way drops the bank logins; the own password is changed in the profile, which keeps them
+        if (params.id === session.userId) throw conflict("Dein eigenes Passwort änderst du im Profil.", "self");
         requireUser(db, params.id);
         reauth.code(req, body.code);
         await vault.setUserPassword(body.password, {
             user: (db) => requireUser(db, params.id),
             then: (db, user) => {
-                for (const id of revokeUserDevices(db, user.id, actor.userId === user.id ? actor.deviceId : null)) events.signOutDevice(id);
+                for (const id of revokeUserDevices(db, user.id)) events.signOutDevice(id);
                 // Nobody else may open this user's bank logins: the key goes, the PIN is asked for again
                 forgetUserKey(db, user.id);
                 logActivity(db, actor, "password_set", user.name);
@@ -340,18 +431,16 @@ export function registerSystemRoutes(app: FastifyInstance, ctx: AppContext): voi
     });
 
     handle(app, ctx, routes.resetUserTotp, async (req) => {
-        const { actor, params, body, reply } = req;
+        const { session, actor, params, body } = req;
+        if (params.id === session.userId) throw conflict("Deinen eigenen Authenticator wechselst du im Profil.", "self");
         requireUser(req.db, params.id);
         await reauth.password(req, body.password);
         // The database may have been locked while the password was checked
         const db = vault.database;
         const user = requireUser(db, params.id);
         setTotp(db, user.id, null, null);
-        // Without a code this session could confirm nothing any more: the own one ends as well,
-        // the app is set up again at the next sign-in
         for (const id of revokeUserDevices(db, user.id)) events.signOutDevice(id);
         logActivity(db, actor, "totp_reset", user.name);
-        if (actor.userId === user.id) reply.clearCookie(SESSION_COOKIE, { path: "/" });
         events.changed("users", "devices", "activity");
         return { ok: true as const };
     });

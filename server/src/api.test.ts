@@ -118,10 +118,10 @@ describe("setup, lock and unlock", () => {
         expect(ok.json()).toMatchObject({ status: "ok" });
     });
 
-    it("replaces the recovery key only with the own password", async () => {
-        const { api, recoveryKey } = await setUpSignedIn(t);
-        expect((await api("POST", "/api/system/recovery-key", { password: "falsch-falsch-falsch" })).status).toBe(401);
-        const fresh = await api<{ recoveryKey: string }>("POST", "/api/system/recovery-key", { password: PASSWORD });
+    it("replaces the recovery key only with the own password and code", async () => {
+        const { api, secret, recoveryKey } = await setUpSignedIn(t);
+        expect((await api("POST", "/api/system/recovery-key", { password: "falsch-falsch-falsch", code: confirmCode(t, secret) })).status).toBe(401);
+        const fresh = await api<{ recoveryKey: string }>("POST", "/api/system/recovery-key", { password: PASSWORD, code: confirmCode(t, secret) });
         expect(fresh.status).toBe(200);
         t.vault.lock();
         expect((await post("/api/recover", { recoveryKey, name: "Anna", password: "ein-ganz-neues-passwort" })).statusCode).toBe(401);
@@ -191,8 +191,8 @@ describe("sign-in", () => {
         const { api, secret } = await setUpSignedIn(t);
         const ben = (await api<{ id: number }>("POST", "/api/users", { name: "Ben", password: "noch-ein-passwort", code: confirmCode(t, secret) })).body;
         expect((await api("POST", `/api/users/${ben.id}/password`, { password: "bens-neues-passwort", code: confirmCode(t, secret) })).status).toBe(200);
-        expect((await api("POST", "/api/auth/password", { current: "falsch-falsch-falsch", next: "annas-neues-passwort" })).status).toBe(401);
-        expect((await api("POST", "/api/auth/password", { current: PASSWORD, next: "annas-neues-passwort" })).status).toBe(200);
+        expect((await api("POST", "/api/auth/password", { current: "falsch-falsch-falsch", next: "annas-neues-passwort", code: confirmCode(t, secret) })).status).toBe(401);
+        expect((await api("POST", "/api/auth/password", { current: PASSWORD, next: "annas-neues-passwort", code: confirmCode(t, secret) })).status).toBe(200);
         t.vault.lock();
         expect((await post("/api/auth/login", { name: "Ben", password: "noch-ein-passwort" })).statusCode).toBe(401);
         expect((await post("/api/auth/login", { name: "Anna", password: PASSWORD })).statusCode).toBe(401);

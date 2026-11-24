@@ -41,9 +41,10 @@ export const routes = {
     // ---------- System ----------
     status: r({ method: "GET", path: "/api/status", summary: "State of the server", tag: "System", access: "none", response: S.StatusResponse }),
     setup: r({ method: "POST", path: "/api/setup", summary: "Set up encryption with the first user; their password opens the database", tag: "System", access: "none", body: S.SetupRequest, response: S.SetupResponse }),
-    recover: r({ method: "POST", path: "/api/recover", summary: "Open the database with the recovery key and set a new password for a user", tag: "System", access: "none", body: S.RecoverRequest, response: Ok }),
+    recover: r({ method: "POST", path: "/api/recover", summary: "Open the database with the recovery key and set a new password for a user; with `resetTotp` also start a new second factor", tag: "System", access: "none", body: S.RecoverRequest, response: S.RecoverResponse }),
+    recoverTotp: r({ method: "POST", path: "/api/recover/totp", summary: "Phone lost: start a new second factor with password and recovery key, confirmed with `confirmTotp`. The bank logins stay", tag: "System", access: "none", body: S.RecoverTotpRequest, response: S.TotpSetup }),
     lock: r({ method: "POST", path: "/api/lock", summary: "Lock the database until a user enters their password", tag: "System", access: "user", response: Ok }),
-    newRecoveryKey: r({ method: "POST", path: "/api/system/recovery-key", summary: "Replace the recovery key", tag: "System", access: "user", body: S.NewRecoveryKeyRequest, response: S.RecoveryKeyResponse }),
+    newRecoveryKey: r({ method: "POST", path: "/api/system/recovery-key", summary: "Replace the recovery key of the installation; confirmed with the signed-in user's password and TOTP code", tag: "System", access: "user", body: S.NewRecoveryKeyRequest, response: S.RecoveryKeyResponse }),
     activity: r({ method: "GET", path: "/api/activity", summary: "Activity log", tag: "System", access: "user", query: S.ActivityQuery, response: List(S.ActivityEntry) }),
 
     // ---------- Sign-in ----------
@@ -52,14 +53,16 @@ export const routes = {
     logout: r({ method: "POST", path: "/api/auth/logout", summary: "Sign out this device", tag: "Auth", access: "session", response: Ok }),
     me: r({ method: "GET", path: "/api/auth/me", summary: "The signed-in user and whether the session is locked", tag: "Auth", access: "session", response: S.Me }),
     lockSession: r({ method: "POST", path: "/api/auth/session/lock", summary: "Lock this session (no input for the configured time)", tag: "Auth", access: "session", response: Ok }),
-    changePassword: r({ method: "POST", path: "/api/auth/password", summary: "Change the own password", tag: "Auth", access: "user", body: S.ChangePasswordRequest, response: Ok }),
+    changePassword: r({ method: "POST", path: "/api/auth/password", summary: "Change the own password; confirmed with the current password and TOTP code. The bank logins stay", tag: "Auth", access: "user", body: S.ChangePasswordRequest, response: Ok }),
+    startTotpChange: r({ method: "POST", path: "/api/auth/totp/change", summary: "Start replacing the own second factor; confirmed with the password and the TOTP code or recovery key", tag: "Auth", access: "user", body: S.StartTotpChangeRequest, response: S.TotpSetup }),
+    confirmTotpChange: r({ method: "POST", path: "/api/auth/totp/change/confirm", summary: "Confirm the new second factor: it replaces the old one, other sessions end, this one stays", tag: "Auth", access: "user", body: S.ConfirmTotpChangeRequest, response: Ok }),
 
     // ---------- Users and devices ----------
     listUsers: r({ method: "GET", path: "/api/users", summary: "All users", tag: "Users", access: "user", response: List(S.User) }),
     createUser: r({ method: "POST", path: "/api/users", summary: "Add a user; TOTP is set up at the first sign-in. Confirmed with the signed-in user's TOTP code", tag: "Users", access: "user", body: S.CreateUserRequest, response: S.User }),
     deleteUser: r({ method: "DELETE", path: "/api/users/:id", summary: "Remove a user and sign out all their devices; confirmed with the signed-in user's TOTP code", tag: "Users", access: "user", params: IdParam, body: S.ConfirmCodeRequest, response: Ok }),
-    setUserPassword: r({ method: "POST", path: "/api/users/:id/password", summary: "Set a user's password; confirmed with the signed-in user's TOTP code", tag: "Users", access: "user", params: IdParam, body: S.SetPasswordRequest, response: Ok }),
-    resetUserTotp: r({ method: "POST", path: "/api/users/:id/reset-totp", summary: "TOTP is set up again at the next sign-in; confirmed with the signed-in user's password. Resetting the own TOTP also ends this session", tag: "Users", access: "user", params: IdParam, body: S.ConfirmPasswordRequest, response: Ok }),
+    setUserPassword: r({ method: "POST", path: "/api/users/:id/password", summary: "Reset another user's password; their bank logins need the credentials again. Confirmed with the signed-in user's TOTP code. Refused for the own user", tag: "Users", access: "user", params: IdParam, body: S.SetPasswordRequest, response: Ok }),
+    resetUserTotp: r({ method: "POST", path: "/api/users/:id/reset-totp", summary: "Another user sets up TOTP again at their next sign-in; confirmed with the signed-in user's password. Refused for the own user", tag: "Users", access: "user", params: IdParam, body: S.ConfirmPasswordRequest, response: Ok }),
     listDevices: r({ method: "GET", path: "/api/devices", summary: "Signed-in browsers and device tokens of all users", tag: "Users", access: "user", response: List(S.Device) }),
     createDevice: r({ method: "POST", path: "/api/devices", summary: "Create a device token (macOS client); confirmed with the signed-in user's TOTP code", tag: "Users", access: "user", body: S.CreateDeviceRequest, response: S.CreateDeviceResponse }),
     revokeDevice: r({ method: "DELETE", path: "/api/devices/:id", summary: "Sign out a device", tag: "Users", access: "user", params: IdParam, response: Ok }),

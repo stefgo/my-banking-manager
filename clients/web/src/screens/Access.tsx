@@ -1,15 +1,16 @@
-// Screens before the app: set up, sign in (with TOTP set-up), locked, password lost.
+// Screens before the app: set up, sign in (with TOTP set-up), locked, way back in.
 // One password does it all: it signs in, opens a locked session and opens the locked database.
 
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import QRCode from "qrcode";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { Check, KeyRound, Lock, LogOut, ShieldCheck } from "lucide-react";
 import { routes, type Me } from "@mbm/shared";
 import { ApiFailure, call, errorText } from "../lib/api";
+import { MIN_PASSWORD, PASSWORD_HINT } from "../lib/accessForm";
 import { queryClient } from "../lib/queries";
 import { codeProblem, fieldProps, focusFirstError, type FieldErrors } from "../lib/fields";
 import { Hint, Button } from "../components/common";
 import { CodeInput, Field } from "../components/form";
+import { QrCode } from "../components/QrCode";
 import { Ic, Mark } from "../components/icons";
 
 function Screen({ title, text, children, foot }: { title: string; text?: ReactNode; children: ReactNode; foot?: ReactNode }) {
@@ -27,8 +28,6 @@ function Screen({ title, text, children, foot }: { title: string; text?: ReactNo
         </div>
     );
 }
-
-const MIN_PASSWORD = 12;
 
 interface TotpSetup {
     setupToken: string;
@@ -52,23 +51,7 @@ function checkNewPassword(pw: string, pw2: string, ids: { pw: string; pw2: strin
     };
 }
 
-const PASSWORD_HINT = `Mindestens ${MIN_PASSWORD} Zeichen.`;
-
-
 // ---------- Second factor ----------
-
-function QrCode({ uri }: { uri: string }) {
-    const [svg, setSvg] = useState("");
-    useEffect(() => {
-        let alive = true;
-        void QRCode.toString(uri, { type: "svg", margin: 0, errorCorrectionLevel: "M" }).then((s) => alive && setSvg(s));
-        return () => {
-            alive = false;
-        };
-    }, [uri]);
-    // The SVG is generated locally from the otpauth URI; it never leaves the browser
-    return <div className="qr" role="img" aria-label="QR-Code für die Authenticator-App" dangerouslySetInnerHTML={{ __html: svg }} />;
-}
 
 /** Shows a new TOTP secret and signs in with the first code. */
 function TotpSetupScreen({ setup, onExpired }: { setup: TotpSetup; onExpired: () => void }) {
@@ -203,6 +186,15 @@ export function SetupScreen() {
 
 // ---------- Sign in, also into a locked server or a locked session ----------
 
+/** What the user lost; it decides what the way back in asks for. */
+type Lost = "phone" | "password" | "both";
+
+const LOST_OPTIONS: { id: Lost; label: string; text: string }[] = [
+    { id: "phone", label: "Telefon", text: "Mit Passwort und Wiederherstellungsschlüssel richtest du eine neue Authenticator-App ein. Deine Bankzugänge bleiben erhalten." },
+    { id: "password", label: "Passwort", text: "Der Schlüssel setzt ein neues Passwort, danach meldest du dich mit dem Code aus der App an. Anmeldename und PIN deiner Bank gibst du neu ein." },
+    { id: "both", label: "Beides", text: "Der Schlüssel setzt ein neues Passwort, danach richtest du eine neue Authenticator-App ein. Anmeldename und PIN deiner Bank gibst du neu ein." },
+];
+
 /**
  * `lockedAs`: the user of this window, known from before the lock. Then only the password is
  * asked. `serverLocked` changes the wording only; the request is the same in every case.
@@ -215,6 +207,7 @@ export function LoginScreen({ lockedAs, serverLocked = false }: { lockedAs?: Me;
     const [code, setCode] = useState("");
     const [step, setStep] = useState<"password" | "code" | "setup" | "recover">("password");
     const [setup, setSetup] = useState<TotpSetup | null>(null);
+    const [lost, setLost] = useState<Lost>("password");
     const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
     const [error, setError] = useState("");
     const [busy, setBusy] = useState(false);
@@ -244,13 +237,27 @@ export function LoginScreen({ lockedAs, serverLocked = false }: { lockedAs?: Me;
         }
     };
 
+    /** A new second factor to confirm; the secrets typed for it are no longer needed. */
+    const showSetup = (next: TotpSetup) => {
+        setRecoveryKey("");
+        setPw("");
+        setPw2("");
+        setSetup(next);
+        setStep("setup");
+    };
+
     const submit = async (e: FormEvent) => {
         e.preventDefault();
         setError("");
         const nameProblem = name.trim() ? undefined : "Bitte deinen Namen eingeben.";
+        const keyProblem = recoveryKey.trim() ? undefined : "Bitte den Wiederherstellungsschlüssel eingeben.";
         const problems: FieldErrors =
             step === "recover"
-                ? { "lg-name": nameProblem, "lg-key": recoveryKey.trim() ? undefined : "Bitte den Wiederherstellungsschlüssel eingeben.", ...checkNewPassword(pw, pw2, { pw: "lg-new", pw2: "lg-new2" }) }
+                ? {
+                      "lg-name": nameProblem,
+                      "lg-key": keyProblem,
+                      ...(lost === "phone" ? { "lg-pw": pw ? undefined : "Bitte dein Passwort eingeben." } : checkNewPassword(pw, pw2, { pw: "lg-new", pw2: "lg-new2" })),
+                  }
                 : step === "code"
                   ? { code: codeProblem(code) }
                   : { "lg-name": nameProblem, "lg-pw": pw ? undefined : "Bitte dein Passwort eingeben." };
@@ -259,7 +266,15 @@ export function LoginScreen({ lockedAs, serverLocked = false }: { lockedAs?: Me;
         setBusy(true);
         try {
             if (step === "recover") {
-                await call(routes.recover, { body: { recoveryKey, name, password: pw } });
+                if (lost === "phone") {
+                    showSetup(await call(routes.recoverTotp, { body: { recoveryKey, name, password: pw } }));
+                    return;
+                }
+                const r = await call(routes.recover, { body: { recoveryKey, name, password: pw, resetTotp: lost === "both" } });
+                if (r.totp) {
+                    showSetup(r.totp);
+                    return;
+                }
                 setRecoveryKey("");
                 setPw2("");
                 await queryClient.refetchQueries({ queryKey: ["status"] });
@@ -292,23 +307,48 @@ export function LoginScreen({ lockedAs, serverLocked = false }: { lockedAs?: Me;
 
     if (step === "recover") {
         return (
-            <Screen
-                title="Passwort vergessen"
-                text="Der Wiederherstellungsschlüssel öffnet die Daten und setzt ein neues Passwort. Danach meldest du dich mit dem Code aus der Authenticator-App an."
-            >
+            <Screen title="Zugang wiederherstellen" text={LOST_OPTIONS.find((o) => o.id === lost)?.text}>
+                <p className="small muted" id="lost-label">Was fehlt dir?</p>
+                <div className="seg" role="group" aria-labelledby="lost-label">
+                    {LOST_OPTIONS.map((o) => (
+                        <button
+                            key={o.id}
+                            type="button"
+                            aria-pressed={lost === o.id}
+                            onClick={() => {
+                                setLost(o.id);
+                                setPw("");
+                                setPw2("");
+                                setFieldErrors({});
+                                setError("");
+                            }}
+                        >
+                            {o.label}
+                        </button>
+                    ))}
+                </div>
                 <form onSubmit={submit} noValidate>
                     {nameInput}
+                    {lost === "phone" && (
+                        <Field id="lg-pw" label="Passwort" error={fieldErrors["lg-pw"]}>
+                            <input className="inp" type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} {...fieldProps("lg-pw", fieldErrors["lg-pw"])} />
+                        </Field>
+                    )}
                     <Field id="lg-key" label="Wiederherstellungsschlüssel" error={fieldErrors["lg-key"]}>
                         <input className="inp mono" autoComplete="off" placeholder="XXXX-XXXX-…" value={recoveryKey} onChange={(e) => setRecoveryKey(e.target.value)} autoFocus={!!lockedAs} {...fieldProps("lg-key", fieldErrors["lg-key"])} />
                     </Field>
-                    <Field id="lg-new" label="Neues Passwort" error={fieldErrors["lg-new"]} hint={PASSWORD_HINT}>
-                        <input className="inp" type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} {...fieldProps("lg-new", fieldErrors["lg-new"], true)} />
-                    </Field>
-                    <Field id="lg-new2" label="Neues Passwort wiederholen" error={fieldErrors["lg-new2"]}>
-                        <input className="inp" type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} {...fieldProps("lg-new2", fieldErrors["lg-new2"])} />
-                    </Field>
+                    {lost !== "phone" && (
+                        <>
+                            <Field id="lg-new" label="Neues Passwort" error={fieldErrors["lg-new"]} hint={PASSWORD_HINT}>
+                                <input className="inp" type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} {...fieldProps("lg-new", fieldErrors["lg-new"], true)} />
+                            </Field>
+                            <Field id="lg-new2" label="Neues Passwort wiederholen" error={fieldErrors["lg-new2"]}>
+                                <input className="inp" type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} {...fieldProps("lg-new2", fieldErrors["lg-new2"])} />
+                            </Field>
+                        </>
+                    )}
                     <Button className="btn-primary btn-lg" type="submit" busy={busy} icon={KeyRound} iconSize={16}>
-                        {busy ? "Prüfe …" : "Neues Passwort setzen"}
+                        {busy ? "Prüfe …" : lost === "password" ? "Neues Passwort setzen" : "Weiter"}
                     </Button>
                     {error && <Hint tone="bad">{error}</Hint>}
                 </form>
@@ -363,7 +403,7 @@ export function LoginScreen({ lockedAs, serverLocked = false }: { lockedAs?: Me;
             {step === "password" && (
                 <button type="button" className="link" onClick={() => { restart(); setStep("recover"); }}>
                     <Ic icon={KeyRound} size={14} />
-                    Passwort vergessen
+                    Zugang wiederherstellen
                 </button>
             )}
             {step === "password" && lockedAs && (

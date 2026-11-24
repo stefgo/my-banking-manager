@@ -3,7 +3,7 @@ import { Gate } from "./shell/Gate";
 import { OverviewPage } from "./pages/Overview";
 import { TransactionsPage } from "./pages/Transactions";
 import { SettingsPage } from "./pages/Settings";
-import { SETTINGS_TABS, type SettingsTab } from "./lib/settingsTabs";
+import { settingsTabFrom, type SettingsTab } from "./lib/settingsTabs";
 import { TransferPage } from "./pages/Transfer";
 import { OrdersPage } from "./pages/Orders";
 import { AccountsPage } from "./pages/Accounts";
@@ -34,8 +34,8 @@ export const settingsRoute = createRoute({
     path: "/settings",
     // `new`: the form for a new rule is open
     validateSearch: (raw: Record<string, unknown>): { tab?: SettingsTab; new?: true } => {
-        if (!SETTINGS_TABS.some((t) => t.id === raw.tab)) return {};
-        const tab = raw.tab as SettingsTab;
+        const tab = settingsTabFrom(raw.tab);
+        if (!tab) return {};
         return tab === "rules" && raw.new === true ? { tab, new: true } : { tab };
     },
     component: SettingsPage,

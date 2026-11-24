@@ -19,6 +19,14 @@ Nothing inside an HTML comment is published.
 - „Speichern“ ändert nur die Regel. „Speichern & ausführen“ wendet sie danach auf vorhandene Umsätze an, und die Ausführen-Seite zeigt zuerst, was die Regel tut und wie viele Umsätze sie trifft.
 - Die Details zeigen die Originaldaten der Bank. Dort kannst du das Original wieder verwenden oder einen eigenen Text setzen. Überweisungen nutzen immer die Daten der Bank.
 
+### Zugang und Sicherheit neu geordnet
+
+- Die Einstellungen trennen jetzt, wen etwas betrifft: **Profil** (nur du), **Benutzer** (andere) und **System** (alle). „Geräte“ und „Sicherheit“ gehen darin auf, alte Links führen weiter.
+- Eigenes Passwort und eigenen Authenticator änderst du im Profil mit Passwort und Code. Der bisherige Authenticator gilt, bis der neue bestätigt ist, und du bleibst dabei angemeldet.
+- „Zugang wiederherstellen“ auf dem Anmeldebildschirm hilft jetzt auch, wenn das Telefon fehlt oder Passwort und Telefon fehlen. Bisher kam ein einzelner Benutzer ohne Telefon auch mit dem Wiederherstellungsschlüssel nicht mehr hinein.
+- Ein neuer Wiederherstellungsschlüssel braucht jetzt Passwort und Code, weil er den bisherigen für alle Benutzer ersetzt.
+- Behoben: Das eigene Passwort über die Benutzerliste zu setzen löschte die gespeicherten Bank-Anmeldedaten. Dasselbe konnte passieren, wenn sich MBM während einer Passwortänderung sperrte.
+
 ### Geändertes Verhalten
 
 - Buchungen von Hand durchlaufen Regeln nicht mehr von selbst, auch nicht beim Lösen einer Gegenbuchung.

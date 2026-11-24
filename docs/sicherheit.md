@@ -32,9 +32,12 @@ Wichtigste in Kürze; alle Einzelheiten stehen unter [Technische Details](operat
 
 - Jeder Benutzer hat ein **Passwort** und eine **Authenticator-App** (TOTP).
 - Nach fünf Fehlversuchen wartet die Anmeldung, jedes Mal doppelt so lange.
-- **Folgenreiche Schritte** bestätigst du jedes Mal selbst: Benutzer anlegen oder entfernen,
-  Passwörter setzen und Geräte-Tokens erzeugen mit einem Code aus der Authenticator-App; den
-  Authenticator eines Benutzers zurücksetzen mit deinem Passwort.
+- **Folgenreiche Schritte** bestätigst du jedes Mal selbst: Benutzer anlegen oder entfernen, das
+  Passwort eines anderen zurücksetzen und Geräte-Tokens erzeugen mit einem Code aus der
+  Authenticator-App; den Authenticator eines anderen zurücksetzen mit deinem Passwort.
+- Dein **eigenes Passwort**, deinen **eigenen Authenticator** und den
+  **Wiederherstellungsschlüssel** änderst du nur mit Passwort und Code. Ohne Telefon ersetzt der
+  Wiederherstellungsschlüssel beim Wechsel des Authenticators den Code.
 - Vor einer **Überweisung** fragt MBM das Passwort erneut, wenn die letzte Eingabe länger her ist.
   Freigegeben wird jede Überweisung ohnehin in der Banking-App.
 
@@ -45,19 +48,32 @@ Wichtigste in Kürze; alle Einzelheiten stehen unter [Technische Details](operat
 | Nach jedem **Neustart** | MBM ist gesperrt, die Datenbank zu | Name und Passwort |
 | **10 Minuten** ohne Eingabe in einem Fenster | Dieses Fenster sperrt sich | Passwort |
 | **10 Minuten** ohne offenes, aktives Fenster | Der Server sperrt sich und vergisst den Schlüssel | Passwort |
-| **Sperren** von Hand (++l++ oder *Einstellungen → Sicherheit*) | MBM ist für alle gesperrt | Passwort |
+| **Sperren** von Hand (++l++ oder *Einstellungen → System*) | MBM ist für alle gesperrt | Passwort |
 
 Die Zeiten stellst du unter [Konfiguration](konfiguration.md) ein. Solange ein Abruf oder eine
 Überweisung auf eine Freigabe wartet, warten die Sperren.
 
-## Passwort vergessen
+## Zugang wiederherstellen
 
-Auf dem Anmeldebildschirm öffnet der **Wiederherstellungsschlüssel** die Datenbank und setzt für
-einen Benutzer ein neues Passwort. Ist MBM offen, kann auch ein anderer Benutzer dein Passwort
-neu setzen. In beiden Fällen gibst du danach Anmeldename und PIN deiner Bank neu ein.
+Kommst du nicht mehr hinein, wählst du auf dem Anmeldebildschirm **Zugang wiederherstellen**:
 
-**Ohne Passwort und ohne Wiederherstellungsschlüssel sind die Daten verloren.** Bewahre den
-Schlüssel getrennt vom Backup auf, etwa ausgedruckt oder in einem Passwortmanager.
+| Was dir fehlt | Du gibst ein | Danach | Bankzugänge |
+|---|---|---|---|
+| **Telefon** | Name, Passwort, Wiederherstellungsschlüssel | Neue Authenticator-App einrichten | bleiben |
+| **Passwort** | Name, Wiederherstellungsschlüssel, neues Passwort | Anmelden mit dem Code | Anmeldename und PIN neu eingeben |
+| **Beides** | Name, Wiederherstellungsschlüssel, neues Passwort | Neue Authenticator-App einrichten | Anmeldename und PIN neu eingeben |
+
+Dein bisheriger Authenticator gilt, bis du den neuen bestätigt hast. Ist MBM offen, kann dir auch
+ein anderer Benutzer helfen und dein Passwort oder deinen Authenticator zurücksetzen.
+
+!!! warning "Der Schlüssel ersetzt Passwort und Telefon"
+    Wer Benutzername und Wiederherstellungsschlüssel hat, kommt ohne Telefon in MBM hinein. Deine
+    gespeicherten Bank-PINs öffnet der Schlüssel nicht. Bewahre ihn getrennt vom Backup auf, etwa
+    ausgedruckt oder in einem Passwortmanager.
+
+**Ohne Passwort und ohne Wiederherstellungsschlüssel sind die Daten verloren.** Verlierst du
+Telefon und Schlüssel, kann dir nur noch ein anderer Benutzer helfen. Bist du der einzige Benutzer,
+kommst du nach dem Ende deiner Sitzung nicht mehr hinein.
 
 ## Im Netz
 

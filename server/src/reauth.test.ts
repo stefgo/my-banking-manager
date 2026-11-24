@@ -101,18 +101,6 @@ describe("confirmation with the own password", () => {
         expect(totpActive(ben)).toBe(false);
         expect((await api("GET", "/api/auth/me")).status).toBe(200);
     });
-
-    it("ends the own session when the own TOTP is reset", async () => {
-        const { api, session } = await setUpSignedIn(t);
-        const me = (await api<{ id: number }>("GET", "/api/auth/me")).body;
-        const res = await t.app.inject({ method: "POST", url: `/api/users/${me.id}/reset-totp`, payload: { password: PASSWORD }, headers: { cookie: session } });
-        expect(res.statusCode).toBe(200);
-        expect(String(res.headers["set-cookie"])).toMatch(/^mbm_session=;/);
-        expect((await api("GET", "/api/auth/me")).status).toBe(401);
-        // The app is set up again at the next sign-in
-        const login = await t.app.inject({ method: "POST", url: "/api/auth/login", payload: { name: "Anna", password: PASSWORD } });
-        expect(login.json()).toMatchObject({ status: "totp_setup" });
-    });
 });
 
 describe("wrong codes and passwords of a session", () => {
@@ -122,8 +110,8 @@ describe("wrong codes and passwords of a session", () => {
         expect((await api("POST", "/api/devices", { name: "Mac", code: bad })).status).toBe(401);
         expect((await api("POST", "/api/users", { name: "Ben", password: BEN_PASSWORD, code: bad })).status).toBe(401);
         expect((await api("POST", "/api/session/password", { password: "falsch" })).status).toBe(401);
-        expect(await api("POST", "/api/auth/password", { current: "falsch", next: "ein-neues-langes-passwort" })).toMatchObject({ status: 401, body: { error: "wrong_password" } });
-        expect(await api("POST", "/api/system/recovery-key", { password: "falsch" })).toMatchObject({ status: 401, body: { error: "signed_out" } });
+        expect(await api("POST", "/api/auth/password", { current: "falsch", next: "ein-neues-langes-passwort", code: bad })).toMatchObject({ status: 401, body: { error: "wrong_password" } });
+        expect(await api("POST", "/api/system/recovery-key", { password: "falsch", code: bad })).toMatchObject({ status: 401, body: { error: "signed_out" } });
         expect((await api("GET", "/api/auth/me")).status).toBe(401);
         expect(actions().filter((a) => a.action === "reauth_failed")).toHaveLength(5);
         expect(actions().at(-1)).toMatchObject({ action: "logout", details: "nach fünf Fehlversuchen" });

@@ -223,6 +223,20 @@ export class Vault {
         });
     }
 
+    /** True when this is the current recovery key. Opens nothing. */
+    checkRecoveryKey(recoveryKey: string): Promise<boolean> {
+        return this.exclusive(async () => {
+            if (!this.keystore.exists()) throw new HttpError(409, "not_set_up", "MBM ist noch nicht eingerichtet.");
+            try {
+                (await this.keystore.unlockWithRecoveryKey(recoveryKey)).fill(0);
+                return true;
+            } catch (err) {
+                if (err instanceof WrongSecretError) return false;
+                throw err;
+            }
+        });
+    }
+
     /**
      * Opens with the recovery key and gives the user found by `findUser` a new password; `then`
      * runs on the database right after. The server is unlocked afterwards; the user still signs

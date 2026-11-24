@@ -69,6 +69,20 @@ export class Reauth {
         throw new HttpError(401, "wrong_password", message);
     }
 
+    /** Checks the recovery key in place of a code; throws 401 `wrong_recovery_key` (or `signed_out`). */
+    async recoveryKey(req: ReauthRequest, recoveryKey: string): Promise<void> {
+        if (await this.vault.checkRecoveryKey(recoveryKey)) {
+            this.succeeded(req.session.deviceId);
+            return;
+        }
+        // The database may have been locked while the key was derived: then this throws 423
+        const db = this.vault.database;
+        logActivity(db, req.actor, "reauth_failed", "Wiederherstellungsschlüssel");
+        this.events.changed("activity");
+        this.countFailure(db, req.session, req.reply);
+        throw new HttpError(401, "wrong_recovery_key", "Der Wiederherstellungsschlüssel stimmt nicht.");
+    }
+
     /**
      * Checks the signed-in user's current TOTP code; a code works only once. A code used before
      * does not count as a failure: whoever just signed in waits for the next one.

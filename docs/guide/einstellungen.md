@@ -1,56 +1,58 @@
 # Einstellungen
 
-Die Einstellungen (++g++ dann ++e++) haben acht Bereiche. Unten auf jeder Seite stehen die
+Die Einstellungen (++g++ dann ++e++) haben sieben Bereiche. Unten auf jeder Seite stehen die
 Versionen von MBM und vom FinTS-Konnektor.
 
 | Bereich | Inhalt |
 |---|---|
 | **Konten** | Status der Kontoabfrage, Bankzugänge mit den Anmeldungen, Offline-Konten, BLZ-Verzeichnis. Siehe [Konten](konten.md). |
 | **Regeln** | Die Regeln für Kategorien. Siehe [Kategorien und Regeln](kategorien-regeln.md#regeln). |
-| **Benutzer** | Alle Benutzer von MBM |
-| **Geräte** | Angemeldete Browser und Geräte-Tokens |
-| **Profil** | Darstellung und „Beträge beim Start ausblenden“, je Geräteklasse |
-| **Sicherheit** | Eigenes Passwort, Wiederherstellungsschlüssel, Sperren |
 | **Importe** | Importformate anlegen und bearbeiten, alle CSV-Importe mit Rückgängig und **CSV importieren** für einen neuen Import. Siehe [CSV-Import](import.md). |
+| **Profil** | Was nur dich betrifft: Passwort, Authenticator, deine Geräte, Darstellung |
+| **Benutzer** | Was andere betrifft: Benutzer anlegen und entfernen, ihnen beim Zugang helfen, ihre Geräte abmelden |
+| **System** | Was alle betrifft: Wiederherstellungsschlüssel, MBM für alle sperren |
 | **Protokoll** | Wer wann was getan hat |
-
-## Benutzer
-
-![Einstellungen, Benutzer](../assets/screenshots/einstellungen-benutzer-dark.png)
-
-*Jeder Benutzer hat ein eigenes Passwort und eine eigene Authenticator-App.*
-
-Jeder Benutzer kann weitere Benutzer anlegen, Passwörter neu setzen, den Authenticator eines
-Benutzers zurücksetzen und Benutzer entfernen. Folgenreiche Schritte bestätigst du jedes Mal mit
-dem Code deiner Authenticator-App oder deinem Passwort. Jedes Passwort öffnet die ganze
-Datenbank; deshalb sind mindestens 12 Zeichen Pflicht.
-
-!!! note "Passwort neu gesetzt"
-    Setzt ein anderer Benutzer dein Passwort neu (oder du mit dem Wiederherstellungsschlüssel),
-    gibst du danach Anmeldename und PIN deiner Bank neu ein. Sie waren mit einem Schlüssel aus
-    deinem alten Passwort verschlüsselt. Konten und Umsätze bleiben.
-
-## Geräte
-
-![Einstellungen, Geräte](../assets/screenshots/einstellungen-geraete-dark.png)
-
-*Angemeldete Browser und Geräte-Tokens aller Benutzer; jedes lässt sich abmelden.*
-
-Ein **Geräte-Token** brauchst du für den künftigen macOS-Client. Es gilt, bis du es abmeldest.
 
 ## Profil
 
 ![Einstellungen, Profil](../assets/screenshots/einstellungen-profil-dark.png)
 
-*Darstellung (hell, dunkel, wie System) und „Beträge beim Start ausblenden“, getrennt für Browser und macOS.*
+*Deine Anmeldung, deine Geräte und die Darstellung, getrennt für Browser und macOS.*
 
-## Sicherheit
+**Passwort ändern** und **Authenticator wechseln** bestätigst du mit deinem Passwort und einem Code
+aus der Authenticator-App. Deine Bankzugänge bleiben dabei erhalten, deine anderen Sitzungen werden
+beendet. Der bisherige Authenticator gilt, bis du den neuen bestätigt hast.
 
-![Einstellungen, Sicherheit](../assets/screenshots/einstellungen-sicherheit-dark.png)
+Hast du dein Telefon nicht zur Hand, wechselst du den Authenticator mit Passwort und
+[Wiederherstellungsschlüssel](../sicherheit.md#zugang-wiederherstellen).
 
-*Passwort ändern, einen neuen Wiederherstellungsschlüssel erzeugen und MBM für alle sperren.*
+Unter **Meine Geräte** stehen deine angemeldeten Browser und Geräte-Tokens. Ein **Geräte-Token**
+brauchst du für den künftigen macOS-Client. Es gilt, bis du es abmeldest.
 
-Ein **neuer Wiederherstellungsschlüssel** macht den alten ungültig. Bewahre ihn wie den ersten
+## Benutzer
+
+![Einstellungen, Benutzer](../assets/screenshots/einstellungen-benutzer-dark.png)
+
+*Alle Benutzer. Deine eigene Zeile führt in dein Profil.*
+
+Jeder Benutzer kann weitere Benutzer anlegen und entfernen, das Passwort oder den Authenticator
+eines anderen zurücksetzen und dessen Geräte abmelden. Du bestätigst das jedes Mal mit dem Code
+deiner Authenticator-App oder deinem Passwort. Jedes Passwort öffnet die ganze Datenbank; deshalb
+sind mindestens 12 Zeichen Pflicht.
+
+!!! note "Passwort zurückgesetzt"
+    Setzt ein anderer Benutzer dein Passwort zurück (oder du mit dem Wiederherstellungsschlüssel),
+    gibst du danach Anmeldename und PIN deiner Bank neu ein. Sie waren mit einem Schlüssel aus
+    deinem alten Passwort verschlüsselt. Konten und Umsätze bleiben.
+
+## System
+
+![Einstellungen, System](../assets/screenshots/einstellungen-system-dark.png)
+
+*Der Wiederherstellungsschlüssel und die Sperre für alle.*
+
+Es gibt **einen Wiederherstellungsschlüssel für die ganze Installation**. Ein neuer Schlüssel macht
+den alten für alle ungültig; du bestätigst ihn mit Passwort und Code. Bewahre ihn wie den ersten
 getrennt vom Backup auf. Mehr unter [Sicherheit](../sicherheit.md).
 
 ## Protokoll
