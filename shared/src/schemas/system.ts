@@ -35,17 +35,38 @@ export const SetupResponse = z.object({
     totp: TotpSetup.describe("The first user's second factor, confirmed with `confirmTotp`"),
 });
 
-/** Password lost: the recovery key opens the database and sets a new password for the user. */
-export const RecoverRequest = z.object({
-    recoveryKey: z.string().min(1),
-    name: z.string().trim().min(1),
-    password: Password,
-});
-
-export const NewRecoveryKeyRequest = z.object({ password: z.string().min(1) });
-
 /** A code from the authenticator app. */
 export const TotpCode = z.string().regex(/^\d{6}$/, "6 Ziffern");
+
+const RecoveryKey = z.string().min(1).max(200);
+
+/** Password lost: the recovery key opens the database and sets a new password for the user. */
+export const RecoverRequest = z.object({
+    recoveryKey: RecoveryKey,
+    name: z.string().trim().min(1),
+    password: Password,
+    resetTotp: z.boolean().default(false).describe("The phone is lost as well: answer with a new TOTP secret to confirm"),
+});
+export const RecoverResponse = z.object({
+    ok: z.literal(true),
+    totp: TotpSetup.optional().describe("With `resetTotp`; confirmed with `confirmTotp`. Until then the old secret stays valid"),
+});
+
+/** Phone lost, password known: password and recovery key together allow a new TOTP secret. */
+export const RecoverTotpRequest = z.object({
+    recoveryKey: RecoveryKey,
+    name: z.string().trim().min(1),
+    password: z.string().min(1).max(1024),
+});
+
+export const NewRecoveryKeyRequest = z.object({ password: z.string().min(1), code: TotpCode.describe("Code of the signed-in user") });
+
+/** Changing the own second factor: the password, and the current code or, without the phone, the recovery key. */
+export const StartTotpChangeRequest = z.union([
+    z.object({ password: z.string().min(1).max(1024), code: TotpCode }),
+    z.object({ password: z.string().min(1).max(1024), recoveryKey: RecoveryKey }),
+]);
+export const ConfirmTotpChangeRequest = z.object({ setupToken: z.string().min(1), code: TotpCode.describe("First code of the new secret") });
 
 /** Confirms a sensitive step with the signed-in user's current code from the authenticator app. */
 export const ConfirmCodeRequest = z.object({ code: TotpCode });
@@ -103,7 +124,7 @@ export const User = z.object({
 export type User = z.infer<typeof User>;
 
 export const CreateUserRequest = z.object({ name: Name, password: Password, code: TotpCode.describe("Code of the signed-in user") });
-export const ChangePasswordRequest = z.object({ current: z.string().min(1), next: Password });
+export const ChangePasswordRequest = z.object({ current: z.string().min(1), next: Password, code: TotpCode.describe("Code of the signed-in user") });
 export const SetPasswordRequest = z.object({ password: Password, code: TotpCode.describe("Code of the signed-in user") });
 
 export const Device = z.object({

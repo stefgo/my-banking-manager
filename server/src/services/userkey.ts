@@ -79,11 +79,37 @@ export function userKeyOfSession(db: Db, deviceId: number, token: string): Buffe
     }
 }
 
-/** New password set by the user: the same key, wrapped anew. */
-export async function rewrapUserKey(db: Db, userId: number, currentPassword: string, nextPassword: string, kdf: KdfParams): Promise<void> {
-    const key = await userKeyAtLogin(db, userId, currentPassword, kdf);
-    db.prepare("UPDATE users SET sealed_user_key = ? WHERE id = ?").run(await sealWithPassword(key, nextPassword, userId, kdf), userId);
-    key.fill(0);
+/** The user key wrapped for a new password, not stored yet. */
+export interface RewrappedUserKey {
+    userId: number;
+    before: string;
+    after: string;
+}
+
+/**
+ * New password set by the user: the same key, wrapped anew. Done before the password changes, so
+ * that a lock meanwhile cannot leave a new password with a key wrapped for the old one. Null if
+ * there is no key yet or the current password does not open it: the next sign-in handles both.
+ */
+export async function rewrapForPassword(db: Db, userId: number, currentPassword: string, nextPassword: string, kdf: KdfParams): Promise<RewrappedUserKey | null> {
+    const before = (db.prepare("SELECT sealed_user_key FROM users WHERE id = ?").get(userId) as { sealed_user_key: string | null } | undefined)?.sealed_user_key;
+    if (!before) return null;
+    let key: Buffer;
+    try {
+        key = await openWithPassword(before, currentPassword, userId, kdf);
+    } catch {
+        return null;
+    }
+    try {
+        return { userId, before, after: await sealWithPassword(key, nextPassword, userId, kdf) };
+    } finally {
+        key.fill(0);
+    }
+}
+
+/** Stores the new wrapping, unless the key was replaced or forgotten since it was made. */
+export function storeRewrappedKey(db: Db, r: RewrappedUserKey): void {
+    db.prepare("UPDATE users SET sealed_user_key = ? WHERE id = ? AND sealed_user_key = ?").run(r.after, r.userId, r.before);
 }
 
 /**

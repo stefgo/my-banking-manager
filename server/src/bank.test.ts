@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { confirmCode, createTestApp, setUpSignedIn, type TestApp } from "./testing/testApp.js";
+import { confirmCode, createTestApp, setUpSignedIn, signInCreatedUser, type TestApp } from "./testing/testApp.js";
 import { startFakeConnector, type FakeConnector } from "./testing/fakeConnector.js";
 import { hashToken } from "./crypto/secrets.js";
 import { userKeyOfSession } from "./services/userkey.js";
@@ -231,7 +231,7 @@ describe("taking over accounts", () => {
 describe("user key", () => {
     it("survives a password change and is lost when another user sets the password", async () => {
         const id = await connectionWithLogin();
-        expect((await api("POST", "/api/auth/password", { current: "sehr-geheimes-passwort", next: "ein-neues-langes-passwort" })).status).toBe(200);
+        expect((await api("POST", "/api/auth/password", { current: "sehr-geheimes-passwort", next: "ein-neues-langes-passwort", code: confirmCode(t, secret) })).status).toBe(200);
         fc.on("accounts", (body) => ({ status: "done", data: { accounts: body.login.pin === PIN ? [giro] : [] }, state: "S" }));
         const res = await api<{ data: { accounts: unknown[] } }>("POST", `/api/bank-connections/${id}/login/accounts`);
         expect(res.body.data.accounts).toHaveLength(1);
@@ -239,8 +239,10 @@ describe("user key", () => {
         // A second user sets Anna's password: Anna's bank login needs the PIN again
         const db = t.vault.database;
         const anna = (db.prepare("SELECT id FROM users WHERE name = 'Anna'").get() as { id: number }).id;
-        expect((await api("POST", "/api/users", { name: "Bernd", password: "bernds-langes-passwort", code: confirmCode(t, secret) })).status).toBe(200);
-        expect((await api("POST", `/api/users/${anna}/password`, { password: "annas-neues-passwort-1", code: confirmCode(t, secret) })).status).toBe(200);
+        const added = await api<{ id: number }>("POST", "/api/users", { name: "Bernd", password: "bernds-langes-passwort", code: confirmCode(t, secret) });
+        expect(added.status).toBe(200);
+        const bernd = await signInCreatedUser(t, "Bernd", "bernds-langes-passwort");
+        expect((await bernd.api("POST", `/api/users/${anna}/password`, { password: "annas-neues-passwort-1", code: confirmCode(t, bernd.secret, added.body.id) })).status).toBe(200);
         const row = db.prepare("SELECT status, sealed_credentials FROM bank_logins").get() as { status: string; sealed_credentials: string | null };
         expect(row).toEqual({ status: "credentials_lost", sealed_credentials: null });
         expect((db.prepare("SELECT sealed_user_key FROM users WHERE id = ?").get(anna) as { sealed_user_key: string | null }).sealed_user_key).toBeNull();

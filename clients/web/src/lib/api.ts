@@ -62,7 +62,3 @@ export async function call<R extends RouteDef>(def: R, ...rest: keyof Args<R> ex
 }
 
 export const errorText = (err: unknown): string => (err instanceof Error ? err.message : "Unbekannter Fehler");
-
-/** A wrong or used code, or a wrong password: a form shows it at its field, not as a message. */
-export const isSecretError = (err: unknown): err is ApiFailure =>
-    err instanceof ApiFailure && ["wrong_code", "code_used", "totp_missing", "wrong_password"].includes(err.code);

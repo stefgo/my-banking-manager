@@ -219,6 +219,8 @@ export function RunRulesPage() {
         setError("");
     };
 
+    const toRules = () => void navigate({ to: "/settings", search: { tab: "rules" } });
+
     const step = preview ? 1 : 0;
     const parts = [
         outcome.byKind.fill ? `${outcome.byKind.fill.toLocaleString("de-DE")} ergänzen` : "",
@@ -235,7 +237,7 @@ export function RunRulesPage() {
                     <h2>{plural(written, "Umsatz", "Umsätze")} geändert</h2>
                     <div className="actions">
                         <button type="button" className="btn btn-ghost" onClick={restart}>Erneut prüfen</button>
-                        <button type="button" className="btn btn-primary" onClick={() => void navigate({ to: "/settings", search: { tab: "rules" } })}>Zu den Regeln</button>
+                        <button type="button" className="btn btn-primary" onClick={toRules}>Zu den Regeln</button>
                     </div>
                 </section>
             </div>
@@ -282,7 +284,7 @@ export function RunRulesPage() {
                             {error && <Hint tone="bad">{error}</Hint>}
                         </section>
                         <div className="imp-bar narrow">
-                            <Button className="btn-ghost" icon={ArrowLeft} onClick={() => void navigate({ to: "/settings", search: { tab: "rules" } })}>Zurück</Button>
+                            <Button className="btn-ghost" icon={ArrowLeft} onClick={toRules}>Zurück</Button>
                             <Button className="btn-primary" icon={Wand2} busy={busy} disabled={!accounts.length && !rules.length} onClick={() => void check()}>Änderungen anzeigen</Button>
                         </div>
                     </>
@@ -335,13 +337,19 @@ export function RunRulesPage() {
                         {error && <Hint tone="bad">{error}</Hint>}
                         <div className="imp-bar">
                             <span className="muted rv-summary">
-                                {parts || "Nichts gewählt"}
+                                {parts || (items.length ? "Nichts gewählt" : "Keine Änderungen nötig")}
                                 {outcome.replaces > 0 && <>, <b>{plural(outcome.replaces, "Wert", "Werte")} ersetzen (nicht rückgängig)</b></>}
                             </span>
                             <Button className="btn-ghost" icon={ArrowLeft} onClick={restart}>Zurück</Button>
-                            <Button className="btn-primary" icon={Check} busy={action.pending || busy} disabled={!outcome.chosen} onClick={() => void commit()}>
-                                {plural(outcome.chosen, "Umsatz", "Umsätze")} übernehmen
-                            </Button>
+                            {outcome.chosen > 0 ? (
+                                <Button className="btn-primary" icon={Check} busy={action.pending || busy} onClick={() => void commit()}>
+                                    {plural(outcome.chosen, "Umsatz", "Umsätze")} übernehmen
+                                </Button>
+                            ) : (
+                                <Button className="btn-primary" icon={Check} busy={busy} onClick={toRules}>
+                                    {items.length ? "Ohne Änderungen beenden" : "Fertig"}
+                                </Button>
+                            )}
                         </div>
                     </div>
                 )}
