@@ -748,6 +748,8 @@ const previewRow = (line: number, date: string | null, amount: number | null, na
     bookingText,
     fillsBookingText: false,
     reference: "",
+    customerReference: "",
+    bankReference: "",
     mandateId: "",
     creditorId: "",
     counterpartyBic: "BYLADEM1001",

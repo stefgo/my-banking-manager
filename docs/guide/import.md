@@ -79,7 +79,9 @@ Der Editor hat drei Bereiche, die zu Beginn alle aufgeklappt sind:
 - **Text zerlegen:** Bis zu fünf Stufen, die aufeinander aufbauen. Eine Stufe liest eine Spalte oder
   einen Teil einer früheren Stufe.
 - **Felder zuordnen:** Welche Spalte oder welcher Teil einer Stufe in welches Feld kommt. Auf
-  schmalen Bildschirmen steht der Wert aus der Beispielzeile direkt daneben.
+  schmalen Bildschirmen steht der Wert aus der Beispielzeile direkt daneben. Unter
+  **Zahlungsdetails** stellst du für jede zugeordnete Referenz ein, wo MBM sie bei vorhandenen
+  Umsätzen sucht (siehe [Referenzen](#referenzen)).
 
 Daneben zeigt die **Beispielzeile**, was das Format aus einer Zeile der Datei macht. Unter **Aus der
 Datei** stehen alle Spalten mit ihren unveränderten Werten, unter **Ergebnis** das, was MBM daraus
@@ -115,9 +117,9 @@ keine Angabe verloren. Trenner sind immer fester Text, reguläre Ausdrücke gibt
 
 ## Umsatzart und weitere Angaben
 
-Neben Datum, Betrag und Gegenseite übernimmt MBM die **Umsatzart** (etwa „Lastschrift“), die
-**Referenz**, das **Mandat**, die **Gläubiger-ID** und die **BIC**. Sie stehen danach in den
-[Details des Umsatzes](umsaetze.md#details-eines-umsatzes).
+Neben Datum, Betrag und Gegenseite übernimmt MBM die **Umsatzart** (etwa „Lastschrift“), die drei
+[Referenzen](#referenzen), das **Mandat**, die **Gläubiger-ID** und die **BIC**. Sie stehen danach in
+den [Details des Umsatzes](umsaetze.md#details-eines-umsatzes).
 
 Fehlt einem vorhandenen Umsatz eine dieser Angaben, ergänzt MBM sie aus der Datei; die Prüfung zeigt
 dann „ergänzen“, und die Details der Zeile stellen für jede dieser Angaben den leeren Wert in MBM
@@ -129,6 +131,30 @@ erhalten.
     Das Format „MoneyMoney (CSV)“ speichert als Verwendungszweck nur den freien Text. Eine Regel, die
     dort nach `Umsatzart: Lastschrift` sucht, greift bei neu importierten Umsätzen deshalb nicht mehr.
     Suche stattdessen mit `umsatzart:lastschrift` im eigenen Feld.
+
+### Referenzen
+
+Ein Umsatz hat in MBM drei Referenzen: die **End-to-End-Referenz**, die **Kundenreferenz** und die
+**Bankreferenz** (was sie bedeuten, steht bei den
+[Details eines Umsatzes](umsaetze.md#details-eines-umsatzes)). Unter **Felder zuordnen →
+Zahlungsdetails** ordnest du jeder davon eine eigene Spalte oder einen Teil der Datei zu. Ein neuer
+Umsatz bekommt jeden Wert in die Referenz, der du ihn zugeordnet hast. Zwei Referenzen können nicht
+dieselbe Quelle lesen, sonst stünde der Wert doppelt da. `NOTPROVIDED` gilt wie beim Abruf als leer.
+
+Viele Dateien mischen die Arten in einer Spalte: Bei MoneyMoney steht hinter `Referenz:` mal die
+End-to-End-Referenz, mal die Kundenreferenz, mal die Bankreferenz. Deshalb stellst du unter jeder
+zugeordneten Referenz ein, wo MBM bei einem **vorhandenen Umsatz** nachsieht, ob der Wert schon da ist:
+**Nicht ergänzen, wenn schon in** End-to-End-Referenz, Kundenreferenz, Bankreferenz.
+Anfangs sind alle drei angehakt, die eigene Referenz lässt sich nicht abwählen.
+
+- Steht der Wert schon in einer angehakten Referenz, ergänzt MBM nichts. Groß- und Kleinschreibung
+  zählen dabei nicht.
+- Sonst ergänzt MBM ihn in der zugeordneten Referenz, wenn sie leer ist.
+- Steht dort schon ein anderer Wert, bleibt er.
+
+Ein Beispiel: Ein abgerufener Umsatz hat die Bankreferenz `0815`, aber keine End-to-End-Referenz. Die
+Datei nennt `Referenz: 0815`, zugeordnet der End-to-End-Referenz. Mit angehakter Bankreferenz erkennt
+MBM den Wert und ergänzt nichts. Ohne das Häkchen stünde `0815` danach auch als End-to-End-Referenz da.
 
 Eine Referenz aus einer Datei verknüpft nie eine Überweisung und bestätigt sie auch nicht. Das
 geschieht nur über den Abruf von der Bank.

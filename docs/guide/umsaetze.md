@@ -32,7 +32,8 @@ oder Kontonummer und BLZ, BIC und Herkunft, soweit die Bank oder die
 Die **Referenz** ist die End-to-End-Referenz, die der Auftraggeber der Zahlung mitgibt. Die
 **Kundenreferenz** nennt den Auftrag beim Auftraggeber, bei einer Sammelzahlung oft für alle Posten
 gleich. Die **Bankreferenz** vergibt deine Bank selbst für die Buchung. Kunden- und Bankreferenz
-liefert nur der Abruf von der Bank. Umsätze, die schon vorher gespeichert waren, bekommen ihre
+liefert der Abruf von der Bank, beim [CSV-Import](import.md#referenzen) auch eine Datei, wenn du
+sie im Format zuordnest. Umsätze, die schon vorher gespeichert waren, bekommen ihre
 Kundenreferenz, wenn ein [Abruf](konten.md#abrufen) sie noch einmal holt, also ab zwei Wochen vor
 dem letzten Abruf. Ältere Umsätze behalten sie leer.
 

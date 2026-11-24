@@ -1,16 +1,19 @@
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, FileUp, Plus, Trash2, X } from "lucide-react";
 import {
     FORMAT_FIELD_LABELS,
     FORMAT_MAX_STEPS,
     mapFormatRows,
     previewParts,
+    REFERENCE_KINDS,
+    referenceMatch,
     type CsvTable,
     type FormatField,
     type FormatStep,
     type FormatValueRef,
     type ImportFormatDefinition,
     type ImportRow,
+    type ReferenceKind,
 } from "@mbm/shared";
 import { dateText, fmtSigned } from "../../lib/format";
 import { FIELD_GROUPS, fieldsSummary, fileSummary, formatColumns, newStep, partName, pruneRefs, replaceStep, sourceKey, sourceLabel, sourceOptions, stepsSummary } from "../../lib/importFormat";
@@ -38,6 +41,8 @@ const RESULT: { field: FormatField; text: (r: ImportRow) => string }[] = [
     { field: "bookingText", text: (r) => r.bookingText },
     { field: "category", text: (r) => r.category ?? "" },
     { field: "reference", text: (r) => r.reference },
+    { field: "customerReference", text: (r) => r.customerReference },
+    { field: "bankReference", text: (r) => r.bankReference },
     { field: "mandateId", text: (r) => r.mandateId },
     { field: "creditorId", text: (r) => r.creditorId },
     { field: "status", text: (r) => (r.pending ? "vorgemerkt" : "gebucht") },
@@ -243,6 +248,24 @@ function FieldRow({ field, def, header, example, onChange }: { field: FormatFiel
     );
 }
 
+const isReference = (field: FormatField): field is ReferenceKind => (REFERENCE_KINDS as readonly string[]).includes(field);
+
+/** Where a booking already stored is searched for the reference of the file; its own kind always counts. */
+function ReferenceMatchRow({ kind, def, onChange }: { kind: ReferenceKind; def: ImportFormatDefinition; onChange: (kinds: ReferenceKind[]) => void }) {
+    const chosen = referenceMatch(def, kind);
+    return (
+        <div className="wb-refmatch" role="group" aria-label={`${FORMAT_FIELD_LABELS[kind]}: nicht ergänzen, wenn schon in`}>
+            <small>Nicht ergänzen, wenn schon in</small>
+            {REFERENCE_KINDS.map((k) => (
+                <label key={k} className="check-row">
+                    <input type="checkbox" checked={chosen.includes(k)} disabled={k === kind} onChange={(e) => onChange(e.target.checked ? [...chosen, k] : chosen.filter((x) => x !== k))} />
+                    <span>{FORMAT_FIELD_LABELS[k]}</span>
+                </label>
+            ))}
+        </div>
+    );
+}
+
 /** The columns of a format without a file: those it names, and those typed in. */
 function ManualColumns({ used, extra, onChange }: { used: string[]; extra: string[]; onChange: (extra: string[]) => void }) {
     return (
@@ -444,19 +467,23 @@ export function FormatWorkbench({
                             <div className="wb-group" key={group.label}>
                                 <h4>{group.label}</h4>
                                 {group.fields.map((field) => (
-                                    <FieldRow
-                                        key={field}
-                                        field={field}
-                                        def={def}
-                                        header={header}
-                                        example={example(field)}
-                                        onChange={(refs) => {
-                                            const fields = { ...def.fields };
-                                            if (refs) fields[field] = refs;
-                                            else delete fields[field];
-                                            update({ ...def, fields });
-                                        }}
-                                    />
+                                    <Fragment key={field}>
+                                        <FieldRow
+                                            field={field}
+                                            def={def}
+                                            header={header}
+                                            example={example(field)}
+                                            onChange={(refs) => {
+                                                const fields = { ...def.fields };
+                                                if (refs) fields[field] = refs;
+                                                else delete fields[field];
+                                                update({ ...def, fields });
+                                            }}
+                                        />
+                                        {isReference(field) && !!def.fields[field]?.length && (
+                                            <ReferenceMatchRow kind={field} def={def} onChange={(kinds) => setValues({ referenceMatch: { ...def.values.referenceMatch, [field]: kinds } })} />
+                                        )}
+                                    </Fragment>
                                 ))}
                             </div>
                         ))}

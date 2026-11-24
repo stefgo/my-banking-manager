@@ -1,4 +1,4 @@
-import { columnsFromFormat, duplicateKey, evaluateRules, formatFromColumns, guessColumns, IMPORT_FIELDS, isReturnText, mapFormatRows, matchFormat, missingColumns, readCsv, readWithFormat, ROTATING_COLORS, sameCounterparty, type ColumnMap, type ImportFillField, type ImportFormatDefinition, type ImportPreview, type ImportRecord, type ImportRow } from "@mbm/shared";
+import { columnsFromFormat, duplicateKey, evaluateRules, formatFromColumns, guessColumns, IMPORT_FIELDS, isReturnText, mapFormatRows, matchFormat, missingColumns, readCsv, readWithFormat, REFERENCE_KINDS, referenceMatch, ROTATING_COLORS, sameCounterparty, sameReference, type ColumnMap, type ImportFillField, type ImportFormatDefinition, type ImportPreview, type ImportRecord, type ImportRow } from "@mbm/shared";
 import type { Db } from "../db/database.js";
 import { nowIso } from "../db/database.js";
 import { badRequest, notFound } from "../http/errors.js";
@@ -44,9 +44,17 @@ interface MissingCategory {
     path: string[];
 }
 
-/** Details a file can add to a booking already stored. */
-const DETAILS = ["reference", "mandateId", "creditorId", "counterpartyBic"] as const;
+/** Details a file can add to a booking already stored, besides its references. */
+const DETAILS = ["mandateId", "creditorId", "counterpartyBic"] as const;
 const FILLABLE = ["bookingText", ...DETAILS] as const;
+
+/**
+ * The references of a row that fill an empty one of a booking already stored: not those the
+ * kinds of reference searched for them hold already.
+ */
+function referenceFills(r: ImportRow, stored: StoredBooking, format: ImportFormatDefinition): ImportFillField[] {
+    return REFERENCE_KINDS.filter((kind) => !!r[kind] && !stored[kind] && !referenceMatch(format, kind).some((k) => sameReference(stored[k], r[kind])));
+}
 
 interface StoredBooking {
     id: number;
@@ -55,6 +63,8 @@ interface StoredBooking {
     purpose: string;
     bookingText: string;
     reference: string;
+    customerReference: string;
+    bankReference: string;
     mandateId: string;
     creditorId: string;
     counterpartyBic: string;
@@ -149,12 +159,29 @@ function plan(db: Db, accountId: number, content: string, selection: ImportSelec
     const existing = new Map<string, StoredBooking[]>();
     if (dates.length) {
         const rows = db
-            .prepare("SELECT id, booking_date, amount, counterparty_name, counterparty_iban, remittance, booking_text, reference, mandate_id, creditor_id, counterparty_bic FROM transactions WHERE account_id = ? AND booking_date BETWEEN ? AND ?")
-            .all(accountId, dates[0], dates[dates.length - 1]) as { id: number; booking_date: string; amount: number; counterparty_name: string; counterparty_iban: string | null; remittance: string; booking_text: string; reference: string; mandate_id: string; creditor_id: string; counterparty_bic: string }[];
+            .prepare(
+                `SELECT id, booking_date, amount, counterparty_name, counterparty_iban, remittance, booking_text, reference, customer_reference, bank_reference, mandate_id, creditor_id, counterparty_bic
+                 FROM transactions WHERE account_id = ? AND booking_date BETWEEN ? AND ?`,
+            )
+            .all(accountId, dates[0], dates[dates.length - 1]) as {
+            id: number;
+            booking_date: string;
+            amount: number;
+            counterparty_name: string;
+            counterparty_iban: string | null;
+            remittance: string;
+            booking_text: string;
+            reference: string;
+            customer_reference: string;
+            bank_reference: string;
+            mandate_id: string;
+            creditor_id: string;
+            counterparty_bic: string;
+        }[];
         for (const r of rows) {
             const key = duplicateKey(r.booking_date, r.amount);
             const list = existing.get(key) ?? [];
-            list.push({ id: r.id, iban: r.counterparty_iban, name: r.counterparty_name, purpose: r.remittance, bookingText: r.booking_text, reference: r.reference, mandateId: r.mandate_id, creditorId: r.creditor_id, counterpartyBic: r.counterparty_bic });
+            list.push({ id: r.id, iban: r.counterparty_iban, name: r.counterparty_name, purpose: r.remittance, bookingText: r.booking_text, reference: r.reference, customerReference: r.customer_reference, bankReference: r.bank_reference, mandateId: r.mandate_id, creditorId: r.creditor_id, counterpartyBic: r.counterparty_bic });
             existing.set(key, list);
         }
     }
@@ -170,7 +197,7 @@ function plan(db: Db, accountId: number, content: string, selection: ImportSelec
         if (at >= 0) {
             const [match] = stored.splice(at, 1);
             const planned = duplicate(r, match!.id, storedCategories.all(match!.id) as number[], categories, separator);
-            const fills = FILLABLE.filter((f) => !!r[f] && !match![f]);
+            const fills = [...FILLABLE.filter((f) => !!r[f] && !match![f]), ...referenceFills(r, match!, format)];
             return { ...planned, fills, fillsBookingText: fills.includes("bookingText"), fillsDetails: fills.some((f) => f !== "bookingText") };
         }
         // The bank delivers pending bookings itself and replaces them; one from a file would stay
@@ -297,6 +324,8 @@ export function previewImport(db: Db, accountId: number, content: string, select
             bookingText: r.bookingText,
             fillsBookingText: r.fillsBookingText,
             reference: r.reference,
+            customerReference: r.customerReference,
+            bankReference: r.bankReference,
             mandateId: r.mandateId,
             creditorId: r.creditorId,
             counterpartyBic: r.counterpartyBic,
@@ -363,14 +392,14 @@ export function commitImport(
         ).lastInsertRowid,
     );
     const insertTx = db.prepare(
-        `INSERT INTO transactions (account_id, booking_date, value_date, amount, counterparty_name, counterparty_iban, remittance, booking_text, reference, mandate_id, creditor_id, counterparty_bic, is_return, status, first_seen_at, source, import_id, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'import', ?, ?)`,
+        `INSERT INTO transactions (account_id, booking_date, value_date, amount, counterparty_name, counterparty_iban, remittance, booking_text, reference, customer_reference, bank_reference, mandate_id, creditor_id, counterparty_bic, is_return, status, first_seen_at, source, import_id, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'import', ?, ?)`,
     );
     const insertCat = db.prepare("INSERT INTO transaction_categories (transaction_id, category_id, amount, source, rule_id) VALUES (?, ?, ?, ?, ?)");
     const ids: number[] = [];
     const ruleResults = new Map<number, StoredResult>();
     for (const r of fresh) {
-        const id = Number(insertTx.run(accountId, r.date, r.valueDate ?? r.date, r.amount, r.name, r.iban, r.purpose, r.bookingText, r.reference, r.mandateId, r.creditorId, r.counterpartyBic, isReturnText(r.bookingText) ? 1 : 0, r.pending ? "pending" : "booked", now, importId, userId).lastInsertRowid);
+        const id = Number(insertTx.run(accountId, r.date, r.valueDate ?? r.date, r.amount, r.name, r.iban, r.purpose, r.bookingText, r.reference, r.customerReference, r.bankReference, r.mandateId, r.creditorId, r.counterpartyBic, isReturnText(r.bookingText) ? 1 : 0, r.pending ? "pending" : "booked", now, importId, userId).lastInsertRowid);
         // The category of a rule follows once the returns are linked; the one of the file stays
         if (r.categoryId && r.categorySource !== "rule") insertCat.run(id, r.categoryId, r.amount, r.categorySource ?? "auto", r.ruleId);
         if (r.ruleResult) ruleResults.set(id, r.ruleResult);
@@ -404,10 +433,13 @@ export function commitImport(
         bookingTextsFilled += changes;
         if (changes && isReturnText(r.bookingText)) markReturn.run(r.storedId);
     }
-    // The same for the details; a value from a file never becomes the end-to-end ID of a transfer
+    // The same for the details; a value from a file never becomes the end-to-end ID of a transfer.
+    // A reference the plan does not fill in goes as "", so it stays as it is.
     const fillDetails = db.prepare(
         `UPDATE transactions SET
             reference = CASE WHEN reference = '' THEN ? ELSE reference END,
+            customer_reference = CASE WHEN customer_reference = '' THEN ? ELSE customer_reference END,
+            bank_reference = CASE WHEN bank_reference = '' THEN ? ELSE bank_reference END,
             mandate_id = CASE WHEN mandate_id = '' THEN ? ELSE mandate_id END,
             creditor_id = CASE WHEN creditor_id = '' THEN ? ELSE creditor_id END,
             counterparty_bic = CASE WHEN counterparty_bic = '' THEN ? ELSE counterparty_bic END
@@ -415,7 +447,9 @@ export function commitImport(
     );
     let detailsFilled = 0;
     for (const r of kept) {
-        if (r.fillsDetails && r.storedId !== null) detailsFilled += fillDetails.run(r.reference, r.mandateId, r.creditorId, r.counterpartyBic, r.storedId).changes;
+        if (!r.fillsDetails || r.storedId === null) continue;
+        const [reference, customerReference, bankReference] = REFERENCE_KINDS.map((k) => (r.fills.includes(k) ? r[k] : ""));
+        detailsFilled += fillDetails.run(reference, customerReference, bankReference, r.mandateId, r.creditorId, r.counterpartyBic, r.storedId).changes;
     }
     const filled = kept.filter((r) => r.storedId !== null && (r.fillsBookingText || r.fillsDetails || (r.categoryState === "empty" && r.categoryId !== null))).length;
     keepBankBalance(db, accountId, fresh.reduce((sum, r) => sum + (r.amount ?? 0), 0));

@@ -96,7 +96,7 @@ export const FIELD_GROUPS: { label: string; fields: FormatField[] }[] = [
     { label: "Pflicht", fields: ["bookingDate", "amount"] },
     { label: "Gegenseite", fields: ["counterpartyName", "counterpartyIban", "counterpartyBic"] },
     { label: "Inhalt", fields: ["remittance", "bookingText", "category"] },
-    { label: "Zahlungsdetails", fields: ["reference", "mandateId", "creditorId"] },
+    { label: "Zahlungsdetails", fields: ["reference", "customerReference", "bankReference", "mandateId", "creditorId"] },
     { label: "Weitere", fields: ["valueDate", "status"] },
 ];
 
@@ -198,11 +198,11 @@ export function reviewCounts(rows: ReviewRow[]): Record<ReviewFilter, number> {
     return counts;
 }
 
-/** Finds text in the counterparty, purpose, IBAN or reference; an IBAN also when typed with spaces. */
+/** Finds text in the counterparty, purpose, IBAN or a reference; an IBAN also when typed with spaces. */
 export function matchesSearch(r: ReviewRow, text: string): boolean {
     const needle = foldText(text).trim();
     if (!needle) return true;
-    if ([r.name, r.purpose, r.iban ?? "", r.reference].some((v) => foldText(v).includes(needle))) return true;
+    if ([r.name, r.purpose, r.iban ?? "", r.reference, r.customerReference, r.bankReference].some((v) => foldText(v).includes(needle))) return true;
     return !!r.iban && foldText(r.iban).replace(/ /g, "").includes(needle.replace(/ /g, ""));
 }
 

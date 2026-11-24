@@ -6,7 +6,7 @@ import { parseAmount, type DecimalSeparator } from "./money.js";
 import { cleanIban } from "./iban.js";
 import { BIC_PATTERN } from "./sepa.js";
 
-export const IMPORT_FIELDS = ["date", "valueDate", "amount", "name", "iban", "purpose", "bookingText", "reference", "mandateId", "creditorId", "counterpartyBic", "status", "category"] as const;
+export const IMPORT_FIELDS = ["date", "valueDate", "amount", "name", "iban", "purpose", "bookingText", "reference", "customerReference", "bankReference", "mandateId", "creditorId", "counterpartyBic", "status", "category"] as const;
 export type ImportField = (typeof IMPORT_FIELDS)[number];
 
 export const IMPORT_FIELD_LABELS: Record<ImportField, string> = {
@@ -17,7 +17,9 @@ export const IMPORT_FIELD_LABELS: Record<ImportField, string> = {
     iban: "IBAN der Gegenseite",
     purpose: "Verwendungszweck",
     bookingText: "Umsatzart",
-    reference: "Referenz",
+    reference: "End-to-End-Referenz",
+    customerReference: "Kundenreferenz",
+    bankReference: "Bankreferenz",
     mandateId: "Mandat",
     creditorId: "Gläubiger-ID",
     counterpartyBic: "BIC der Gegenseite",
@@ -165,6 +167,8 @@ const HINTS: Record<ImportField, string[]> = {
     purpose: ["verwendungszweck", "buchungsdetails", "zweck", "beschreibung", "purpose", "memo", "typ"],
     bookingText: ["buchungstext", "umsatzart", "buchungsart", "vorgang", "transaktionsart"],
     reference: ["kundenreferenzendtoend", "endtoendreferenz", "endtoendid", "referenz", "reference"],
+    customerReference: ["kundenreferenz", "kref", "customerreference"],
+    bankReference: ["bankreferenz", "bankreference"],
     mandateId: ["mandatsreferenz", "mandat", "mandatereference", "mandateid"],
     creditorId: ["glaubigerid", "glaubigeridentifikation", "creditorid"],
     counterpartyBic: ["bicswiftcode", "bic", "swift", "bicgegenkonto"],
@@ -179,7 +183,7 @@ const HINTS: Record<ImportField, string[]> = {
 const EXACT_ONLY = new Set(["konto"]);
 
 /** Fields matched by the whole column name only: "Vorgangsnummer" is no "Vorgang". */
-const EXACT_FIELDS = new Set<ImportField>(["bookingText", "reference", "mandateId", "creditorId", "counterpartyBic", "status"]);
+const EXACT_FIELDS = new Set<ImportField>(["bookingText", "reference", "customerReference", "bankReference", "mandateId", "creditorId", "counterpartyBic", "status"]);
 
 /** Never guessed by a part of its name: "Umsatztyp" contains "umsatz" but holds no amount. */
 const NOT_GUESSED = new Set(["umsatztyp"]);
@@ -191,7 +195,7 @@ export function guessColumns(header: string[]): ColumnMap {
     const map = Object.fromEntries(IMPORT_FIELDS.map((f) => [f, null])) as ColumnMap;
     // Fields with the most specific hints go first, so "Valutadatum" is not taken as "Datum"
     // and "Buchungstext" or "Umsatzart" not as date or amount
-    for (const field of ["bookingText", "reference", "mandateId", "creditorId", "counterpartyBic", "valueDate", "iban", "date", "amount", "name", "purpose", "status", "category"] as ImportField[]) {
+    for (const field of ["bookingText", "reference", "customerReference", "bankReference", "mandateId", "creditorId", "counterpartyBic", "valueDate", "iban", "date", "amount", "name", "purpose", "status", "category"] as ImportField[]) {
         for (const hint of HINTS[field]) {
             const at = names.findIndex((n, i) => !used.has(i) && n === hint);
             if (at >= 0) {
@@ -220,7 +224,10 @@ export interface ImportRow {
     iban: string | null;
     purpose: string;
     bookingText: string;
+    /** The end-to-end reference; the customer and bank reference as their own fields. */
     reference: string;
+    customerReference: string;
+    bankReference: string;
     mandateId: string;
     creditorId: string;
     counterpartyBic: string;
@@ -247,6 +254,10 @@ export function toImportRow(line: number, value: (f: ImportField) => string, map
     const bic = value("counterpartyBic").toUpperCase().replace(/\s/g, "");
     const statusText = value("status").toLowerCase();
     const words = (options.pendingWords ?? []).map((w) => w.toLowerCase()).filter(Boolean);
+    // A value one reference field already holds counts only there
+    const reference = referenceText(value("reference"));
+    const customerReference = referenceText(value("customerReference"), [reference]);
+    const bankReference = referenceText(value("bankReference"), [reference, customerReference]);
     const row: ImportRow = {
         line,
         date,
@@ -256,7 +267,9 @@ export function toImportRow(line: number, value: (f: ImportField) => string, map
         iban: /^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(ibanRaw) ? ibanRaw : null,
         purpose: collapse(value("purpose")),
         bookingText: collapse(value("bookingText")),
-        reference: collapse(value("reference")),
+        reference,
+        customerReference,
+        bankReference,
         mandateId: collapse(value("mandateId")),
         creditorId: collapse(value("creditorId")),
         counterpartyBic: BIC_PATTERN.test(bic) ? bic : "",
@@ -280,6 +293,16 @@ export function mapRows(table: CsvTable, map: ColumnMap): ImportRow[] {
 }
 
 const collapse = (s: string): string => s.replace(/\s+/g, " ").trim();
+
+/** Two references are the same regardless of case and spaces at their ends. */
+export const sameReference = (a: string, b: string): boolean => !!a.trim() && a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/** A reference as stored; "" for none, for "NOTPROVIDED" as banks send it and for one given before. */
+function referenceText(text: string, before: string[] = []): string {
+    const reference = collapse(text);
+    if (reference.toUpperCase() === "NOTPROVIDED" || before.some((b) => sameReference(b, reference))) return "";
+    return reference;
+}
 
 /** Normalized text for duplicate detection: case, accents, spaces, line breaks and punctuation do not count. */
 export const normalizeText = (s: string | null | undefined): string =>

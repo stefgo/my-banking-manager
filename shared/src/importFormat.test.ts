@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { guessColumns, readCsv } from "./csv.js";
 import { parseDate } from "./dates.js";
-import { columnsFromFormat, formatFromColumns, formatIssues, mapFormatRows, matchFormat, missingColumns, readWithFormat } from "./importFormat.js";
+import { columnsFromFormat, formatFromColumns, formatIssues, mapFormatRows, matchFormat, missingColumns, readWithFormat, referenceMatch } from "./importFormat.js";
 import { BUILTIN_IMPORT_FORMATS } from "./importPresets.js";
 import { parseAmount } from "./money.js";
 import { ImportFormatDefinition, type FormatStep } from "./schemas/banking.js";
@@ -165,6 +165,11 @@ describe("plain column assignments", () => {
     it("recognize the columns of the new details", () => {
         expect(guessColumns(["Buchungstag", "Betrag", "Glaeubiger ID", "Mandatsreferenz", "Kundenreferenz (End-to-End)", "BIC (SWIFT-Code)", "Sammlerreferenz"])).toMatchObject({ creditorId: 2, mandateId: 3, reference: 4, counterpartyBic: 5 });
     });
+
+    it("recognize customer and bank reference only by their whole name", () => {
+        expect(guessColumns(["Buchungstag", "Betrag", "Kundenreferenz (End-to-End)"])).toMatchObject({ reference: 2, customerReference: null, bankReference: null });
+        expect(guessColumns(["Buchungstag", "Betrag", "Referenz", "Kundenreferenz", "Bankreferenz"])).toMatchObject({ reference: 2, customerReference: 3, bankReference: 4 });
+    });
 });
 
 describe("validating a format", () => {
@@ -189,8 +194,40 @@ describe("validating a format", () => {
         expect(formatIssues(base([step, step], {})).length).toBeGreaterThanOrEqual(4);
     });
 
+    it("rejects one source for two kinds of reference", () => {
+        expect(formatIssues(base([], { reference: [{ column: "Ref" }], customerReference: [{ column: "Ref" }] }))).toEqual(["End-to-End-Referenz und Kundenreferenz lesen dieselbe Quelle."]);
+        expect(formatIssues(base([], { reference: [{ column: "Ref" }], bankReference: [{ column: "Bankref" }] }))).toEqual([]);
+    });
+
     it("limits the number of steps", () => {
         const steps = Array.from({ length: 6 }, (_, i): FormatStep => ({ id: `s${i}`, input: { column: "T" }, type: "separator", separator: ",", parts: ["x"] }));
         expect(ImportFormatDefinition.safeParse(base(steps, {})).success).toBe(false);
+    });
+});
+
+describe("reference fields", () => {
+    const def = base([], { reference: [{ column: "Ref" }], customerReference: [{ column: "KRef" }], bankReference: [{ column: "BRef" }] });
+    const read = (line: string, format = def) => mapFormatRows(readWithFormat(`Datum;Betrag;Ref;KRef;BRef\n${line}\n`, format), format)[0]!;
+
+    it("reads each kind into its own field", () => {
+        expect(read("19.11.2026;-1,00;E2E-1;KREF-1;BANK-1")).toMatchObject({ reference: "E2E-1", customerReference: "KREF-1", bankReference: "BANK-1" });
+    });
+
+    it("takes NOTPROVIDED as none and a value given before only once", () => {
+        expect(read("19.11.2026;-1,00;NOTPROVIDED;X-1;x-1")).toMatchObject({ reference: "", customerReference: "X-1", bankReference: "" });
+    });
+
+    it("searches all kinds without a setting and always its own kind", () => {
+        expect(referenceMatch(def, "reference")).toEqual(["reference", "customerReference", "bankReference"]);
+        const set = { ...def, values: { ...def.values, referenceMatch: { reference: [], bankReference: ["customerReference" as const] } } };
+        expect(referenceMatch(set, "reference")).toEqual(["reference"]);
+        expect(referenceMatch(set, "bankReference")).toEqual(["customerReference", "bankReference"]);
+        expect(referenceMatch(set, "customerReference")).toEqual(["reference", "customerReference", "bankReference"]);
+    });
+
+    it("reads stored formats without the setting", () => {
+        expect(ImportFormatDefinition.safeParse(def).success).toBe(true);
+        expect(ImportFormatDefinition.safeParse({ ...def, values: { ...def.values, referenceMatch: { reference: ["bankReference"] } } }).success).toBe(true);
+        expect(ImportFormatDefinition.safeParse({ ...def, values: { ...def.values, referenceMatch: { reference: ["mandateId"] } } }).success).toBe(false);
     });
 });

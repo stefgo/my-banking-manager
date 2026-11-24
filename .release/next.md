@@ -14,6 +14,7 @@ Nothing inside an HTML comment is published.
 
 - Die Suche und Regeln finden die Umsatzart der Bank mit `umsatzart:` (kurz `art:`, englisch `type:`), etwa `umsatzart:lastschrift`. Ein Wort ohne Feld sucht weiterhin nicht in der Umsatzart, bestehende Regeln treffen also dieselben Umsätze wie bisher.
 - Die Details eines Umsatzes zeigen neben der Referenz (End-to-End) auch die **Kundenreferenz** (KREF) und die **Bankreferenz**, soweit die Bank sie beim Abruf liefert. Die Kundenreferenz kommt aus `KREF+` im Verwendungszweck oder bei camt aus der Referenz des Auftrags (`PmtInfId`). Bereits gespeicherte Umsätze bekommen die Bankreferenz beim Update; die Kundenreferenz nur, wenn ein Abruf sie noch einmal holt, also ab zwei Wochen vor dem letzten Abruf.
+- Importformate ordnen unter **Zahlungsdetails** neben der End-to-End-Referenz auch die **Kundenreferenz** und die **Bankreferenz** je einer eigenen Spalte zu. Für jede Referenz stellst du ein, in welchen Referenzen eines vorhandenen Umsatzes MBM nachsieht, ob ihr Wert schon da ist. Mischt eine Datei die Arten in einer Spalte (etwa `Referenz:` bei MoneyMoney), steht ein Wert, den ein Umsatz schon als Kunden- oder Bankreferenz hat, nicht mehr zusätzlich als End-to-End-Referenz da. Das gilt anfangs für alle Formate, auch die gespeicherten; das bisherige Feld „Referenz“ heißt jetzt „End-to-End-Referenz“.
 
 ### Verbessert
 
