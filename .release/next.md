@@ -27,6 +27,7 @@ Nothing inside an HTML comment is published.
 - Die Suche mit `*` und `?` kann den Server nicht mehr durch ungünstige Muster blockieren.
 - Beim Ändern einer Buchung von Hand bleiben Felder, die nicht mitgesendet werden, jetzt erhalten.
 - Überschrift und Beschreibung der Seiten für den Import und das Ausführen von Regeln nutzen jetzt in jedem Schritt die volle Breite.
+- „Benutzer hinzufügen“ liegt jetzt wie bei Konten und Regeln oben rechts in den Einstellungen.
 
 ### Update
 

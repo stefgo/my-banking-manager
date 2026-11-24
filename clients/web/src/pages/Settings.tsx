@@ -26,6 +26,7 @@ import { RulesTab } from "./Rules";
 export function SettingsPage() {
     const { tab = "accounts" } = settingsRoute.useSearch();
     const navigate = useNavigate();
+    const [addingUser, setAddingUser] = useState(false);
     return (
         <>
             <div className="page-head">
@@ -46,6 +47,14 @@ export function SettingsPage() {
                         <button className="btn btn-primary" onClick={() => void navigate({ to: "/settings", search: { tab: "rules", new: true } })}>
                             <Ic icon={Plus} size={16} />
                             Regel hinzufügen
+                        </button>
+                    </div>
+                )}
+                {tab === "users" && (
+                    <div className="head-actions">
+                        <button className="btn btn-primary" onClick={() => setAddingUser(true)}>
+                            <Ic icon={Plus} size={16} />
+                            Benutzer hinzufügen
                         </button>
                     </div>
                 )}
@@ -74,6 +83,7 @@ export function SettingsPage() {
             {tab === "imports" && <ImportsTab />}
             {tab === "activity" && <ActivityTab />}
             <Versions />
+            {addingUser && <NewUserDialog onClose={() => setAddingUser(false)} />}
         </>
     );
 }
@@ -181,16 +191,11 @@ function UsersTab() {
     const usersQuery = useUsers();
     const users = usersQuery.data ?? [];
     const me = useMe(true).data as Me | undefined;
-    const [adding, setAdding] = useState(false);
     const [pwFor, setPwFor] = useState<{ id: number; name: string } | null>(null);
     return (
         <section className="panel">
             <div className="panel-head">
                 <h3>Benutzer</h3>
-                <button className="btn btn-sm" onClick={() => setAdding(true)}>
-                    <Ic icon={Plus} size={14} />
-                    Benutzer hinzufügen
-                </button>
             </div>
             <p className="muted small" style={{ marginBottom: 8 }}>Alle Benutzer sehen und bedienen alle Konten. Jeder hat ein eigenes Passwort, eine eigene Authenticator-App und ein eigenes Profil.</p>
             {usersQuery.isPending && <SkeletonRows rows={2} plain />}
@@ -252,8 +257,7 @@ function UsersTab() {
                     </div>
                 ))}
             </div>
-            {adding && <NewUserDialog onClose={() => setAdding(false)} />}
-            {pwFor && <SetPasswordDialog user={pwFor} onClose={() => setPwFor(null)} />}
+            {pwFor &&<SetPasswordDialog user={pwFor} onClose={() => setPwFor(null)} />}
         </section>
     );
 }
