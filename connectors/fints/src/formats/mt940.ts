@@ -2,7 +2,7 @@
 // (HIKAZ, format "SRG 2001" with the SEPA allocation of the DFÜ-Abkommen).
 
 import { isReturnText } from "@mbm/shared";
-import { cleanAccountId, emptyTransaction, partiesOf, splitSepaPurpose, type Transaction } from "./transaction.js";
+import { cleanAccountId, cleanRef, emptyTransaction, partiesOf, splitSepaPurpose, type Transaction } from "./transaction.js";
 
 /** Business transaction code of a returned SEPA core direct debit. */
 const GVC_RETURN_DEBIT = "109";
@@ -72,7 +72,7 @@ function parse61(value: string, currency: string, status: "booked" | "pending"):
     const cents = Number(whole) * 100 + Number(frac.padEnd(2, "0").slice(0, 2));
     // RC (reversal of a credit) reduces the balance, RD (reversal of a debit) raises it.
     const negative = mark === "D" || mark === "RC";
-    const [, bankRef] = (refs ?? "").split("//");
+    const [customerRef, bankRef] = (refs ?? "").split("//");
     return {
         ...emptyTransaction(),
         bookingDate,
@@ -80,6 +80,7 @@ function parse61(value: string, currency: string, status: "booked" | "pending"):
         amount: negative ? -cents : cents,
         currency,
         status,
+        customerReference: customerRef?.trim() === "NONREF" ? null : cleanRef(customerRef),
         bankReference: bankRef?.trim() || null,
         isReturn: mark === "RC" || mark === "RD",
     };
@@ -127,6 +128,10 @@ function apply86(t: Transaction, value: string): void {
     const sepa = splitSepaPurpose(purpose.join(""));
     t.remittance = sepa.remittance || purpose.join(" ").trim();
     t.endToEndId = sepa.endToEndId;
+    // KREF of :86: is complete; :61: holds at most 16 characters, often of the EREF or the mandate
+    const short = t.customerReference;
+    const repeats = short !== null && [sepa.endToEndId, sepa.mandateId].some((r) => r?.startsWith(short));
+    t.customerReference = sepa.customerReference ?? (repeats ? null : short);
     t.mandateId = sepa.mandateId;
     t.creditorId = sepa.creditorId;
     Object.assign(t, partiesOf(`${sub["32"] ?? ""}${sub["33"] ?? ""}`, sepa.ultimate));

@@ -74,6 +74,11 @@ function batchSize(n: unknown): number {
  */
 function asBatch(t: Transaction, n: unknown, size: number): void {
     const bookingText = str(at(n, "AddtlNtryInf"));
+    // The reference of the whole order is the batch's, or the one all its items share
+    const details = arr(obj(n)?.NtryDtls);
+    const items = details.flatMap((d) => arr(obj(d)?.TxDtls)).map((tx) => cleanRef(str(at(tx, "Refs", "PmtInfId"))));
+    const shared = items.length > 0 && items.every((r) => r !== null && r === items[0]) ? items[0]! : null;
+    const customerReference = details.map((d) => cleanRef(str(at(d, "Btch", "PmtInfId")))).find((r) => r !== null) ?? shared;
     Object.assign(t, {
         replaces: { counterpartyIban: t.counterpartyIban, remittance: t.remittance, endToEndId: t.endToEndId },
         counterpartyName: "",
@@ -84,6 +89,7 @@ function asBatch(t: Transaction, n: unknown, size: number): void {
         counterpartyBankCode: "",
         remittance: `Sammelbuchung mit ${size} Posten`,
         endToEndId: null,
+        customerReference,
         mandateId: null,
         creditorId: null,
         bookingText,
@@ -141,6 +147,8 @@ function entry(n: unknown, fallback: "booked" | "pending", ownIban: string): Tra
         const sepa = splitSepaPurpose(joined);
         t.remittance = sepa.endToEndId || sepa.mandateId || sepa.creditorId ? sepa.remittance : lines.join(" ").replace(/\s+/g, " ").trim();
         t.endToEndId ??= sepa.endToEndId;
+        // KREF of the DFÜ-Abkommen; in camt the payment information id of the order
+        t.customerReference = sepa.customerReference ?? cleanRef(str(at(tx, "Refs", "PmtInfId")));
         t.mandateId ??= sepa.mandateId;
         t.creditorId ??= sepa.creditorId;
         Object.assign(t, partiesOf(name, ultimateName || sepa.ultimate));

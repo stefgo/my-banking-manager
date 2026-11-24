@@ -7,6 +7,7 @@ import { importFormats } from "./0004-import-formats.js";
 import { bookingReturns } from "./0005-booking-returns.js";
 import { counterpartyAccount } from "./0006-counterparty-account.js";
 import { ruleActions } from "./0007-rule-actions.js";
+import { bookingReferences } from "./0008-booking-references.js";
 import { applyMigration } from "./index.js";
 
 const columns = (db: Database.Database, table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
@@ -246,5 +247,31 @@ describe("0007-rule-actions", () => {
         expect(db.prepare("SELECT rule_id FROM transaction_categories").get()).toEqual({ rule_id: null });
         db.exec("DELETE FROM categories WHERE id = 1");
         expect(db.prepare("SELECT category_id FROM rules WHERE id = 9").get()).toEqual({ category_id: null });
+    });
+});
+
+describe("0008-booking-references", () => {
+    it("adds customer and bank reference, the bank reference from what was kept of a bank fetch", () => {
+        const db = new Database(":memory:");
+        db.pragma("foreign_keys = ON");
+        for (const m of [initial, unread, bookingDetails, importFormats, bookingReturns, counterpartyAccount, ruleActions]) applyMigration(db, m);
+        db.exec(`
+            INSERT INTO accounts (id, kind, name, icon, color, position, created_at) VALUES (1, 'giro', 'Giro', 'landmark', 'blue', 0, '2026-01-01T00:00:00Z');
+            INSERT INTO transactions (id, account_id, booking_date, amount, status, first_seen_at, source, raw) VALUES
+                (1, 1, '2026-01-02', -100, 'booked', 'x', 'bank', '{"bankReference":" B1 "}'),
+                (2, 1, '2026-01-03', -100, 'booked', 'x', 'bank', '{"bankReference":null}'),
+                (3, 1, '2026-01-04', -100, 'booked', 'x', 'bank', 'kein JSON'),
+                (4, 1, '2026-01-05', -100, 'booked', 'x', 'bank', NULL),
+                (5, 1, '2026-01-06', -100, 'booked', 'x', 'import', '{"bankReference":"B5"}');
+        `);
+        applyMigration(db, bookingReferences);
+        expect(db.prepare("SELECT customer_reference AS k, bank_reference AS b FROM transactions ORDER BY id").all()).toEqual([
+            { k: "", b: "B1" },
+            { k: "", b: "" },
+            { k: "", b: "" },
+            { k: "", b: "" },
+            { k: "", b: "" },
+        ]);
+        db.close();
     });
 });

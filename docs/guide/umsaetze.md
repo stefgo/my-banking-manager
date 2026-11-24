@@ -25,9 +25,16 @@ oder mit **Alle als gelesen markieren** im Menü eines Kontos.
 ## Details eines Umsatzes
 
 Ein Klick auf einen Umsatz öffnet die Details daneben: Kategorie, Verwendungszweck, Umsatzart der Bank (etwa „Kartenzahlung“ oder
-„Lastschrift“), Referenz, Mandat, Gläubiger-ID, Daten, Konto, IBAN oder Kontonummer und BLZ, BIC und
-Herkunft, soweit die Bank oder die [importierte Datei](import.md#umsatzart-und-weitere-angaben) sie
-nennt.
+„Lastschrift“), Referenz, Kundenreferenz, Bankreferenz, Mandat, Gläubiger-ID, Daten, Konto, IBAN
+oder Kontonummer und BLZ, BIC und Herkunft, soweit die Bank oder die
+[importierte Datei](import.md#umsatzart-und-weitere-angaben) sie nennt.
+
+Die **Referenz** ist die End-to-End-Referenz, die der Auftraggeber der Zahlung mitgibt. Die
+**Kundenreferenz** nennt den Auftrag beim Auftraggeber, bei einer Sammelzahlung oft für alle Posten
+gleich. Die **Bankreferenz** vergibt deine Bank selbst für die Buchung. Kunden- und Bankreferenz
+liefert nur der Abruf von der Bank. Ein Abruf holt die Umsätze ab zwei Wochen vor der neuesten
+Buchung; Umsätze aus dieser Zeit, die schon vorher gespeichert waren, bekommen dabei ihre
+Kundenreferenz nachgetragen. Ältere Umsätze behalten sie leer.
 
 Die Details bleiben offen, solange der Umsatz in der gezeigten Liste steht. Wechselst du das Konto
 oder änderst Suche oder Filter und der Umsatz fällt heraus, schließen sie sich. Änderst du in einer

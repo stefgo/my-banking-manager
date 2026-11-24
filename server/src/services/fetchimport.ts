@@ -34,6 +34,9 @@ const referenceOf = (t: ConnectorTransaction): string => {
     return reference.toUpperCase() === "NOTPROVIDED" ? "" : reference;
 };
 
+/** A customer or bank reference as stored; "" if none. */
+const refOf = (s: string | null | undefined): string => (s ?? "").trim();
+
 export const fingerprintBase = (t: ConnectorTransaction): string =>
     createHash("sha256")
         .update([t.bookingDate, t.amount, t.counterpartyIban ?? "", norm(t.remittance), t.endToEndId ?? "", t.status].join("|"))
@@ -117,10 +120,11 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
 
         const existing = new Set((db.prepare("SELECT fingerprint FROM transactions WHERE account_id = ? AND fingerprint IS NOT NULL").all(accountId) as { fingerprint: string }[]).map((r) => r.fingerprint));
         const insertTx = db.prepare(
-            `INSERT INTO transactions (account_id, fingerprint, booking_date, value_date, amount, currency, counterparty_name, ultimate_party, counterparty_iban, remittance, end_to_end_id, booking_text, reference, mandate_id, creditor_id, counterparty_bic, counterparty_account, counterparty_bank_code, is_return, return_reason, status, raw, first_seen_at, source, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bank', ?)`,
+            `INSERT INTO transactions (account_id, fingerprint, booking_date, value_date, amount, currency, counterparty_name, ultimate_party, counterparty_iban, remittance, end_to_end_id, booking_text, reference, mandate_id, creditor_id, counterparty_bic, counterparty_account, counterparty_bank_code, customer_reference, bank_reference, is_return, return_reason, status, raw, first_seen_at, source, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bank', ?)`,
         );
-        const rawOf = (t: ConnectorTransaction) => JSON.stringify({ bookingText: t.bookingText, mandateId: t.mandateId, creditorId: t.creditorId, bankReference: t.bankReference, counterpartyBic: t.counterpartyBic });
+        const rawOf = (t: ConnectorTransaction) =>
+            JSON.stringify({ bookingText: t.bookingText, mandateId: t.mandateId, creditorId: t.creditorId, customerReference: t.customerReference, bankReference: t.bankReference, counterpartyBic: t.counterpartyBic });
         const insertCat = db.prepare("INSERT INTO transaction_categories (transaction_id, category_id, amount, source, rule_id) VALUES (?, ?, ?, ?, ?)");
 
         const newIds: number[] = [];
@@ -129,7 +133,7 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
         let newBooked = 0;
         const insert = (t: ConnectorTransaction, fp: string, carried: OldPending | undefined) => {
             const id = Number(
-                insertTx.run(accountId, fp, t.bookingDate, t.valueDate, t.amount, t.currency, t.counterpartyName, t.ultimateParty, t.counterpartyIban, t.remittance, t.endToEndId, t.bookingText, referenceOf(t), t.mandateId ?? "", t.creditorId ?? "", t.counterpartyBic ?? "", t.counterpartyAccount, t.counterpartyBankCode, t.isReturn ? 1 : 0, t.returnReason, t.status, rawOf(t), now, userId)
+                insertTx.run(accountId, fp, t.bookingDate, t.valueDate, t.amount, t.currency, t.counterpartyName, t.ultimateParty, t.counterpartyIban, t.remittance, t.endToEndId, t.bookingText, referenceOf(t), t.mandateId ?? "", t.creditorId ?? "", t.counterpartyBic ?? "", t.counterpartyAccount, t.counterpartyBankCode, refOf(t.customerReference), refOf(t.bankReference), t.isReturn ? 1 : 0, t.returnReason, t.status, rawOf(t), now, userId)
                     .lastInsertRowid,
             );
             if (carried?.category_id) insertCat.run(id, carried.category_id, t.amount, carried.category_source ?? "manual", null);
@@ -184,6 +188,7 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
                 mandate_id = COALESCE(NULLIF(?, ''), mandate_id), creditor_id = COALESCE(NULLIF(?, ''), creditor_id),
                 counterparty_bic = COALESCE(NULLIF(?, ''), counterparty_bic),
                 counterparty_account = COALESCE(NULLIF(?, ''), counterparty_account), counterparty_bank_code = COALESCE(NULLIF(?, ''), counterparty_bank_code),
+                customer_reference = COALESCE(NULLIF(?, ''), customer_reference), bank_reference = COALESCE(NULLIF(?, ''), bank_reference),
                 is_return = MAX(is_return, ?), return_reason = COALESCE(NULLIF(?, ''), return_reason),
                 status = 'booked', raw = ?, source = 'bank', import_id = NULL
              WHERE id = ?`,
@@ -196,12 +201,18 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
                 counterparty_bank_code = CASE WHEN counterparty_bank_code = '' THEN ? ELSE counterparty_bank_code END
              WHERE account_id = ? AND fingerprint = ? AND counterparty_iban IS NULL`,
         );
+        // Stored before the references were kept; the fingerprint does not hold them either
+        const fillReferences = db.prepare(
+            `UPDATE transactions SET customer_reference = CASE WHEN customer_reference = '' THEN ? ELSE customer_reference END,
+                bank_reference = CASE WHEN bank_reference = '' THEN ? ELSE bank_reference END
+             WHERE account_id = ? AND fingerprint = ?`,
+        );
         // A batch stored under its first item: that item's counterparty goes, the category stays.
         // A linked return keeps its mark, the link depends on it.
         const correctBatch = db.prepare(
             `UPDATE transactions SET fingerprint = ?, counterparty_name = '', ultimate_party = '', counterparty_iban = NULL, counterparty_bic = '',
                 counterparty_account = '', counterparty_bank_code = '', remittance = ?, end_to_end_id = NULL, booking_text = ?, reference = '',
-                mandate_id = '', creditor_id = '', is_return = CASE WHEN return_of_id IS NULL THEN ? ELSE is_return END,
+                mandate_id = '', creditor_id = '', customer_reference = '', bank_reference = ?, is_return = CASE WHEN return_of_id IS NULL THEN ? ELSE is_return END,
                 return_reason = CASE WHEN return_of_id IS NULL THEN '' ELSE return_reason END, raw = ?
              WHERE account_id = ? AND fingerprint = ?`,
         );
@@ -226,6 +237,7 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
             `UPDATE transactions SET fingerprint = ?, counterparty_name = COALESCE(NULLIF(?, ''), counterparty_name), ultimate_party = ?, counterparty_iban = ?,
                 counterparty_bic = COALESCE(NULLIF(?, ''), counterparty_bic),
                 counterparty_account = COALESCE(NULLIF(?, ''), counterparty_account), counterparty_bank_code = COALESCE(NULLIF(?, ''), counterparty_bank_code),
+                customer_reference = COALESCE(NULLIF(?, ''), customer_reference), bank_reference = COALESCE(NULLIF(?, ''), bank_reference),
                 is_return = MAX(is_return, ?), return_reason = COALESCE(NULLIF(?, ''), return_reason), raw = ?
              WHERE id = ?`,
         );
@@ -238,23 +250,24 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
             if (existing.has(fp)) {
                 if (t.isReturn) markReturn.run(t.returnReason, accountId, fp);
                 if (t.counterpartyAccount || t.counterpartyBankCode) fillAccount.run(t.counterpartyAccount, t.counterpartyBankCode, accountId, fp);
+                if (t.customerReference || t.bankReference) fillReferences.run(refOf(t.customerReference), refOf(t.bankReference), accountId, fp);
                 return;
             }
             const earlierFp = earlierFps[i]!;
             if (t.replaces && existing.has(earlierFp)) {
-                correctBatch.run(fp, t.remittance, t.bookingText, t.isReturn ? 1 : 0, rawOf(t), accountId, earlierFp);
+                correctBatch.run(fp, t.remittance, t.bookingText, refOf(t.bankReference), t.isReturn ? 1 : 0, rawOf(t), accountId, earlierFp);
                 existing.delete(earlierFp);
                 existing.add(fp);
                 return;
             }
             const selfId = takeSelfBooked(t);
             if (selfId !== undefined) {
-                correctParty.run(fp, t.counterpartyName, t.ultimateParty, t.counterpartyIban, t.counterpartyBic ?? "", t.counterpartyAccount, t.counterpartyBankCode, t.isReturn ? 1 : 0, t.returnReason, rawOf(t), selfId);
+                correctParty.run(fp, t.counterpartyName, t.ultimateParty, t.counterpartyIban, t.counterpartyBic ?? "", t.counterpartyAccount, t.counterpartyBankCode, refOf(t.customerReference), refOf(t.bankReference), t.isReturn ? 1 : 0, t.returnReason, rawOf(t), selfId);
                 return;
             }
             const importedId = takeImported(t);
             if (importedId !== undefined) {
-                adoptImported.run(fp, t.valueDate, t.currency, t.counterpartyName, t.ultimateParty, t.counterpartyIban, t.remittance, t.endToEndId, t.bookingText, referenceOf(t), t.mandateId ?? "", t.creditorId ?? "", t.counterpartyBic ?? "", t.counterpartyAccount, t.counterpartyBankCode, t.isReturn ? 1 : 0, t.returnReason, rawOf(t), importedId);
+                adoptImported.run(fp, t.valueDate, t.currency, t.counterpartyName, t.ultimateParty, t.counterpartyIban, t.remittance, t.endToEndId, t.bookingText, referenceOf(t), t.mandateId ?? "", t.creditorId ?? "", t.counterpartyBic ?? "", t.counterpartyAccount, t.counterpartyBankCode, refOf(t.customerReference), refOf(t.bankReference), t.isReturn ? 1 : 0, t.returnReason, rawOf(t), importedId);
                 const carried = successorOf(t);
                 if (carried?.category_id && !hasCategory.get(importedId)) insertCat.run(importedId, carried.category_id, t.amount, carried.category_source ?? "manual", null);
                 if (carried) carryEdits(importedId, carried);

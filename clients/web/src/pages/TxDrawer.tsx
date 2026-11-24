@@ -178,6 +178,8 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                                 </button>,
                             )}
                         {tx.reference && row("Referenz", <span className="mono">{tx.reference}</span>)}
+                        {tx.customerReference && row("Kundenreferenz", <span className="mono">{tx.customerReference}</span>)}
+                        {tx.bankReference && row("Bankreferenz", <span className="mono">{tx.bankReference}</span>)}
                         {tx.mandateId && row("Mandat", <span className="mono">{tx.mandateId}</span>)}
                         {tx.creditorId && row("Gläubiger-ID", <span className="mono">{tx.creditorId}</span>)}
                         {row("Buchungstag", tx.status === "pending" ? `${dateText(tx.bookingDate)} · noch nicht gebucht` : dateText(tx.bookingDate))}

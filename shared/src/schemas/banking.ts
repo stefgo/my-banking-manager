@@ -152,6 +152,8 @@ export const Transaction = z.object({
     bookingText: z.string(),
     /** End-to-end reference of the booking; "" if none. Never used to link a transfer. */
     reference: z.string(),
+    customerReference: z.string().describe("Customer reference (KREF) the payer gave the order; \"\" if none"),
+    bankReference: z.string().describe("The bank's own reference of the booking; \"\" if none"),
     /** SEPA mandate of a direct debit; "" if none. */
     mandateId: z.string(),
     /** SEPA creditor identifier of a direct debit; "" if none. */

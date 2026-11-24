@@ -99,6 +99,29 @@ describe("MT940", () => {
         expect(fee).toMatchObject({ counterpartyIban: null, counterpartyAccount: "", counterpartyBankCode: "" });
         expect(sepa).toMatchObject({ counterpartyIban: "DE89370400440532013000", counterpartyAccount: "", counterpartyBankCode: "" });
     });
+
+    it("reads the customer reference from KREF, else from :61: unless it repeats another reference", () => {
+        const text = [
+            ":60F:C261101EUR0,",
+            ":61:2611101110D10,NTRFAUFTRAG-1//B1",
+            ":86:116?00UEBERWEISUNG?20EREF+E-1?21KREF+SAMMLER-2026-11?22SVWZ+Miete",
+            ":61:2611101110D11,NTRFAUFTRAG-2//B2",
+            ":86:116?00UEBERWEISUNG?20EREF+E-2?21SVWZ+Miete",
+            ":61:2611101110D12,NDDTVERTRAG-2026-000",
+            ":86:105?00LASTSCHRIFT?20EREF+VERTRAG-2026-000123?21SVWZ+Strom",
+            ":61:2611101110D13,NDDTNONREF",
+            ":86:105?00LASTSCHRIFT?20EREF+E-4?21SVWZ+Gas",
+            ":61:2611101110C14,NTRFKD-77",
+            ":86:Unstrukturierter Text",
+            "-",
+        ].join("\n");
+        const [kref, own, repeated, none, unstructured] = parseMt940(text, "booked");
+        expect(kref).toMatchObject({ customerReference: "SAMMLER-2026-11", endToEndId: "E-1", bankReference: "B1", remittance: "Miete" });
+        expect(own).toMatchObject({ customerReference: "AUFTRAG-2", endToEndId: "E-2", bankReference: "B2" });
+        expect(repeated).toMatchObject({ customerReference: null, endToEndId: "VERTRAG-2026-000123" });
+        expect(none).toMatchObject({ customerReference: null });
+        expect(unstructured).toMatchObject({ customerReference: "KD-77", remittance: "Unstrukturierter Text" });
+    });
 });
 
 describe("camt.052", () => {
@@ -107,6 +130,12 @@ describe("camt.052", () => {
         expect(salary).toMatchObject({ bookingDate: "2026-11-02", amount: 125000, counterpartyName: "Muster GmbH", counterpartyIban: "DE89370400440532013000", remittance: "Gehalt November", endToEndId: "LOHN-2026-11", bookingText: "Gehalt", bankReference: "REF-A" });
         const [debit] = parseCamt(CAMT_PAGE_2, "booked");
         expect(debit).toMatchObject({ amount: -4299, counterpartyName: "Stadtwerke Musterstadt", counterpartyIban: "DE44500105175407324931", endToEndId: null, mandateId: "M-77", creditorId: "DE98ZZZ09999999999", remittance: "Abschlag Strom November" });
+        expect(salary!.customerReference).toBeNull();
+    });
+
+    it("reads the customer reference from KREF in the remittance", () => {
+        const doc = `<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.052.001.08"><BkToCstmrAcctRpt><Rpt><Ntry><Amt Ccy="EUR">5</Amt><CdtDbtInd>DBIT</CdtDbtInd><Sts><Cd>BOOK</Cd></Sts><BookgDt><Dt>2026-11-01</Dt></BookgDt><AcctSvcrRef>B7</AcctSvcrRef><NtryDtls><TxDtls><Refs><EndToEndId>E7</EndToEndId></Refs><RmtInf><Ustrd>EREF+E7 KREF+K7 SVWZ+Danke</Ustrd></RmtInf></TxDtls></NtryDtls></Ntry></Rpt></BkToCstmrAcctRpt></Document>`;
+        expect(parseCamt(doc, "booked")).toEqual([expect.objectContaining({ endToEndId: "E7", customerReference: "K7", bankReference: "B7", remittance: "Danke" })]);
     });
 
     it("reads the status of the entry and version .02 names", () => {
@@ -168,6 +197,19 @@ describe("camt.052", () => {
         const single = `<NtryDtls><Btch><NbOfTxs>1</NbOfTxs></Btch>${item("Anna", "DE89370400440532013000", "A")}</NtryDtls>`;
         expect(parseCamt(wrap(single), "booked")[0]).toMatchObject({ counterpartyName: "Anna", counterpartyIban: "DE89370400440532013000", remittance: "A", replaces: null });
     });
+
+    it("takes the payment information id as customer reference, for a batch only the one of the whole order", () => {
+        const withId = (name: string, id: string, purpose = "A") => item(name, "DE89370400440532013000", purpose).replace("</EndToEndId>", `</EndToEndId><PmtInfId>${id}</PmtInfId>`);
+        expect(parseCamt(wrap(`<NtryDtls>${withId("Anna", "SCT1531357")}</NtryDtls>`), "booked")[0]).toMatchObject({ customerReference: "SCT1531357", remittance: "A" });
+        // KREF in the remittance comes first; a fill value is none
+        expect(parseCamt(wrap(`<NtryDtls>${withId("Anna", "P-1", "KREF+K-1 SVWZ+A")}</NtryDtls>`), "booked")[0]).toMatchObject({ customerReference: "K-1" });
+        expect(parseCamt(wrap(`<NtryDtls>${withId("Anna", "NOTPROVIDED")}</NtryDtls>`), "booked")[0]).toMatchObject({ customerReference: null });
+        // A batch: its own id, else the one all items share, else none
+        const batch = (details: string) => parseCamt(wrap(details), "booked")[0]!.customerReference;
+        expect(batch(`<NtryDtls><Btch><PmtInfId>B-1</PmtInfId></Btch>${withId("Anna", "X")}${withId("Ben", "Y")}</NtryDtls>`)).toBe("B-1");
+        expect(batch(`<NtryDtls>${withId("Anna", "S-1")}${withId("Ben", "S-1")}</NtryDtls>`)).toBe("S-1");
+        expect(batch(`<NtryDtls>${withId("Anna", "S-1")}${withId("Ben", "S-2")}</NtryDtls>`)).toBeNull();
+    });
 });
 
 describe("camt.052 returns", () => {
@@ -228,7 +270,14 @@ describe("credit card statement", () => {
 
 describe("splitSepaPurpose", () => {
     it("splits identifiers and keeps unstructured text", () => {
-        expect(splitSepaPurpose("EREF+123 MREF+M1 CRED+DE00ZZZ SVWZ+Miete Mai")).toEqual({ remittance: "Miete Mai", endToEndId: "123", mandateId: "M1", creditorId: "DE00ZZZ", ultimate: null });
+        expect(splitSepaPurpose("EREF+123 KREF+K9 MREF+M1 CRED+DE00ZZZ SVWZ+Miete Mai")).toEqual({
+            remittance: "Miete Mai",
+            endToEndId: "123",
+            customerReference: "K9",
+            mandateId: "M1",
+            creditorId: "DE00ZZZ",
+            ultimate: null,
+        });
         expect(splitSepaPurpose("Danke fuer alles")).toMatchObject({ remittance: "Danke fuer alles", endToEndId: null });
     });
 });
