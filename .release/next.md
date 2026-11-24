@@ -9,3 +9,7 @@ dev keeps the text; the stable release from main empties this file again.
 
 Nothing inside an HTML comment is published.
 -->
+
+### Neu
+
+- Die Suche und Regeln finden die Umsatzart der Bank mit `umsatzart:` (kurz `art:`, englisch `type:`), etwa `umsatzart:lastschrift`. Ein Wort ohne Feld sucht weiterhin nicht in der Umsatzart, bestehende Regeln treffen also dieselben Umsätze wie bisher.

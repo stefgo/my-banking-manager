@@ -128,6 +128,7 @@ erhalten.
 !!! warning "Regeln und gekürzter Verwendungszweck"
     Das Format „MoneyMoney (CSV)“ speichert als Verwendungszweck nur den freien Text. Eine Regel, die
     dort nach `Umsatzart: Lastschrift` sucht, greift bei neu importierten Umsätzen deshalb nicht mehr.
+    Suche stattdessen mit `umsatzart:lastschrift` im eigenen Feld.
 
 Eine Referenz aus einer Datei verknüpft nie eine Überweisung und bestätigt sie auch nicht. Das
 geschieht nur über den Abruf von der Bank.

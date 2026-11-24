@@ -356,6 +356,7 @@ function targetOf(t: Transaction) {
         counterparty: t.counterpartyName,
         ultimateParty: t.ultimateParty,
         remittance: t.remittance,
+        bookingText: t.bookingText,
         iban: t.counterpartyIban,
         amount: t.amount,
         category: categories.find((c) => c.id === t.categoryId)?.name ?? "",

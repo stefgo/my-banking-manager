@@ -1,6 +1,6 @@
 // Search syntax of the transaction list and of category rules: words, quoted phrases, wildcards
-// (* ?), fields (gegenseite: zweck: iban: konto: kategorie: betrag: datum: ist:, also in English:
-// counterparty: purpose: account: category: amount: date: is:), comparisons
+// (* ?), fields (gegenseite: zweck: umsatzart: iban: konto: kategorie: betrag: datum: ist:, also in
+// English: counterparty: purpose: type: account: category: amount: date: is:), comparisons
 // (> >= < <= =) for amounts and dates (absolute, partial or relative), UND / ODER / NICHT (or
 // AND / OR / NOT, upper case only), "-" for NICHT and parentheses. Whitespace between terms means
 // UND; UND binds stronger than ODER.
@@ -27,7 +27,7 @@ export function quoteTxQueryValue(s: string): string {
     return `"${s.replace(/[\\"]/g, "\\$&")}"`;
 }
 
-type TextField = "counterparty" | "remittance" | "iban" | "account" | "category" | "amount";
+type TextField = "counterparty" | "remittance" | "bookingText" | "iban" | "account" | "category" | "amount";
 type Cmp = ">" | ">=" | "<" | "<=" | "=";
 
 export type TxQueryNode =
@@ -58,6 +58,7 @@ export interface TxQueryTarget {
     remittance: string;
     /** The purpose shown instead of the bank's; "" without one. Rules never see it. */
     remittanceEdited: string;
+    bookingText: string;
     iban: string;
     amountText: string;
     amount: number;
@@ -79,6 +80,8 @@ export interface TxQueryInput {
     remittance: string;
     /** Purpose shown instead of the bank's; the search finds both. */
     remittanceEdited?: string | null;
+    /** Kind of booking the bank names ("Lastschrift" …); only `umsatzart:` searches it. */
+    bookingText?: string;
     iban: string | null;
     /** Cents, signed. */
     amount: number;
@@ -103,6 +106,7 @@ export function toTxQueryTarget(t: TxQueryInput): TxQueryTarget {
         counterpartyEdited: foldText(t.counterpartyEdited ?? ""),
         remittance: foldText(t.remittance),
         remittanceEdited: foldText(t.remittanceEdited ?? ""),
+        bookingText: foldText(t.bookingText ?? ""),
         iban: compact(t.iban),
         amountText: foldText(formatCents(Math.abs(t.amount))),
         amount: t.amount,
@@ -152,6 +156,8 @@ export function matchTxQuery(node: TxQueryNode | null, t: TxQueryTarget): boolea
                     return node.test(t.counterparty) || (!!t.counterpartyEdited && node.test(t.counterpartyEdited));
                 case "remittance":
                     return node.test(t.remittance) || (!!t.remittanceEdited && node.test(t.remittanceEdited));
+                case "bookingText":
+                    return node.test(t.bookingText);
                 case "iban":
                     return node.testCompact(t.iban);
                 case "account":
@@ -348,6 +354,8 @@ const FIELDS: Record<string, TextField | "date" | "flag"> = {
     name: "counterparty",
     zweck: "remittance",
     verwendungszweck: "remittance",
+    umsatzart: "bookingText",
+    art: "bookingText",
     iban: "iban",
     konto: "account",
     kategorie: "category",
@@ -361,6 +369,7 @@ const FIELDS: Record<string, TextField | "date" | "flag"> = {
 const FIELDS_EN: Record<string, TextField | "date" | "flag"> = {
     counterparty: "counterparty",
     purpose: "remittance",
+    type: "bookingText",
     account: "account",
     category: "category",
     cat: "category",

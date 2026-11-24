@@ -120,6 +120,18 @@ describe("fields", () => {
         expect(matches("betrag:rewe")).toBe(false);
     });
 
+    it("finds the kind of booking only with umsatzart:", () => {
+        const card = { ...base, bookingText: "SEPA-Lastschrift" };
+        expect(matches("umsatzart:lastschrift", card)).toBe(true);
+        expect(matches("art:sepa*", card)).toBe(true);
+        expect(matches("type:Lastschrift", card)).toBe(true);
+        expect(matches("umsatzart:kartenzahlung", card)).toBe(false);
+        expect(matches("umsatzart:lastschrift")).toBe(false);
+        // Plain words leave it out, so rules written before keep their hits
+        expect(matches("lastschrift", card)).toBe(false);
+        expect(matches("-umsatzart:lastschrift rewe", card)).toBe(false);
+    });
+
     it("compares IBANs without spaces", () => {
         expect(matches("iban:DE89*")).toBe(true);
         expect(matches('iban:"DE89 3704"')).toBe(true);
@@ -367,7 +379,7 @@ describe("field names", () => {
     const sample = (field: string) => (TX_QUERY_FIELDS[field] === "amount" ? "5" : TX_QUERY_FIELDS[field] === "date" ? "2026" : TX_QUERY_FIELDS[field] === "flag" ? "neu" : "x");
 
     it("lists every field the parser reads", () => {
-        expect(Object.keys(TX_QUERY_FIELDS).sort()).toEqual(["betrag", "datum", "gegenseite", "iban", "ist", "kat", "kategorie", "konto", "name", "verwendungszweck", "zweck"]);
+        expect(Object.keys(TX_QUERY_FIELDS).sort()).toEqual(["art", "betrag", "datum", "gegenseite", "iban", "ist", "kat", "kategorie", "konto", "name", "umsatzart", "verwendungszweck", "zweck"]);
         for (const f of Object.keys(TX_QUERY_FIELDS)) expect(parseTxQuery(`${f}:${sample(f)}`).ok, f).toBe(true);
     });
 
@@ -381,6 +393,7 @@ describe("field names", () => {
         expect(TX_QUERY_FIELDS_EN).toEqual({
             counterparty: "counterparty",
             purpose: "remittance",
+            type: "bookingText",
             account: "account",
             category: "category",
             cat: "category",
@@ -395,6 +408,7 @@ describe("field names", () => {
         expect(tree("purpose:miete")).toEqual(tree("zweck:miete"));
         expect(tree("purpose:miete")).not.toEqual(tree("gegenseite:miete"));
         expect(tree("Counterparty:rewe")).toEqual(tree("gegenseite:rewe"));
+        expect(tree("type:lastschrift")).toEqual(tree("umsatzart:lastschrift"));
         expect(tree("account:giro")).toEqual(tree("konto:giro"));
         expect(tree("category:haushalt")).toEqual(tree("kategorie:haushalt"));
         expect(tree("cat:-")).toEqual(tree("kat:-"));

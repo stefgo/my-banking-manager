@@ -125,8 +125,9 @@ lädt die betroffenen Abfragen neu (`clients/web/src/lib/socket.ts`).
 Die Suchsyntax steht in `shared/src/txquery.ts`. Dazu gehören:
 - Wörter, `"Phrasen"` (mit `\"` und `\\`), Platzhalter `*` und `?`
 - `UND`/`ODER`/`NICHT` und Klammern
-- Felder `gegenseite:`, `zweck:`, `iban:`, `konto:`, `kategorie:`, `betrag:`, `datum:` und `ist:neu`,
-  auch englisch (`counterparty:`, `purpose:`, `account:`, `category:`, `amount:`, `date:`, `is:new`);
+- Felder `gegenseite:`, `zweck:`, `umsatzart:`, `iban:`, `konto:`, `kategorie:`, `betrag:`, `datum:`
+  und `ist:neu`, auch englisch (`counterparty:`, `purpose:`, `type:`, `account:`, `category:`,
+  `amount:`, `date:`, `is:new`). Die Umsatzart durchsucht nur ihr Feld, nie die Suche ohne Feld;
   `txQueryField` löst beide Sprachen auf, die Vorschläge zeigen englische Namen nur, wenn kein
   deutscher passt
 - Vergleiche für Betrag und Datum

@@ -313,7 +313,7 @@ describe("fetching", () => {
         expect(categoryOf("Automat Hauptstrasse 12")).toBe(category);
     });
 
-    it("keeps the ultimate party and the booking text; gegenseite: finds either name", async () => {
+    it("keeps the ultimate party and the booking text; gegenseite: finds either name, umsatzart: the booking text", async () => {
         const { ids } = await setUpAccess();
         const rule = (await api<{ id: number }>("POST", "/api/categories", { name: "Einkauf", parentId: null, icon: "shopping-cart", color: "blue" })).body.id;
         await api("POST", "/api/rules", { query: "gegenseite:shop", categoryId: rule });
@@ -326,7 +326,9 @@ describe("fetching", () => {
         expect(card).toMatchObject({ ultimateParty: "Shop Muster", bookingText: "KARTENZAHLUNG", categoryId: rule });
         // Bookings without an ultimate party keep it empty
         expect((await list()).find((x) => x.counterpartyName === "Stadtwerke")).toMatchObject({ ultimateParty: "", bookingText: "" });
-        for (const q of ["gegenseite:shop", "gegenseite:landesbank"]) expect((await list(q)).map((x) => x.id)).toEqual([card!.id]);
+        for (const q of ["gegenseite:shop", "gegenseite:landesbank", "umsatzart:kartenzahlung", "art:karten*"]) expect((await list(q)).map((x) => x.id), q).toEqual([card!.id]);
+        expect(await list("kartenzahlung")).toEqual([]);
+        expect((await api<{ hits: number }>("POST", "/api/rules", { query: "umsatzart:kartenzahlung", categoryId: rule })).body.hits).toBe(1);
     });
 
     it("marks fetched bookings as new for every user; a booked one stays read where its pending one was read", async () => {

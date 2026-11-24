@@ -22,6 +22,7 @@ const HELP: Block[] = [
         rows: [
             ["gegenseite:rewe  ·  name:", "nur Gegenseite"],
             ["zweck:miete", "nur Verwendungszweck"],
+            ["umsatzart:lastschrift  ·  art:", "nur Umsatzart"],
             ["iban:DE89*", "nur IBAN der Gegenseite"],
             ["konto:giro", "Konto, seine IBAN oder Kontogruppe"],
             ["kategorie:Haushalt  ·  kat:", "Kategorie samt Unterkategorien", "search"],

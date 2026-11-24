@@ -78,7 +78,6 @@ export const activeRules = (db: Db): CompiledRule<StoredRule>[] => compileRules(
 
 /** A booking's bank values; `category_id` stays empty because rules never read stored results. */
 export interface BookingRow extends QueryRow {
-    booking_text: string;
     reference: string;
     mandate_id: string;
     creditor_id: string;
