@@ -126,7 +126,8 @@ function toOffline(db: Db, accountId: number): void {
     const balance = (db.prepare("SELECT amount FROM balances WHERE account_id = ?").get(accountId) as { amount: number } | undefined)?.amount;
     const sum = (db.prepare("SELECT COALESCE(SUM(amount), 0) AS s FROM transactions WHERE account_id = ?").get(accountId) as { s: number }).s;
     // An offline balance is opening balance plus bookings: keep the last bank balance
-    db.prepare("UPDATE accounts SET kind = 'offline', connection_id = NULL, external_id = NULL, opening_balance = ? WHERE id = ?").run((balance ?? sum) - sum, accountId);
+    // Without the time of the last fetch: attached again, it starts from its newest booking
+    db.prepare("UPDATE accounts SET kind = 'offline', connection_id = NULL, external_id = NULL, opening_balance = ?, transactions_fetched_at = NULL WHERE id = ?").run((balance ?? sum) - sum, accountId);
     db.prepare("DELETE FROM balances WHERE account_id = ?").run(accountId);
     db.prepare("DELETE FROM bank_login_accounts WHERE account_id = ?").run(accountId);
     clearOrders(db, accountId);

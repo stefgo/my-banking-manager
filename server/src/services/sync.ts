@@ -37,6 +37,21 @@ interface Run {
 
 class Cancelled extends Error {}
 
+/** Days a fetch reaches back before its starting point: banks book some payments late. */
+const OVERLAP_DAYS = 14;
+
+/**
+ * Where a fetch of an account starts: the more recent of its last fetch and its newest booked
+ * booking, less the overlap. With neither, nothing: as far back as the bank goes. The last fetch
+ * keeps an account with rare bookings from reaching months back (and the bank from asking for an
+ * approval each time); the newest booking stands in until an account was fetched once.
+ */
+export function fetchFrom(newestBooking: string | null, fetchedAt: string | null): string | undefined {
+    const points = [newestBooking, fetchedAt].filter((p): p is string => !!p).map((p) => Date.parse(p));
+    if (points.length === 0) return undefined;
+    return new Date(Math.max(...points) - OVERLAP_DAYS * 86_400_000).toISOString().slice(0, 10);
+}
+
 const KEEP_FINISHED_MS = 60 * 60_000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -237,11 +252,12 @@ export class SyncManager {
         const balances = withBalance.length ? (await call<{ balances: ConnectorBalance[] }>("balances", { accounts: withBalance.map((t) => t.ref) })).balances : [];
 
         for (const t of run.api.ordersOnly ? [] : targets) {
-            // From the newest booked booking minus 14 days (late bookings); the first time as far as the bank goes
             const newest = (db().prepare("SELECT MAX(booking_date) AS d FROM transactions WHERE account_id = ? AND source = 'bank' AND status = 'booked'").get(t.id) as { d: string | null }).d;
-            const from = newest ? new Date(Date.parse(newest) - 14 * 86_400_000).toISOString().slice(0, 10) : undefined;
+            const fetchedAt = (db().prepare("SELECT transactions_fetched_at AS f FROM accounts WHERE id = ?").get(t.id) as { f: string | null }).f;
+            const from = fetchFrom(newest, fetchedAt);
             let txs: ConnectorTransaction[] = [];
             let balance = balances[withBalance.indexOf(t)] ?? null;
+            const fetchesBookings = (t.kind === "credit_card" && !!t.caps.cardTransactions) || !!t.caps.transactions;
             if (t.kind === "credit_card" && t.caps.cardTransactions) {
                 const r = await call<{ transactions: ConnectorTransaction[]; balance: ConnectorBalance | null }>("cardTransactions", { account: t.ref, ...(from ? { from } : {}) });
                 txs = r.transactions;
@@ -253,6 +269,8 @@ export class SyncManager {
             const checked = ConnectorTransaction.array().safeParse(txs);
             if (!checked.success) throw new ConnectorCallError("internal", "Die Antwort des Konnektors passt nicht zum Vertrag.");
             const result = applyFetch(db(), t.id, checked.data, balance, run.userId);
+            // The start of the run: what the bank booked while it waited for an approval is not passed over
+            if (fetchesBookings) db().prepare("UPDATE accounts SET transactions_fetched_at = ? WHERE id = ?").run(run.api.startedAt, t.id);
             run.api.newTransactions += result.newTransactions;
             this.emit(run);
         }

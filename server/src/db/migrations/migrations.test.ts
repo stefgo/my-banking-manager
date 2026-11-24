@@ -8,6 +8,7 @@ import { bookingReturns } from "./0005-booking-returns.js";
 import { counterpartyAccount } from "./0006-counterparty-account.js";
 import { ruleActions } from "./0007-rule-actions.js";
 import { bookingReferences } from "./0008-booking-references.js";
+import { transactionsFetchedAt } from "./0009-transactions-fetched-at.js";
 import { applyMigration } from "./index.js";
 
 const columns = (db: Database.Database, table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
@@ -272,6 +273,18 @@ describe("0008-booking-references", () => {
             { k: "", b: "" },
             { k: "", b: "" },
         ]);
+        db.close();
+    });
+});
+
+describe("0009-transactions-fetched-at", () => {
+    it("adds the time of the last fetch, empty for accounts already there", () => {
+        const db = new Database(":memory:");
+        db.pragma("foreign_keys = ON");
+        for (const m of [initial, unread, bookingDetails, importFormats, bookingReturns, counterpartyAccount, ruleActions, bookingReferences]) applyMigration(db, m);
+        db.exec("INSERT INTO accounts (id, kind, name, icon, color, position, created_at) VALUES (1, 'giro', 'Giro', 'landmark', 'blue', 0, '2026-01-01T00:00:00Z')");
+        applyMigration(db, transactionsFetchedAt);
+        expect(db.prepare("SELECT transactions_fetched_at AS f FROM accounts").get()).toEqual({ f: null });
         db.close();
     });
 });
