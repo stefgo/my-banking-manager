@@ -106,6 +106,8 @@ export const ConnectorTransaction = z.object({
     counterpartyBankCode: z.string().default(""),
     remittance: z.string(),
     endToEndId: z.string().nullable(),
+    /** Customer reference (KREF) the payer gave the order, if the bank sends it. Older connectors leave it out. */
+    customerReference: z.string().nullable().default(null),
     mandateId: z.string().nullable(),
     creditorId: z.string().nullable(),
     /** Booking text of the bank, e.g. "Lastschrift", "Kartenzahlung". */

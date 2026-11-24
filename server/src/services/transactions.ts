@@ -33,6 +33,8 @@ interface TxRow {
     remittance: string;
     booking_text: string;
     reference: string;
+    customer_reference: string;
+    bank_reference: string;
     mandate_id: string;
     creditor_id: string;
     counterparty_bic: string;
@@ -90,6 +92,8 @@ export const toTransaction = (r: TxRow): Transaction => ({
     remittance: r.remittance,
     bookingText: r.booking_text,
     reference: r.reference,
+    customerReference: r.customer_reference,
+    bankReference: r.bank_reference,
     mandateId: r.mandate_id,
     creditorId: r.creditor_id,
     counterpartyBic: r.counterparty_bic,

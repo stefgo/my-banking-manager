@@ -18,6 +18,7 @@ export const emptyTransaction = (): Transaction => ({
     counterpartyBankCode: "",
     remittance: "",
     endToEndId: null,
+    customerReference: null,
     mandateId: null,
     creditorId: null,
     bookingText: "",
@@ -41,14 +42,22 @@ export const cleanAccountId = (s: string | null | undefined): string => {
 
 /**
  * Splits structured remittance as banks put it into MT940 :86: and camt "Ustrd" lines:
- * "EREF+…", "MREF+…", "CRED+…", "SVWZ+…" (DFÜ-Abkommen, SEPA identifiers). `ultimate` is the
- * ultimate party: ABWE (ultimate creditor) or ABWA (ultimate debtor); banks do not keep them apart.
+ * "EREF+…", "KREF+…", "MREF+…", "CRED+…", "SVWZ+…" (DFÜ-Abkommen, SEPA identifiers). `ultimate`
+ * is the ultimate party: ABWE (ultimate creditor) or ABWA (ultimate debtor); banks do not keep them
+ * apart.
  */
-export function splitSepaPurpose(text: string): { remittance: string; endToEndId: string | null; mandateId: string | null; creditorId: string | null; ultimate: string | null } {
+export function splitSepaPurpose(text: string): {
+    remittance: string;
+    endToEndId: string | null;
+    customerReference: string | null;
+    mandateId: string | null;
+    creditorId: string | null;
+    ultimate: string | null;
+} {
     const re = /(EREF|KREF|MREF|CRED|DEBT|SVWZ|ABWA|ABWE|COAM|OAMT|BREF|IBAN|BIC)\+/g;
     const marks = [...text.matchAll(re)];
     if (marks.length === 0 || marks[0]!.index !== 0) {
-        return { remittance: text.trim(), endToEndId: null, mandateId: null, creditorId: null, ultimate: null };
+        return { remittance: text.trim(), endToEndId: null, customerReference: null, mandateId: null, creditorId: null, ultimate: null };
     }
     const parts: Record<string, string> = {};
     marks.forEach((m, i) => {
@@ -59,6 +68,7 @@ export function splitSepaPurpose(text: string): { remittance: string; endToEndId
     return {
         remittance: parts.SVWZ ?? "",
         endToEndId: cleanRef(parts.EREF),
+        customerReference: cleanRef(parts.KREF),
         mandateId: cleanRef(parts.MREF),
         creditorId: cleanRef(parts.CRED),
         ultimate: parts.ABWE || parts.ABWA || null,

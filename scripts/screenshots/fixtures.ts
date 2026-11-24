@@ -179,6 +179,8 @@ interface Booking {
     counterOf?: number;
     /** Booking text of the bank; by default guessed from the booking. */
     bookingText?: string;
+    /** References the bank sent; none by default. */
+    refs?: Partial<Pick<Transaction, "reference" | "customerReference" | "bankReference">>;
 }
 
 function bookingTextOf(b: Booking, kind: string): string {
@@ -206,6 +208,9 @@ function book(b: Booking): Transaction | null {
         remittance: b.remittance,
         bookingText: bank ? bookingTextOf(b, seedAccount.kind) : "",
         reference: "",
+        customerReference: "",
+        bankReference: "",
+        ...b.refs,
         mandateId: "",
         creditorId: "",
         counterpartyBic: "",
@@ -291,7 +296,15 @@ book({ account: GIRO, date: "2026-07-18", amount: -38900, name: "Reisebüro Fern
 book({ account: HOLIDAY, date: "2026-08-12", amount: -64000, name: "Ferienwohnung Dünenblick", remittance: "Restzahlung 2 Wochen", category: "Urlaub" });
 book({ account: GIRO, date: "2026-09-26", amount: -24900, name: "Möbelhaus Eiche", remittance: "Regal Wohnzimmer", category: "Einrichtung" });
 book({ account: CARD, date: "2026-10-21", amount: -6400, name: "Konzerthaus Musterstadt", remittance: "2 Karten Jazzabend", category: "Konzerte & Events" });
-book({ account: GIRO, date: "2026-11-17", amount: 2490, name: "Versandhaus Nordlicht", remittance: "Erstattung Rücksendung 4711-11", category: "Erstattungen" });
+book({
+    account: GIRO,
+    date: "2026-11-17",
+    amount: 2490,
+    name: "Versandhaus Nordlicht",
+    remittance: "Erstattung Rücksendung 4711-11",
+    category: "Erstattungen",
+    refs: { reference: "RT-4711-11-0042", customerReference: "GUTSCHRIFT-2026-11", bankReference: "2026111700381" },
+});
 book({ account: GIRO, date: "2026-11-19", amount: -1890, name: "Pizzeria Da Marco", remittance: "Kartenzahlung", category: "Freizeit" });
 book({ account: GIRO, date: "2026-11-20", amount: -2499, name: "Buchhandlung Seitenweise", remittance: "Kartenzahlung", category: null });
 book({ account: GIRO, date: "2026-11-20", amount: -3745, name: "Frischemarkt Sonnenhof", remittance: "Kartenzahlung", category: "Supermarkt", pending: true });

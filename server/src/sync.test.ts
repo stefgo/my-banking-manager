@@ -263,6 +263,28 @@ describe("fetching", () => {
         expect(t.vault.database.prepare("SELECT counterparty_account AS a, counterparty_bank_code AS b FROM transactions WHERE account_id = ?").all(ids.giro)).toEqual([{ a: "1234567", b: "12030000" }]);
     });
 
+    it("keeps the customer and the bank reference, and adds them to a stored booking at the next fetch", async () => {
+        const { ids } = await setUpAccess();
+        giroTxs = [
+            tx({ amount: -700, remittance: "Miete", endToEndId: "E-1", customerReference: "K-1", bankReference: "B-1" }),
+            tx({ amount: -800, remittance: "Strom", bookingDate: "2026-11-11" }),
+        ];
+        await api("POST", "/api/sync", { accountId: ids.giro });
+        await waitFor((r) => r[0]?.status === "done");
+        type Listed = { remittance: string; reference: string; customerReference: string; bankReference: string };
+        const list = async () => (await api<{ items: Listed[] }>("GET", "/api/transactions?scope=all&range=all")).body.items;
+        expect((await list()).find((x) => x.remittance === "Miete")).toMatchObject({ reference: "E-1", customerReference: "K-1", bankReference: "B-1" });
+        expect((await list()).find((x) => x.remittance === "Strom")).toMatchObject({ reference: "", customerReference: "", bankReference: "" });
+
+        // A bank that sends them later, or a connector that did not read them before
+        giroTxs = [giroTxs[0], tx({ amount: -800, remittance: "Strom", bookingDate: "2026-11-11", customerReference: "K-2", bankReference: "B-2" })];
+        await api("POST", "/api/sync", { accountId: ids.giro });
+        await waitFor((r) => r.filter((x) => x.status === "done").length === 2);
+        const after = await list();
+        expect(after).toHaveLength(2);
+        expect(after.find((x) => x.remittance === "Strom")).toMatchObject({ customerReference: "K-2", bankReference: "B-2" });
+    });
+
     it("corrects a batch stored under its first item, once and with its category", async () => {
         const { ids } = await setUpAccess();
         const first = { counterpartyIban: "DE89370400440532013000", remittance: "Rechnung 1", endToEndId: "E-1" };

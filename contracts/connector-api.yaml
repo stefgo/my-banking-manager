@@ -1076,6 +1076,11 @@ paths:
                                   type:
                                     - string
                                     - "null"
+                                customerReference:
+                                  default: null
+                                  type:
+                                    - string
+                                    - "null"
                                 mandateId:
                                   type:
                                     - string
@@ -1131,6 +1136,7 @@ paths:
                                 - counterpartyBankCode
                                 - remittance
                                 - endToEndId
+                                - customerReference
                                 - mandateId
                                 - creditorId
                                 - bookingText
@@ -1363,6 +1369,11 @@ paths:
                                   type:
                                     - string
                                     - "null"
+                                customerReference:
+                                  default: null
+                                  type:
+                                    - string
+                                    - "null"
                                 mandateId:
                                   type:
                                     - string
@@ -1418,6 +1429,7 @@ paths:
                                 - counterpartyBankCode
                                 - remittance
                                 - endToEndId
+                                - customerReference
                                 - mandateId
                                 - creditorId
                                 - bookingText

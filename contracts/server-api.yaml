@@ -4485,6 +4485,12 @@ paths:
                           type: string
                         reference:
                           type: string
+                        customerReference:
+                          type: string
+                          description: Customer reference (KREF) the payer gave the order; "" if none
+                        bankReference:
+                          type: string
+                          description: The bank's own reference of the booking; "" if none
                         mandateId:
                           type: string
                         creditorId:
@@ -4620,6 +4626,8 @@ paths:
                         - remittance
                         - bookingText
                         - reference
+                        - customerReference
+                        - bankReference
                         - mandateId
                         - creditorId
                         - counterpartyBic
@@ -4767,6 +4775,12 @@ paths:
                     type: string
                   reference:
                     type: string
+                  customerReference:
+                    type: string
+                    description: Customer reference (KREF) the payer gave the order; "" if none
+                  bankReference:
+                    type: string
+                    description: The bank's own reference of the booking; "" if none
                   mandateId:
                     type: string
                   creditorId:
@@ -4902,6 +4916,8 @@ paths:
                   - remittance
                   - bookingText
                   - reference
+                  - customerReference
+                  - bankReference
                   - mandateId
                   - creditorId
                   - counterpartyBic
@@ -5026,6 +5042,12 @@ paths:
                     type: string
                   reference:
                     type: string
+                  customerReference:
+                    type: string
+                    description: Customer reference (KREF) the payer gave the order; "" if none
+                  bankReference:
+                    type: string
+                    description: The bank's own reference of the booking; "" if none
                   mandateId:
                     type: string
                   creditorId:
@@ -5161,6 +5183,8 @@ paths:
                   - remittance
                   - bookingText
                   - reference
+                  - customerReference
+                  - bankReference
                   - mandateId
                   - creditorId
                   - counterpartyBic
@@ -5462,6 +5486,12 @@ paths:
                     type: string
                   reference:
                     type: string
+                  customerReference:
+                    type: string
+                    description: Customer reference (KREF) the payer gave the order; "" if none
+                  bankReference:
+                    type: string
+                    description: The bank's own reference of the booking; "" if none
                   mandateId:
                     type: string
                   creditorId:
@@ -5597,6 +5627,8 @@ paths:
                   - remittance
                   - bookingText
                   - reference
+                  - customerReference
+                  - bankReference
                   - mandateId
                   - creditorId
                   - counterpartyBic
@@ -5689,6 +5721,12 @@ paths:
                     type: string
                   reference:
                     type: string
+                  customerReference:
+                    type: string
+                    description: Customer reference (KREF) the payer gave the order; "" if none
+                  bankReference:
+                    type: string
+                    description: The bank's own reference of the booking; "" if none
                   mandateId:
                     type: string
                   creditorId:
@@ -5824,6 +5862,8 @@ paths:
                   - remittance
                   - bookingText
                   - reference
+                  - customerReference
+                  - bankReference
                   - mandateId
                   - creditorId
                   - counterpartyBic
@@ -5929,6 +5969,12 @@ paths:
                     type: string
                   reference:
                     type: string
+                  customerReference:
+                    type: string
+                    description: Customer reference (KREF) the payer gave the order; "" if none
+                  bankReference:
+                    type: string
+                    description: The bank's own reference of the booking; "" if none
                   mandateId:
                     type: string
                   creditorId:
@@ -6064,6 +6110,8 @@ paths:
                   - remittance
                   - bookingText
                   - reference
+                  - customerReference
+                  - bankReference
                   - mandateId
                   - creditorId
                   - counterpartyBic
