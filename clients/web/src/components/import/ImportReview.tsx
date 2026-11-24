@@ -45,6 +45,8 @@ const fileCategory = (r: Row, index: CategoryIndex): string => (r.categoryId ? c
 const FILL_LABEL: Record<ImportFillField, string> = {
     bookingText: "Umsatzart",
     reference: "Referenz",
+    customerReference: "Kundenreferenz",
+    bankReference: "Bankreferenz",
     mandateId: "Mandat",
     creditorId: "Gläubiger-ID",
     counterpartyBic: "BIC",
@@ -117,6 +119,8 @@ function RowDetails({ r, index, choice, onPart }: { r: Row; index: CategoryIndex
         ["IBAN", r.iban ?? ""],
         [FILL_LABEL.counterpartyBic, detail("counterpartyBic")],
         [FILL_LABEL.reference, detail("reference")],
+        [FILL_LABEL.customerReference, detail("customerReference")],
+        [FILL_LABEL.bankReference, detail("bankReference")],
         [FILL_LABEL.mandateId, detail("mandateId")],
         [FILL_LABEL.creditorId, detail("creditorId")],
         ["Zeile der Datei", String(r.line)],

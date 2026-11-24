@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { confirmCode, createTestApp, setUpSignedIn, type TestApp } from "./testing/testApp.js";
 import { startFakeConnector, type FakeConnector } from "./testing/fakeConnector.js";
 import { applyFetch } from "./services/fetchimport.js";
+import { fetchFrom } from "./services/sync.js";
 
 let t: TestApp;
 let fc: FakeConnector;
@@ -285,6 +286,39 @@ describe("fetching", () => {
         expect(after.find((x) => x.remittance === "Strom")).toMatchObject({ customerReference: "K-2", bankReference: "B-2" });
     });
 
+    it("starts a fetch two weeks before the account's last fetch, not before a booking months back", async () => {
+        const { ids } = await setUpAccess();
+        const db = t.vault.database;
+        const fetchedAt = (id: number) => (db.prepare("SELECT transactions_fetched_at AS f FROM accounts WHERE id = ?").get(id) as { f: string | null }).f;
+        const fromOf = () => fc.received.filter((r) => r.route === "transactions").at(-1)?.body.from as string | undefined;
+        const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+
+        // The first time as far as the bank goes; afterwards the start of that run counts
+        giroTxs = [tx({ amount: -700, remittance: "Zinsen", bookingDate: "2026-05-04" })];
+        await api("POST", "/api/sync", { accountId: ids.giro });
+        const [first] = await waitFor((r) => r[0]?.status === "done");
+        expect(fromOf()).toBeUndefined();
+        expect(fetchedAt(ids.giro!)).toBe((first as unknown as { startedAt: string }).startedAt);
+        // Only the fetched account has a time
+        expect(fetchedAt(ids.savings!)).toBeNull();
+
+        // A fetch three days ago: two weeks before it, not two weeks before May
+        db.prepare("UPDATE accounts SET transactions_fetched_at = ? WHERE id = ?").run(daysAgo(3), ids.giro);
+        await api("POST", "/api/sync", { accountId: ids.giro });
+        await waitFor((r) => r.filter((x) => x.status === "done").length === 2);
+        expect(fromOf()).toBe(daysAgo(17).slice(0, 10));
+        expect(t.vault.database.prepare("SELECT count(*) AS n FROM transactions WHERE account_id = ?").get(ids.giro)).toEqual({ n: 1 });
+
+        // A run that fails keeps the time, so the next one leaves no gap
+        const before = daysAgo(40);
+        db.prepare("UPDATE accounts SET transactions_fetched_at = ? WHERE id = ?").run(before, ids.giro);
+        fc.on("transactions", () => ({ status: 422, json: { error: "bank_error", message: "Abruf nicht möglich" } }));
+        await api("POST", "/api/sync", { accountId: ids.giro });
+        await waitFor((r) => r.some((x) => x.status === "error"));
+        expect(fetchedAt(ids.giro!)).toBe(before);
+        expect(fromOf()).toBe(daysAgo(54).slice(0, 10));
+    });
+
     it("corrects a batch stored under its first item, once and with its category", async () => {
         const { ids } = await setUpAccess();
         const first = { counterpartyIban: "DE89370400440532013000", remittance: "Rechnung 1", endToEndId: "E-1" };
@@ -461,5 +495,16 @@ describe("fetching", () => {
         expect((await api<{ error: string }>("POST", "/api/sync", { accountId: offline })).body.error).toBe("not_bank_account");
         t.vault.database.prepare("DELETE FROM bank_logins").run();
         expect((await api<{ error: string; message: string }>("POST", "/api/sync", { accountId: ids.giro })).body).toMatchObject({ error: "no_own_login", message: "Keine eigene Anmeldung bei Sparkasse Bad Tölz-Wolfratshausen." });
+    });
+});
+
+describe("fetchFrom", () => {
+    it("takes the more recent of last fetch and newest booking, less two weeks", () => {
+        expect(fetchFrom(null, null)).toBeUndefined();
+        expect(fetchFrom("2026-06-20", null)).toBe("2026-06-06");
+        expect(fetchFrom("2026-06-20", "2026-11-21T09:15:00.000Z")).toBe("2026-11-07");
+        // A booking after the last fetch (stored before the update, or by an import taken over)
+        expect(fetchFrom("2026-11-22", "2026-11-21T09:15:00.000Z")).toBe("2026-11-08");
+        expect(fetchFrom(null, "2026-01-10T23:30:00.000Z")).toBe("2025-12-27");
     });
 });

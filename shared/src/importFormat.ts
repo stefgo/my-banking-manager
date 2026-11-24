@@ -17,6 +17,8 @@ export const FORMAT_FIELDS = [
     "remittance",
     "bookingText",
     "reference",
+    "customerReference",
+    "bankReference",
     "mandateId",
     "creditorId",
     "status",
@@ -33,7 +35,9 @@ export const FORMAT_FIELD_LABELS: Record<FormatField, string> = {
     counterpartyBic: "BIC der Gegenseite",
     remittance: "Verwendungszweck",
     bookingText: "Umsatzart",
-    reference: "Referenz",
+    reference: "End-to-End-Referenz",
+    customerReference: "Kundenreferenz",
+    bankReference: "Bankreferenz",
     mandateId: "Mandat",
     creditorId: "Gläubiger-ID",
     status: "Status (vorgemerkt)",
@@ -41,6 +45,19 @@ export const FORMAT_FIELD_LABELS: Record<FormatField, string> = {
 };
 
 export const FORMAT_MAX_STEPS = 5;
+
+/** The kinds of reference a booking has, as fields of a format and of a booking. */
+export const REFERENCE_KINDS = ["reference", "customerReference", "bankReference"] as const;
+export type ReferenceKind = (typeof REFERENCE_KINDS)[number];
+
+/**
+ * The kinds of reference of a booking already stored that are searched for the value of a
+ * reference field of the file. Its own kind always counts; without a setting, all of them.
+ */
+export function referenceMatch(def: ImportFormatDefinition, kind: ReferenceKind): ReferenceKind[] {
+    const chosen = def.values.referenceMatch?.[kind] ?? REFERENCE_KINDS;
+    return REFERENCE_KINDS.filter((k) => k === kind || chosen.includes(k));
+}
 
 /** The part of every step that holds what no field took. */
 export const REST_PART = "rest";
@@ -55,6 +72,8 @@ const FIELD_OF: Record<ImportField, FormatField> = {
     purpose: "remittance",
     bookingText: "bookingText",
     reference: "reference",
+    customerReference: "customerReference",
+    bankReference: "bankReference",
     mandateId: "mandateId",
     creditorId: "creditorId",
     counterpartyBic: "counterpartyBic",
@@ -266,5 +285,15 @@ export function formatIssues(def: ImportFormatDefinition): string[] {
         known.set(step.id, new Set(parts));
     });
     for (const field of FORMAT_FIELDS) for (const ref of def.fields[field] ?? []) refIssue(ref, FORMAT_FIELD_LABELS[field]);
+    // One source for two kinds of reference would store its value twice
+    const readBy = new Map<string, ReferenceKind>();
+    for (const kind of REFERENCE_KINDS) {
+        for (const ref of def.fields[kind] ?? []) {
+            const key = JSON.stringify("step" in ref ? [ref.step, ref.part] : "column" in ref ? [ref.column] : [ref.columnIndex]);
+            const other = readBy.get(key);
+            if (other && other !== kind) issues.push(`${FORMAT_FIELD_LABELS[other]} und ${FORMAT_FIELD_LABELS[kind]} lesen dieselbe Quelle.`);
+            else readBy.set(key, kind);
+        }
+    }
     return issues;
 }

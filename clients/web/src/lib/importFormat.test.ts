@@ -6,7 +6,7 @@ type Row = ImportPreview["rows"][number];
 
 const MONEY = BUILTIN_IMPORT_FORMATS.find((f) => f.key === "builtin:moneymoney")!.definition;
 const row = (over: Partial<Row>): Row => ({
-    line: 1, date: "2026-11-01", amount: -100, name: "Markt", iban: null, purpose: "", shownName: null, shownPurpose: null, bookingText: "", fillsBookingText: false, reference: "", mandateId: "", creditorId: "", counterpartyBic: "", fillsDetails: false, fills: [],
+    line: 1, date: "2026-11-01", amount: -100, name: "Markt", iban: null, purpose: "", shownName: null, shownPurpose: null, bookingText: "", fillsBookingText: false, reference: "", customerReference: "", bankReference: "", mandateId: "", creditorId: "", counterpartyBic: "", fillsDetails: false, fills: [],
     pending: false, categoryId: null, newCategory: null, state: "new", storedCategoryId: null, categoryState: null, error: null, ...over,
 });
 const mapped = (over: Partial<ImportFormatDefinition> = {}): ImportFormatDefinition => ({ ...emptyFormat(), fields: { bookingDate: [{ column: "Tag" }], amount: [{ column: "Wert" }] }, ...over });
@@ -21,7 +21,7 @@ describe("columns and summaries", () => {
         expect(fileSummary({ ...MONEY, file: { ...MONEY.file, delimiter: "||", headerLine: "none" } })).toBe("Trenner „||“ · ohne Kopfzeile");
         expect(stepsSummary(MONEY)).toBe("1 Stufe");
         expect(stepsSummary(emptyFormat())).toBe("keine Zerlegung");
-        expect(fieldsSummary(MONEY)).toBe("12 von 13 zugeordnet");
+        expect(fieldsSummary(MONEY)).toBe("12 von 15 zugeordnet");
     });
 
     it("offers columns and the parts of earlier steps only", () => {

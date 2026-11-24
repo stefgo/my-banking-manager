@@ -187,7 +187,10 @@ describe("taking over accounts", () => {
         const [giroId, savingsId] = body.created as [number, number];
         expect((await api("POST", `/api/bank-connections/${id}/accounts`, { accounts: [], ignore: ["nope"] })).status).toBe(404);
 
+        t.vault.database.prepare("UPDATE accounts SET transactions_fetched_at = '2026-11-20T10:00:00.000Z' WHERE id = ?").run(giroId);
         expect((await api("POST", `/api/accounts/${giroId}/detach`, { mode: "keep" })).status).toBe(200);
+        // Attached again later, its next fetch starts from its newest booking
+        expect(t.vault.database.prepare("SELECT transactions_fetched_at AS f FROM accounts WHERE id = ?").get(giroId)).toEqual({ f: null });
         expect((await api("POST", `/api/accounts/${savingsId}/detach`, { mode: "delete" })).status).toBe(200);
         const accounts = (await api<{ id: number; kind: string; connectionId: number | null }[]>("GET", "/api/accounts")).body;
         expect(accounts.find((a) => a.id === giroId)).toMatchObject({ kind: "offline", connectionId: null });

@@ -43,6 +43,12 @@ den Abruf in der Banking-App frei. Neue Umsätze bekommen ihre Kategorie über d
 [Regeln](kategorien-regeln.md) und sind als [neu](umsaetze.md#neue-umsätze) markiert. Zusammen mit
 den Umsätzen holt MBM auch die [Aufträge](auftraege.md).
 
+Der erste Abruf eines Kontos holt alle Umsätze, die die Bank herausgibt. Danach beginnt jeder Abruf
+**zwei Wochen vor dem letzten Abruf dieses Kontos**, so kommen auch Buchungen an, die die Bank
+verspätet bucht. Nach einer Pause holt MBM die ganze Zeit seither nach. Für Zeiträume über rund
+90 Tage verlangen die meisten Banken eine Freigabe, etwa beim ersten Abruf oder nach einer langen
+Pause; ein Konto mit seltenen Buchungen löst sie sonst nicht aus.
+
 Solange ein Abruf läuft, dreht sich in der Kontenliste ein Symbol neben jedem Konto, das gerade
 aktualisiert wird. Liegt das Konto in einer zugeklappten Gruppe, steht das Symbol an der Gruppe.
 

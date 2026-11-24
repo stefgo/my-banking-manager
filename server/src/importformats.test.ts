@@ -188,4 +188,64 @@ describe("import formats", () => {
         expect(linkBookedTransfers(db, account.id)).toBe(0);
         expect(db.prepare("SELECT status, transaction_id AS tx FROM transfers").get()).toEqual({ status: "unknown", tx: null });
     });
+
+    describe("kinds of reference", () => {
+        const refs: ImportFormatDefinition = {
+            ...simple,
+            fields: { ...simple.fields, counterpartyName: [{ column: "Name" }], reference: [{ column: "Ref" }], customerReference: [{ column: "KRef" }], bankReference: [{ column: "BRef" }] },
+        };
+        const file = (ref: string, kref = "", bref = "") => `Datum;Name;Betrag;Ref;KRef;BRef\n19.11.2026;Muster GmbH;-1,00;${ref};${kref};${bref}\n`;
+        const withMatch = (referenceMatch: NonNullable<ImportFormatDefinition["values"]["referenceMatch"]>): ImportFormatDefinition => ({ ...refs, values: { ...refs.values, referenceMatch } });
+
+        async function stored(columns: { reference?: string; customer_reference?: string; bank_reference?: string }) {
+            const s = await setUp();
+            await s.api("POST", `/api/accounts/${s.account.id}/transactions`, { bookingDate: "2026-11-19", amount: -100, counterpartyName: "Muster GmbH" });
+            const id = (await s.items())[0]!.id;
+            const db = t.vault.database;
+            db.prepare("UPDATE transactions SET reference = ?, customer_reference = ?, bank_reference = ? WHERE id = ?").run(columns.reference ?? "", columns.customer_reference ?? "", columns.bank_reference ?? "", id);
+            return s;
+        }
+
+        it("stores each kind of a new booking in its own field", async () => {
+            const { api, account, items } = await setUp();
+            const res = await api("POST", `/api/accounts/${account.id}/import`, { fileName: "x.csv", content: file("E2E-1", "KREF-1", "BANK-1"), format: refs });
+            expect(res.status).toBe(200);
+            expect((await items())[0]).toMatchObject({ reference: "E2E-1", customerReference: "KREF-1", bankReference: "BANK-1" });
+        });
+
+        it("fills in nothing when a kind searched holds the reference already", async () => {
+            const { api, account, items } = await stored({ bank_reference: "x-1" });
+            const preview = (await api<ImportPreview>("POST", `/api/accounts/${account.id}/import/preview`, { fileName: "x.csv", content: file("X-1"), format: refs })).body;
+            expect(preview.rows[0]).toMatchObject({ state: "duplicate", fillsDetails: false, fills: [] });
+            expect(preview.counts.filled).toBe(0);
+            const result = (await api<{ detailsFilled: number }>("POST", `/api/accounts/${account.id}/import`, { fileName: "x.csv", content: file("X-1"), format: refs })).body;
+            expect(result.detailsFilled).toBe(0);
+            expect((await items())[0]).toMatchObject({ reference: "", customerReference: "", bankReference: "x-1" });
+        });
+
+        it("fills in its own empty kind when the kinds searched do not hold it", async () => {
+            const { api, account, items } = await stored({ bank_reference: "X-1" });
+            const format = withMatch({ reference: ["reference"] });
+            const preview = (await api<ImportPreview>("POST", `/api/accounts/${account.id}/import/preview`, { fileName: "x.csv", content: file("X-1"), format })).body;
+            expect(preview.rows[0]!.fills).toEqual(["reference"]);
+            const result = (await api<{ detailsFilled: number }>("POST", `/api/accounts/${account.id}/import`, { fileName: "x.csv", content: file("X-1"), format })).body;
+            expect(result.detailsFilled).toBe(1);
+            expect((await items())[0]).toMatchObject({ reference: "X-1", customerReference: "", bankReference: "X-1" });
+        });
+
+        it("fills in only the kinds the plan names and keeps one set otherwise", async () => {
+            const { api, account, items } = await stored({ reference: "ALT", customer_reference: "" });
+            const preview = (await api<ImportPreview>("POST", `/api/accounts/${account.id}/import/preview`, { fileName: "x.csv", content: file("NEU", "ALT", "BANK-1"), format: refs })).body;
+            expect(preview.rows[0]!.fills).toEqual(["bankReference"]);
+            await api("POST", `/api/accounts/${account.id}/import`, { fileName: "x.csv", content: file("NEU", "ALT", "BANK-1"), format: refs });
+            expect((await items())[0]).toMatchObject({ reference: "ALT", customerReference: "", bankReference: "BANK-1" });
+        });
+
+        it("refuses a format reading one source for two kinds", async () => {
+            const { api, account } = await setUp();
+            const format = { ...refs, fields: { ...refs.fields, customerReference: [{ column: "Ref" }] } };
+            const res = await api("POST", `/api/accounts/${account.id}/import/preview`, { fileName: "x.csv", content: file("X-1"), format });
+            expect(res.status).toBe(400);
+        });
+    });
 });

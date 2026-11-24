@@ -206,6 +206,18 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/ImportFormatValueRef"
+            customerReference:
+              minItems: 1
+              maxItems: 8
+              type: array
+              items:
+                $ref: "#/components/schemas/ImportFormatValueRef"
+            bankReference:
+              minItems: 1
+              maxItems: 8
+              type: array
+              items:
+                $ref: "#/components/schemas/ImportFormatValueRef"
             mandateId:
               minItems: 1
               maxItems: 8
@@ -260,6 +272,26 @@ components:
                 minLength: 1
                 maxLength: 40
               description: Words in the status that mark a pending booking; empty for the usual ones
+            referenceMatch:
+              description: "Per reference field of the file: the kinds of reference of a booking already stored that are searched for its value before it is filled in. Its own kind always counts; without an entry, all kinds"
+              type: object
+              properties:
+                reference:
+                  maxItems: 3
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/ReferenceKind"
+                customerReference:
+                  maxItems: 3
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/ReferenceKind"
+                bankReference:
+                  maxItems: 3
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/ReferenceKind"
+              additionalProperties: false
           required:
             - dateOrder
             - decimalSeparator
@@ -305,6 +337,12 @@ components:
             - step
             - part
           additionalProperties: false
+    ReferenceKind:
+      type: string
+      enum:
+        - reference
+        - customerReference
+        - bankReference
     RuleEdit:
       oneOf:
         - type: object
@@ -8379,6 +8417,20 @@ paths:
                           minimum: 0
                           maximum: 9007199254740991
                         - type: "null"
+                    customerReference:
+                      default: null
+                      anyOf:
+                        - type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        - type: "null"
+                    bankReference:
+                      default: null
+                      anyOf:
+                        - type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        - type: "null"
                     mandateId:
                       default: null
                       anyOf:
@@ -8511,6 +8563,20 @@ paths:
                             minimum: 0
                             maximum: 9007199254740991
                           - type: "null"
+                      customerReference:
+                        default: null
+                        anyOf:
+                          - type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          - type: "null"
+                      bankReference:
+                        default: null
+                        anyOf:
+                          - type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          - type: "null"
                       mandateId:
                         default: null
                         anyOf:
@@ -8553,6 +8619,8 @@ paths:
                       - purpose
                       - bookingText
                       - reference
+                      - customerReference
+                      - bankReference
                       - mandateId
                       - creditorId
                       - counterpartyBic
@@ -8613,6 +8681,11 @@ paths:
                           description: Duplicate without a kind of booking that takes the one of the file
                         reference:
                           type: string
+                          description: End-to-end reference
+                        customerReference:
+                          type: string
+                        bankReference:
+                          type: string
                         mandateId:
                           type: string
                         creditorId:
@@ -8621,7 +8694,7 @@ paths:
                           type: string
                         fillsDetails:
                           type: boolean
-                          description: Duplicate with an empty reference, mandate, creditor id or BIC that takes the one of the file
+                          description: Duplicate with an empty reference, mandate, creditor id or BIC that takes the one of the file; a reference only if no kind of reference searched for it holds it already
                         fills:
                           type: array
                           items:
@@ -8629,6 +8702,8 @@ paths:
                             enum:
                               - bookingText
                               - reference
+                              - customerReference
+                              - bankReference
                               - mandateId
                               - creditorId
                               - counterpartyBic
@@ -8686,6 +8761,8 @@ paths:
                         - bookingText
                         - fillsBookingText
                         - reference
+                        - customerReference
+                        - bankReference
                         - mandateId
                         - creditorId
                         - counterpartyBic
@@ -8829,6 +8906,20 @@ paths:
                           maximum: 9007199254740991
                         - type: "null"
                     reference:
+                      default: null
+                      anyOf:
+                        - type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        - type: "null"
+                    customerReference:
+                      default: null
+                      anyOf:
+                        - type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        - type: "null"
+                    bankReference:
                       default: null
                       anyOf:
                         - type: integer

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { Cents, ColorKeySchema as ColorKey, IconKeySchema as IconKey, Id, IsoDate, Name, Timestamp } from "./common.js";
 import { AccountScope, TxRange } from "./profile.js";
 import { IMPORT_FIELDS } from "../csv.js";
-import { FORMAT_FIELDS, FORMAT_MAX_STEPS, formatIssues } from "../importFormat.js";
+import { FORMAT_FIELDS, FORMAT_MAX_STEPS, formatIssues, REFERENCE_KINDS } from "../importFormat.js";
 import { RULE_MAX_EDITS, RULE_MAX_EXTRACTS, ruleIssues } from "../ruleEngine.js";
 import { parseTxQuery } from "../txquery.js";
 
@@ -535,6 +535,8 @@ export const ColumnMapSchema = z.object({
     // Added later: column maps of existing API callers do not name them
     bookingText: z.number().int().min(0).nullable().default(null),
     reference: z.number().int().min(0).nullable().default(null),
+    customerReference: z.number().int().min(0).nullable().default(null),
+    bankReference: z.number().int().min(0).nullable().default(null),
     mandateId: z.number().int().min(0).nullable().default(null),
     creditorId: z.number().int().min(0).nullable().default(null),
     counterpartyBic: z.number().int().min(0).nullable().default(null),
@@ -567,6 +569,9 @@ const FormatKeywordsStep = z.strictObject({
     keywords: z.array(z.strictObject({ text: z.string().min(1).max(60), part: FormatId })).min(1).max(30),
 });
 
+const ReferenceKind = z.enum(REFERENCE_KINDS).meta({ id: "ReferenceKind" });
+const ReferenceKinds = z.array(ReferenceKind).max(REFERENCE_KINDS.length);
+
 export const FormatStep = z.discriminatedUnion("type", [FormatSeparatorStep, FormatKeywordsStep]);
 export type FormatStep = z.infer<typeof FormatStep>;
 
@@ -589,6 +594,10 @@ export const ImportFormatDefinition = z
             decimalSeparator: z.enum(["auto", ",", "."]),
             categorySeparator: z.string().min(1).max(10).describe("Separator of category paths, or \"auto\""),
             pendingWords: z.array(z.string().min(1).max(40)).max(10).describe("Words in the status that mark a pending booking; empty for the usual ones"),
+            referenceMatch: z
+                .strictObject({ reference: ReferenceKinds.optional(), customerReference: ReferenceKinds.optional(), bankReference: ReferenceKinds.optional() })
+                .optional()
+                .describe("Per reference field of the file: the kinds of reference of a booking already stored that are searched for its value before it is filled in. Its own kind always counts; without an entry, all kinds"),
         }),
     })
     .superRefine((def, ctx) => {
@@ -626,7 +635,7 @@ export const DetectedImportFormat = z.object({
     formatKey: z.string().nullable().describe("The stored format chosen by the header; null for the automatic column assignment"),
 });
 
-export const ImportFillField = z.enum(["bookingText", "reference", "mandateId", "creditorId", "counterpartyBic"]);
+export const ImportFillField = z.enum(["bookingText", "reference", "customerReference", "bankReference", "mandateId", "creditorId", "counterpartyBic"]);
 export type ImportFillField = z.infer<typeof ImportFillField>;
 
 export const ImportPreviewRow = z.object({
@@ -640,11 +649,13 @@ export const ImportPreviewRow = z.object({
     shownPurpose: z.string().nullable().describe("New row: the purpose after the rules; null: as in the file"),
     bookingText: z.string().describe("Kind of booking the file names (\"Lastschrift\" …)"),
     fillsBookingText: z.boolean().describe("Duplicate without a kind of booking that takes the one of the file"),
-    reference: z.string(),
+    reference: z.string().describe("End-to-end reference"),
+    customerReference: z.string(),
+    bankReference: z.string(),
     mandateId: z.string(),
     creditorId: z.string(),
     counterpartyBic: z.string(),
-    fillsDetails: z.boolean().describe("Duplicate with an empty reference, mandate, creditor id or BIC that takes the one of the file"),
+    fillsDetails: z.boolean().describe("Duplicate with an empty reference, mandate, creditor id or BIC that takes the one of the file; a reference only if no kind of reference searched for it holds it already"),
     fills: z.array(ImportFillField).describe("Duplicate: the fields empty in the stored booking that take the value of this row"),
     pending: z.boolean(),
     categoryId: Id.nullable().describe("Category the row gets; for a duplicate the category the file names"),
