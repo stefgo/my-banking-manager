@@ -20,16 +20,17 @@ interface BaseRow {
     remittance: string;
     can_change: number | null;
     can_delete: number | null;
+    end_to_end_id: string | null;
     fetched_at: string;
 }
-interface StandingRow extends BaseRow {
+export interface StandingRow extends BaseRow {
     unit: "month" | "week";
     every: number;
     execution_day: number;
     first_date: string;
     last_date: string | null;
 }
-interface ScheduledRow extends BaseRow {
+export interface ScheduledRow extends BaseRow {
     execution_date: string;
 }
 
@@ -59,16 +60,16 @@ function replace<T extends { bankOrderId: string | null }>(db: Db, table: "stand
 
 export function replaceStandingOrders(db: Db, accountId: number, orders: ConnectorStandingOrder[], now = new Date().toISOString()): void {
     replace(db, "standing_orders", accountId, orders, (o, id) => {
-        const values = [o.bankOrderId, o.payeeName, o.payeeIban, o.payeeBic, o.amount, o.remittance, o.unit, o.every, o.executionDay, o.firstDate, o.lastDate, flag(o.canChange), flag(o.canDelete), now];
+        const values = [o.bankOrderId, o.payeeName, o.payeeIban, o.payeeBic, o.amount, o.remittance, o.unit, o.every, o.executionDay, o.firstDate, o.lastDate, flag(o.canChange), flag(o.canDelete), o.endToEndId, now];
         if (id !== null) {
             db.prepare(
                 `UPDATE standing_orders SET bank_order_id = ?, payee_name = ?, payee_iban = ?, payee_bic = ?, amount = ?, remittance = ?, unit = ?, every = ?, execution_day = ?,
-                        first_date = ?, last_date = ?, can_change = ?, can_delete = ?, fetched_at = ? WHERE id = ?`,
+                        first_date = ?, last_date = ?, can_change = ?, can_delete = ?, end_to_end_id = ?, fetched_at = ? WHERE id = ?`,
             ).run(...values, id);
         } else {
             db.prepare(
-                `INSERT INTO standing_orders (bank_order_id, payee_name, payee_iban, payee_bic, amount, remittance, unit, every, execution_day, first_date, last_date, can_change, can_delete, fetched_at, account_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                `INSERT INTO standing_orders (bank_order_id, payee_name, payee_iban, payee_bic, amount, remittance, unit, every, execution_day, first_date, last_date, can_change, can_delete, end_to_end_id, fetched_at, account_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             ).run(...values, accountId);
         }
     });
@@ -76,15 +77,15 @@ export function replaceStandingOrders(db: Db, accountId: number, orders: Connect
 
 export function replaceScheduledTransfers(db: Db, accountId: number, orders: ConnectorScheduledTransfer[], now = new Date().toISOString()): void {
     replace(db, "scheduled_transfers", accountId, orders, (o, id) => {
-        const values = [o.bankOrderId, o.payeeName, o.payeeIban, o.payeeBic, o.amount, o.remittance, o.executionDate, flag(o.canChange), flag(o.canDelete), now];
+        const values = [o.bankOrderId, o.payeeName, o.payeeIban, o.payeeBic, o.amount, o.remittance, o.executionDate, flag(o.canChange), flag(o.canDelete), o.endToEndId, now];
         if (id !== null) {
             db.prepare(
-                `UPDATE scheduled_transfers SET bank_order_id = ?, payee_name = ?, payee_iban = ?, payee_bic = ?, amount = ?, remittance = ?, execution_date = ?, can_change = ?, can_delete = ?, fetched_at = ? WHERE id = ?`,
+                `UPDATE scheduled_transfers SET bank_order_id = ?, payee_name = ?, payee_iban = ?, payee_bic = ?, amount = ?, remittance = ?, execution_date = ?, can_change = ?, can_delete = ?, end_to_end_id = ?, fetched_at = ? WHERE id = ?`,
             ).run(...values, id);
         } else {
             db.prepare(
-                `INSERT INTO scheduled_transfers (bank_order_id, payee_name, payee_iban, payee_bic, amount, remittance, execution_date, can_change, can_delete, fetched_at, account_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                `INSERT INTO scheduled_transfers (bank_order_id, payee_name, payee_iban, payee_bic, amount, remittance, execution_date, can_change, can_delete, end_to_end_id, fetched_at, account_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             ).run(...values, accountId);
         }
     });
@@ -102,6 +103,14 @@ export function clearOrders(db: Db, accountId: number): void {
 }
 
 // ---------- Reading ----------
+
+/** One order row by kind; undefined if a fetch removed it meanwhile. */
+export function orderRow(db: Db, kind: "standing", id: number): StandingRow | undefined;
+export function orderRow(db: Db, kind: "scheduled", id: number): ScheduledRow | undefined;
+export function orderRow(db: Db, kind: "standing" | "scheduled", id: number): StandingRow | ScheduledRow | undefined;
+export function orderRow(db: Db, kind: "standing" | "scheduled", id: number): StandingRow | ScheduledRow | undefined {
+    return db.prepare(`SELECT * FROM ${kind === "standing" ? "standing_orders" : "scheduled_transfers"} WHERE id = ?`).get(id) as StandingRow | ScheduledRow | undefined;
+}
 
 const normIban = (s: string): string => s.replace(/\s/g, "").toUpperCase();
 
@@ -174,6 +183,12 @@ export function listOrders(db: Db, userId: number, scope: AccountScope, today = 
                 scheduledTransfers: !!caps.scheduledTransfers,
                 needsApproval: (!!caps.standingOrders && !!caps.standingOrdersTan) || (!!caps.scheduledTransfers && !!caps.scheduledTransfersTan),
                 fetchedAt: r.orders_fetched_at,
+                createScheduled: !!caps.createScheduledTransfer,
+                changeScheduled: !!caps.changeScheduledTransfer,
+                deleteScheduled: !!caps.deleteScheduledTransfer,
+                createStanding: !!caps.createStandingOrder,
+                changeStanding: !!caps.changeStandingOrder,
+                deleteStanding: !!caps.deleteStandingOrder,
             });
         }
     }

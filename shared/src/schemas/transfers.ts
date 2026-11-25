@@ -2,8 +2,8 @@
 // server keeps the state and the history; the list of payees is shared by all users.
 
 import { z } from "zod";
-import { Cents, Id, Timestamp } from "./common.js";
-import { ConnectorChallenge, ConnectorVop } from "./connector.js";
+import { Cents, Id, IsoDate, Timestamp } from "./common.js";
+import { ConnectorChallenge, ConnectorOrderRules, ConnectorRecurrence, ConnectorVop } from "./connector.js";
 import { cleanIban, ibanProblem } from "../iban.js";
 import { BIC_PATTERN, SEPA_NAME_MAX, SEPA_REMITTANCE_MAX, TRANSFER_MAX_CENTS, sepaCharsMessage } from "../sepa.js";
 
@@ -20,6 +20,28 @@ import { BIC_PATTERN, SEPA_NAME_MAX, SEPA_REMITTANCE_MAX, TRANSFER_MAX_CENTS, se
 export const TransferStatus = z.enum(["submitting", "awaiting_vop_confirm", "awaiting_tan", "executed", "rejected", "failed", "cancelled", "unknown"]);
 export type TransferStatus = z.infer<typeof TransferStatus>;
 
+/**
+ * What a transfer does at the bank: `now` a transfer (or instant transfer), `date` a scheduled
+ * transfer, `standing` a standing order; `action` creates, changes or deletes the order.
+ */
+export const TransferExecution = z.enum(["now", "date", "standing"]);
+export type TransferExecution = z.infer<typeof TransferExecution>;
+export const TransferAction = z.enum(["create", "change", "delete"]);
+export type TransferAction = z.infer<typeof TransferAction>;
+
+/** An order as it was before a change or deletion, for "before → after". */
+export const OrderSnapshot = z.object({
+    bankOrderId: z.string(),
+    payeeName: z.string(),
+    payeeIban: z.string(),
+    payeeBic: z.string().nullable(),
+    amount: Cents,
+    remittance: z.string(),
+    executionDate: IsoDate.nullable(),
+    recurrence: ConnectorRecurrence.nullable(),
+});
+export type OrderSnapshot = z.infer<typeof OrderSnapshot>;
+
 export const Transfer = z.object({
     id: Id,
     accountId: Id,
@@ -34,6 +56,18 @@ export const Transfer = z.object({
     remittance: z.string(),
     endToEndId: z.string(),
     instant: z.boolean(),
+    execution: TransferExecution,
+    action: TransferAction,
+    /** `date`: the day of execution. */
+    executionDate: IsoDate.nullable(),
+    /** `standing`: the rhythm. */
+    recurrence: ConnectorRecurrence.nullable(),
+    /** The order a change or deletion refers to (row in the orders), if it still exists. */
+    orderId: Id.nullable(),
+    /** The bank's identification of the order: given for changes and deletions, reported for new ones. */
+    bankOrderId: z.string().nullable(),
+    /** Changes and deletions: the order as it was. */
+    previous: OrderSnapshot.nullable(),
     status: TransferStatus,
     vop: ConnectorVop.nullable(),
     /** While it waits for the approval, for the user who started it. */
@@ -59,10 +93,14 @@ const text = (max: number, what: string) =>
             if (msg) ctx.addIssue({ code: "custom", message: msg });
         });
 
-export const CreateTransferRequest = z.object({
-    /** Chosen by the client once per form: sending it twice gives the same transfer. */
-    requestId: z.string().uuid(),
-    accountId: Id,
+const execution = {
+    date: z.object({ kind: z.literal("date"), date: IsoDate }),
+    standing: ConnectorRecurrence.extend({ kind: z.literal("standing") }),
+};
+export const TransferExecutionRequest = z.discriminatedUnion("kind", [z.object({ kind: z.literal("now") }), execution.date, execution.standing]);
+export type TransferExecutionRequest = z.infer<typeof TransferExecutionRequest>;
+
+const paymentFields = {
     payeeName: text(SEPA_NAME_MAX, "Empfänger").pipe(z.string().min(1, "Bitte den Empfänger eingeben")),
     payeeIban: z
         .string()
@@ -74,10 +112,37 @@ export const CreateTransferRequest = z.object({
     payeeBic: z.string().trim().toUpperCase().regex(BIC_PATTERN, "BIC mit 8 oder 11 Zeichen").nullable().default(null),
     amount: Cents.refine((c) => c > 0, "Der Betrag muss größer als 0 sein.").refine((c) => c <= TRANSFER_MAX_CENTS, "Der Betrag ist zu groß."),
     remittance: text(SEPA_REMITTANCE_MAX, "Verwendungszweck").default(""),
-    instant: z.boolean().default(false),
-    /** The PIN, if the login does not store it; used for this transfer only. */
-    pin: z.string().min(1).max(64).optional(),
+};
+
+/** Chosen by the client once per form: sending it twice gives the same transfer. */
+const requestId = z.string().uuid();
+/** The PIN, if the login does not store it; used for this transfer only. */
+const pin = z.string().min(1).max(64).optional();
+
+export const CreateTransferRequest = z
+    .object({
+        requestId,
+        accountId: Id,
+        ...paymentFields,
+        instant: z.boolean().default(false),
+        /** Now (default), on a date, or as a standing order. */
+        execution: TransferExecutionRequest.default({ kind: "now" }),
+        pin,
+    })
+    .refine((r) => !r.instant || r.execution.kind === "now", { message: "Echtzeitüberweisungen gibt es nur sofort.", path: ["instant"] });
+
+/** The complete order as it shall be after the change; its kind decides the execution. */
+export const ChangeOrderRequest = z.object({
+    requestId,
+    ...paymentFields,
+    execution: z.discriminatedUnion("kind", [execution.date, execution.standing]),
+    pin,
 });
+
+export const DeleteOrderRequest = z.object({ requestId, pin });
+
+export const OrderKind = z.enum(["standing", "scheduled"]);
+export const OrderParam = z.object({ kind: OrderKind, id: z.coerce.number().int().positive() });
 
 export const TransfersQuery = z.object({
     accountId: z.coerce.number().int().positive().optional(),
@@ -95,6 +160,13 @@ export const TransferAccount = z.object({
     payeeVerification: z.boolean(),
     /** The PIN is not stored: the form asks for it. */
     pinRequired: z.boolean(),
+    /** Standard transfers (an account may allow only orders). */
+    transfer: z.boolean(),
+    /** Scheduled transfers and standing orders: what the bank allows from this account. */
+    scheduled: z.boolean(),
+    standing: z.boolean(),
+    /** The bank's rules for them; null until the connector has reported them (next fetch). */
+    orderRules: ConnectorOrderRules.nullable(),
 });
 
 export const TransferPayee = z.object({

@@ -50,6 +50,13 @@ export const OrderAccount = z.object({
     needsApproval: z.boolean(),
     /** Last successful fetch of the orders; null if never. */
     fetchedAt: Timestamp.nullable(),
+    /** What the user's login may write at the bank for this account. */
+    createScheduled: z.boolean(),
+    changeScheduled: z.boolean(),
+    deleteScheduled: z.boolean(),
+    createStanding: z.boolean(),
+    changeStanding: z.boolean(),
+    deleteStanding: z.boolean(),
 });
 export type OrderAccount = z.infer<typeof OrderAccount>;
 
