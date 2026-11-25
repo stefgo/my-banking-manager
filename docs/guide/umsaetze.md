@@ -76,8 +76,9 @@ Umsatz.
 ## Filter
 
 Über der Liste stehen drei Filter: **Kategorien**, **Eingänge und Ausgaben** und **Zeitraum**
-(dieser Monat, Vormonat, 30, 90 oder 365 Tage, alle). Die Liste zeigt die Anzahl und die Summe
-aller passenden Umsätze. **Verlauf** im Kopf blendet den Saldoverlauf des gewählten Kontos ein.
+(dieser Monat, Vormonat, 30, 90 oder 365 Tage, alle). **Verlauf** im Kopf blendet den
+Saldoverlauf des gewählten Kontos ein.
+Scrollst du die Liste, bleiben Suchfeld und Filter am oberen Rand stehen.
 
 ## Suche
 

@@ -25,6 +25,7 @@ import { InfoPanel, InfoToggle } from "../components/InfoPanel";
 import { QueryHelp } from "../components/QueryHelp";
 import { SuggestList } from "../components/SuggestList";
 import { useStackedHead } from "../lib/useStackedHead";
+import { useStickyBar } from "../lib/useStickyBar";
 import { useSuggest } from "../lib/useSuggest";
 import { TxList } from "../components/TxList";
 import { SkeletonRows } from "../components/Skeleton";
@@ -99,6 +100,7 @@ function TransactionList() {
     }
 
     const qRef = useRef<HTMLInputElement>(null);
+    const toolbar = useStickyBar();
     const hints = useSuggest({ value: q, onChange: setQ, inputRef: qRef });
     /** Replaces the search at once, without waiting for the typing delay. */
     const replaceSearch = (text: string) => {
@@ -335,7 +337,7 @@ function TransactionList() {
     return (
         <>
             <ContextHeader search={search} range={range} span={span} rangeLabel={dateInSearch ? "Zeitraum aus Suche" : RANGE_LABELS[range]} total={list.data?.total ?? 0} />
-            <div className="toolbar">
+            <div className="toolbar" ref={toolbar}>
                 <label className="search">
                     <Ic icon={Search} />
                     <input
@@ -427,18 +429,6 @@ function TransactionList() {
                         onApply={(from, to) => replaceSearch(withDateRange(q, from, to))}
                         onClose={() => setCustomRange(false)}
                     />
-                )}
-            </div>
-            <div className="sumline">
-                {list.data ? (
-                    <>
-                        <span>{plural(list.data.count, "Umsatz", "Umsätze")}{list.data.truncated ? " (gekürzt)" : ""}</span>
-                        <span>
-                            Summe <Amt cents={list.data.total} signed as="b" />
-                        </span>
-                    </>
-                ) : (
-                    <span>Wird geladen …</span>
                 )}
             </div>
             <section className="panel list-panel" aria-label="Umsatzliste" aria-busy={list.isFetching}>
