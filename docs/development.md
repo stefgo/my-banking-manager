@@ -100,8 +100,15 @@ lädt die betroffenen Abfragen neu (`clients/web/src/lib/socket.ts`).
   jeder übergeordneten Zeile die ganze Tabelle (Import rückgängig, Konto löschen). Ausnahmen (kleine
   Tabellen, seltenes Löschen) stehen mit Begründung in `WITHOUT_INDEX` in
   `server/src/db/migrations/migrations.test.ts`; der Test dort meldet jede neue Spalte ohne Index.
-- Kategorien hängen über `transaction_categories` an Buchungen (eine Zeile je Anteil), damit
-  Splitbuchungen später ohne Umbau möglich sind.
+- Der Fingerabdruck einer Bankbuchung ist je Konto eindeutig (Index `transactions_fingerprint`).
+- Kategorien hängen über `transaction_categories` an Buchungen, eine Zeile je Anteil. Noch kann
+  keine Route eine Buchung aufteilen, aber alles Lesende verträgt mehrere Anteile: Die Umsatzliste
+  zeigt den größten Anteil und findet die Buchung unter jeder ihrer Kategorien, die Auswertungen
+  zählen jeden Anteil mit seinem Betrag (`amount`), Regeln und Import lassen eine aufgeteilte Buchung
+  unangetastet, „Kategorie löschen“ mit Ziel fasst Anteile zusammen, die dort zusammentreffen.
+  Eine Buchung mit nur einem Anteil hat dort ihren vollen Betrag. Ändert sich der Betrag einer
+  aufgeteilten Buchung von Hand, bleiben ihre Anteile, wie sie sind; das zu regeln gehört zum
+  Aufteilen selbst.
 - Saldo eines Offline-Kontos: Anfangssaldo + alle Buchungen. Der Anfangssaldo ist der Kontostand vor
   der ersten Buchung und hat kein Datum; auch importierte Buchungen jeden Datums zählen.
 - Saldo eines Bankkontos: ebenfalls Anfangssaldo + alle Buchungen (`services/accounts.ts`). Ein Abruf

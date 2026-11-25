@@ -91,6 +91,7 @@ describe("taking over accounts", () => {
         expect(body.find((a) => a.id === ids.card)).toMatchObject({ iban: null, cardNumber: "4111000000001234" });
         expect(body.find((a) => a.id === ids.giro)).toMatchObject({ cardNumber: null });
     });
+
 });
 
 describe("CSV import into a bank account", () => {
@@ -251,6 +252,26 @@ describe("fetching", () => {
         // would otherwise meet another booking under it
         const booked = t.vault.database.prepare("SELECT id FROM transactions WHERE account_id = ? AND counterparty_name = 'Kiosk'").get(ids.giro) as { id: number };
         expect(booked.id).toBeGreaterThan(pendingId);
+    });
+
+    it("carries every share of a split pending booking over to the booked one", async () => {
+        const { ids } = await setUpAccess();
+        await api("POST", "/api/sync", { accountId: ids.giro });
+        await waitFor((r) => r[0]?.status === "done");
+        const db = t.vault.database;
+        const a = (await api<{ id: number }>("POST", "/api/categories", { name: "Snacks", parentId: null, icon: "coffee", color: "orange" })).body.id;
+        const b = (await api<{ id: number }>("POST", "/api/categories", { name: "Zeitung", parentId: null, icon: "coffee", color: "blue" })).body.id;
+        const pendingId = (db.prepare("SELECT id FROM transactions WHERE status = 'pending'").get() as { id: number }).id;
+        db.prepare("INSERT INTO transaction_categories (transaction_id, category_id, amount, source) VALUES (?, ?, -400, 'manual'), (?, ?, -590, 'manual')").run(pendingId, a, pendingId, b);
+
+        giroTxs = [...giroTxs.slice(0, 3), tx({ amount: -990, counterpartyName: "Kiosk", bookingDate: "2026-11-16" })];
+        await api("POST", "/api/sync", { accountId: ids.giro });
+        await waitFor((r) => r.filter((x) => x.status === "done").length === 2);
+        const booked = db.prepare("SELECT id FROM transactions WHERE account_id = ? AND counterparty_name = 'Kiosk'").get(ids.giro) as { id: number };
+        expect(db.prepare("SELECT category_id AS category, amount, source FROM transaction_categories WHERE transaction_id = ? ORDER BY category_id").all(booked.id)).toEqual([
+            { category: a, amount: -400, source: "manual" },
+            { category: b, amount: -590, source: "manual" },
+        ]);
     });
 
     it("adds an account number to a stored booking at the next fetch, without doubling it", async () => {

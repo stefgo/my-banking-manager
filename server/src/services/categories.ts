@@ -180,12 +180,13 @@ export function deleteCategory(db: Db, id: number, moveTo?: number): Category {
         if (ids.includes(moveTo)) throw badRequest("Die Umsätze können nicht in eine Kategorie wandern, die mit gelöscht wird.");
         getCategory(db, moveTo);
         const marks = ids.map(() => "?").join(",");
-        // A booking keeps one share: drop shares that would collide, then move the rest
-        db.prepare(`DELETE FROM transaction_categories WHERE category_id IN (${marks}) AND transaction_id IN (SELECT transaction_id FROM transaction_categories WHERE category_id = ?)`).run(
-            ...ids,
-            moveTo,
-        );
-        db.prepare(`UPDATE transaction_categories SET category_id = ?, source = 'manual', rule_id = NULL WHERE category_id IN (${marks})`).run(moveTo, ...ids);
+        // Shares of a booking that meet in `moveTo` become one share, their amounts added up
+        db.prepare(
+            `INSERT INTO transaction_categories (transaction_id, category_id, amount, source, rule_id)
+             SELECT transaction_id, ?, SUM(amount), 'manual', NULL FROM transaction_categories WHERE category_id IN (${marks}) GROUP BY transaction_id
+             ON CONFLICT (transaction_id, category_id) DO UPDATE SET amount = amount + excluded.amount, source = 'manual', rule_id = NULL`,
+        ).run(moveTo, ...ids);
+        db.prepare(`DELETE FROM transaction_categories WHERE category_id IN (${marks})`).run(...ids);
         db.prepare(`UPDATE rules SET category_id = ? WHERE category_id IN (${marks})`).run(moveTo, ...ids);
     }
     // "Ohne Kategorie" below the deleted ones takes the deleted category's place

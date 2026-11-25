@@ -11,6 +11,7 @@ import { bookingReferences } from "./0008-booking-references.js";
 import { transactionsFetchedAt } from "./0009-transactions-fetched-at.js";
 import { orderWrites } from "./0010-order-writes.js";
 import { foreignKeyIndexes } from "./0011-foreign-key-indexes.js";
+import { bookingGuards } from "./0012-booking-guards.js";
 import { applyMigration, migrations, type Migration } from "./index.js";
 
 const columns = (db: Database.Database, table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
@@ -368,5 +369,51 @@ describe("0011-foreign-key-indexes", () => {
         expect(plan("SELECT id FROM transactions WHERE counter_transaction_id = 1")).toContain("transactions_counter");
         expect(plan("SELECT id FROM transfers WHERE transaction_id = 1")).toContain("transfers_transaction");
         db.close();
+    });
+});
+
+describe("0012-booking-guards", () => {
+    let db: Database.Database;
+
+    beforeEach(() => {
+        db = before(bookingGuards);
+        db.exec(`
+            INSERT INTO accounts (id, kind, name, icon, color, position, created_at) VALUES (1, 'giro', 'Giro', 'landmark', 'blue', 0, '${T0}'), (2, 'giro', 'Zweit', 'landmark', 'blue', 1, '${T0}');
+            INSERT INTO categories (id, parent_id, name, icon, color, position) VALUES (1, NULL, 'A', 'tag', 'green', 0), (2, NULL, 'B', 'tag', 'green', 1);
+            INSERT INTO transactions (id, account_id, fingerprint, booking_date, amount, status, first_seen_at, source) VALUES
+                (1, 1, 'fp#1', '2026-01-02', -100, 'booked', '${T0}', 'bank'),
+                (2, 1, 'fp#1', '2026-01-02', -100, 'booked', '${T0}', 'bank'),
+                (3, 1, 'fp#1', '2026-01-02', -100, 'booked', '${T0}', 'bank'),
+                (4, 2, 'fp#1', '2026-01-02', -100, 'booked', '${T0}', 'bank'),
+                (5, 1, NULL, '2026-01-03', -500, 'booked', '${T0}', 'manual'),
+                (6, 1, NULL, '2026-01-03', -100, 'booked', '${T0}', 'manual');
+            INSERT INTO transaction_categories (transaction_id, category_id, amount, source) VALUES
+                (1, 1, -100, 'rule'),
+                (5, 1, -300, 'manual'),
+                (6, 1, -20, 'manual'), (6, 2, -80, 'manual');
+        `);
+        applyMigration(db, bookingGuards);
+    });
+    afterEach(() => db.close());
+
+    it("gives a single share the amount of its booking and leaves the shares of a split alone", () => {
+        expect(db.prepare("SELECT transaction_id AS tx, category_id AS category, amount FROM transaction_categories ORDER BY transaction_id, category_id").all()).toEqual([
+            { tx: 1, category: 1, amount: -100 },
+            { tx: 5, category: 1, amount: -500 },
+            { tx: 6, category: 1, amount: -20 },
+            { tx: 6, category: 2, amount: -80 },
+        ]);
+    });
+
+    it("keeps a fingerprint once per account and marks the younger duplicates instead of deleting them", () => {
+        expect(db.prepare("SELECT id, fingerprint FROM transactions ORDER BY id").all()).toEqual([
+            { id: 1, fingerprint: "fp#1" },
+            { id: 2, fingerprint: "fp#1~2" },
+            { id: 3, fingerprint: "fp#1~3" },
+            { id: 4, fingerprint: "fp#1" },
+            { id: 5, fingerprint: null },
+            { id: 6, fingerprint: null },
+        ]);
+        expect(() => db.exec("UPDATE transactions SET fingerprint = 'fp#1' WHERE id = 2")).toThrow();
     });
 });
