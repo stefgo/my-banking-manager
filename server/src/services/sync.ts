@@ -17,6 +17,7 @@ import * as bank from "./bankaccess.js";
 import { accountsInScope, requireGroup } from "./accounts.js";
 import { applyFetch } from "./fetchimport.js";
 import { markOrdersFetched, replaceScheduledTransfers, replaceStandingOrders } from "./orders.js";
+import { resolveOrderTransfers } from "./transfers.js";
 import { logActivity } from "./users.js";
 
 type Outcome = { status: "done"; data: unknown; state: string } | { status: "approval"; operationId: string; challenge: ConnectorChallenge } | { status: "confirm"; operationId: string };
@@ -279,8 +280,20 @@ export class SyncManager {
         const failures: string[] = [];
         for (const t of targets) {
             const lists = [
-                { on: !!t.caps.standingOrders && (run.api.ordersOnly || !t.caps.standingOrdersTan), fetch: async () => replaceStandingOrders(db(), t.id, (await call<{ orders: ConnectorStandingOrder[] }>("standingOrders", { account: t.ref })).orders) },
-                { on: !!t.caps.scheduledTransfers && (run.api.ordersOnly || !t.caps.scheduledTransfersTan), fetch: async () => replaceScheduledTransfers(db(), t.id, (await call<{ orders: ConnectorScheduledTransfer[] }>("scheduledTransfers", { account: t.ref })).orders) },
+                {
+                    on: !!t.caps.standingOrders && (run.api.ordersOnly || !t.caps.standingOrdersTan),
+                    fetch: async () => {
+                        replaceStandingOrders(db(), t.id, (await call<{ orders: ConnectorStandingOrder[] }>("standingOrders", { account: t.ref })).orders);
+                        resolveOrderTransfers(db(), t.id, "standing");
+                    },
+                },
+                {
+                    on: !!t.caps.scheduledTransfers && (run.api.ordersOnly || !t.caps.scheduledTransfersTan),
+                    fetch: async () => {
+                        replaceScheduledTransfers(db(), t.id, (await call<{ orders: ConnectorScheduledTransfer[] }>("scheduledTransfers", { account: t.ref })).orders);
+                        resolveOrderTransfers(db(), t.id, "scheduled");
+                    },
+                },
             ].filter((l) => l.on);
             if (lists.length === 0) continue;
             try {

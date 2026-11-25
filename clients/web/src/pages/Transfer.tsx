@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog as RDialog } from "radix-ui";
-import { AlertTriangle, ArrowLeft, Check, ChevronDown, CircleHelp, Pencil, Send, ShieldCheck, Smartphone, X, Zap } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarDays, Check, ChevronDown, CircleHelp, Pencil, RefreshCw, Repeat, Send, ShieldCheck, Smartphone, Trash2, X, Zap } from "lucide-react";
 import {
     centsToInput,
     cleanIban,
@@ -18,20 +18,54 @@ import {
     routes,
     SEPA_NAME_MAX,
     splitRemittance,
+    addDaysIso,
+    orderDateRange,
+    todayIso,
     toIsoDate,
     wrapRemittance,
     type ConnectorChallenge,
+    type ConnectorRecurrence,
+    type StandingOrderChangeable,
     type Transfer,
+    type TransferExecution,
     type VopResult,
 } from "@mbm/shared";
 import { ApiFailure, call, errorText } from "../lib/api";
-import { useConnections } from "../lib/bank";
+import { startSync, useConnections } from "../lib/bank";
 import { fieldProps, focusFirstError, hasErrors, type FieldErrors } from "../lib/fields";
-import { fmt } from "../lib/format";
-import { chipDate } from "../lib/orders";
-import { invalidate, useAccounts, useAction, useTransfer, useTransferAccounts, useTransferPayees, useTransfers } from "../lib/queries";
-import { bicToSend, blzOfIban, checkTransfer, emptyForm, isRunning, newRequestId, needsSecondConfirm, ibanAsTyped, remittanceLeft, STATUS_LABEL, VOP_VIEW, type Tone, type TransferForm } from "../lib/transfer";
-import { ui, useUi, type TransferDraft } from "../lib/ui";
+import { dateText, fmt } from "../lib/format";
+import { chipDate, orderKey } from "../lib/orders";
+import { invalidate, useAccounts, useAction, useOrders, useTransfer, useTransferAccounts, useTransferPayees, useTransfers } from "../lib/queries";
+import {
+    bicToSend,
+    blzOfIban,
+    checkTransfer,
+    dateWithBankingDay,
+    dayOptions,
+    earliestFirstRun,
+    emptyForm,
+    EXEC_FIELD,
+    EXECUTION_LABEL,
+    executedTitle,
+    executionOf,
+    executionsOf,
+    executionText,
+    isRunning,
+    kindLabel,
+    newRequestId,
+    needsSecondConfirm,
+    nextRuns,
+    ibanAsTyped,
+    recurrenceOfForm,
+    remittanceLeft,
+    rhythmOptions,
+    rhythmText,
+    STATUS_LABEL,
+    VOP_VIEW,
+    type Tone,
+    type TransferForm,
+} from "../lib/transfer";
+import { ui, useUi, type OrderRef, type TransferDraft } from "../lib/ui";
 import { Amt, Button, Empty, NoBankAccess, Switch } from "../components/common";
 import { Field } from "../components/form";
 import { StepList } from "../components/import/StepList";
@@ -124,10 +158,13 @@ export function TransferPage() {
     );
 }
 
-/** The transfer form and its way to the bank. Clicking beside it does not close it, Esc and ✕ do. */
-function TransferDialog({ accounts, transfers }: { accounts: TransferAccount[]; transfers: Transfer[] }) {
+/**
+ * The transfer form and its way to the bank, also for orders (new, changed, deleted). Clicking
+ * beside it does not close it, Esc and ✕ do. The pages for transfers and for orders show it.
+ */
+export function TransferDialog({ accounts, transfers }: { accounts: TransferAccount[]; transfers: Transfer[] }) {
     const draft = useUi((s) => s.transferDraft);
-    const [activeId, setActiveId] = useState<number | null>(null);
+    const [activeId, setActiveId] = useState<number | null>(() => draft?.runId ?? null);
     const [formKey, setFormKey] = useState(0);
     // A transfer of this user that still waits comes back, and stays shown once it ends, so its
     // outcome is seen (above all "Ausgang unbekannt")
@@ -148,12 +185,14 @@ function TransferDialog({ accounts, transfers }: { accounts: TransferAccount[]; 
                 <div className="modal-wrap">
                     <RDialog.Overlay className="scrim" />
                     <RDialog.Content className="modal tf-modal" aria-describedby={undefined} onInteractOutside={(e) => e.preventDefault()}>
-                        <RDialog.Title className="sr-only">{shownId !== null ? "Überweisung" : "Neue Überweisung"}</RDialog.Title>
+                        <RDialog.Title className="sr-only">{shownId !== null ? "Überweisung" : draft?.remove ? "Auftrag löschen" : draft?.change ? "Auftrag ändern" : "Neue Überweisung"}</RDialog.Title>
                         <RDialog.Close className="icon-btn tf-close" aria-label="Schließen">
                             <Ic icon={X} />
                         </RDialog.Close>
                         {shownId !== null ? (
                             <RunView key={shownId} id={shownId} onNew={() => startOver(null)} onEdit={startOver} onClose={close} />
+                        ) : draft?.remove ? (
+                            <DeleteReview key={`${draft.seq ?? 0}-${formKey}`} order={draft.remove} account={accounts.find((a) => a.id === draft.accountId)} onSent={setActiveId} onCancel={close} />
                         ) : (
                             <Composer key={`${draft?.seq ?? 0}-${formKey}`} draft={draft} accounts={accounts} onSent={setActiveId} onCancel={close} />
                         )}
@@ -182,17 +221,53 @@ const Steps = ({ at }: { at: number }) => <StepList steps={STEPS} at={at} />;
 
 // ---------- Enter and check ----------
 
+/** The first standing order the account's rules allow: monthly if offered, on the 1st. */
+function defaultRhythm(account: TransferAccount | undefined): Pick<TransferForm, "unit" | "every" | "executionDay" | "firstDate"> {
+    const rules = account?.orderRules?.standing;
+    const first = rhythmOptions(rules)[0] ?? { unit: "month" as const, every: 1 };
+    const executionDay = dayOptions(first.unit, rules)[0]?.value ?? 1;
+    return { unit: first.unit, every: first.every, executionDay, firstDate: rules ? earliestFirstRun(rules, { unit: first.unit, executionDay }) : "" };
+}
+
+/** The execution an account can do: the asked one if it may, else its first. */
+function executionFor(account: TransferAccount | undefined, wanted: TransferExecution): TransferExecution {
+    const allowed = executionsOf(account);
+    return allowed.includes(wanted) ? wanted : (allowed[0] ?? "now");
+}
+
 const formOf = (d: TransferDraft | null, accounts: TransferAccount[]): TransferForm => {
     const account = accounts.find((a) => a.id === d?.accountId) ?? accounts[0];
+    // A change starts from the order as it is, or from what was sent last time ("Ändern und neu senden")
+    const prev = d?.change?.previous;
+    const src = { payeeName: d?.payeeName ?? prev?.payeeName, payeeIban: d?.payeeIban ?? prev?.payeeIban, payeeBic: d?.payeeBic ?? prev?.payeeBic, amount: d?.amount ?? prev?.amount, remittance: d?.remittance ?? prev?.remittance };
+    const r: ConnectorRecurrence | null | undefined = d?.recurrence ?? prev?.recurrence;
+    const execution: TransferExecution = d?.change ? (d.change.kind === "standing" ? "standing" : "date") : executionFor(account, d?.execution ?? "now");
     return {
         ...emptyForm(account ? String(account.id) : ""),
-        payeeName: (d?.payeeName ?? "").slice(0, SEPA_NAME_MAX),
-        payeeIban: d?.payeeIban ? groupIban(d.payeeIban) : "",
-        payeeBic: d?.payeeBic ?? "",
-        amount: d?.amount ? centsToInput(d.amount) : "",
-        remittance: splitRemittance(d?.remittance ?? ""),
-        instant: !!d?.instant && !!account?.instant,
+        accountId: d?.change ? String(d.accountId ?? "") : account ? String(account.id) : "",
+        payeeName: (src?.payeeName ?? "").slice(0, SEPA_NAME_MAX),
+        payeeIban: src?.payeeIban ? groupIban(src.payeeIban) : "",
+        payeeBic: src?.payeeBic ?? "",
+        amount: src?.amount ? centsToInput(src.amount) : "",
+        remittance: splitRemittance(src?.remittance ?? ""),
+        instant: execution === "now" && !!d?.instant && !!account?.instant,
+        execution,
+        date: d?.executionDate ?? prev?.executionDate ?? "",
+        ...(r ? { unit: r.unit, every: r.every, executionDay: r.executionDay, firstDate: r.firstDate, lastDate: r.lastDate ?? "" } : defaultRhythm(account)),
     };
+};
+
+/** The order as it was, in the fields of the form: to tell what a change touches. */
+const changedFields = (f: TransferForm, prev: OrderRef["previous"]): { label: string; before: string; after: string }[] => {
+    const out: { label: string; before: string; after: string }[] = [];
+    const add = (label: string, before: string, after: string) => before !== after && out.push({ label, before, after });
+    add("Empfänger", prev.payeeName, f.payeeName.trim());
+    add("IBAN", groupIban(prev.payeeIban), groupIban(cleanIban(f.payeeIban)));
+    add("Betrag", fmt(prev.amount), fmt(parseAmount(f.amount) ?? 0));
+    add("Verwendungszweck", prev.remittance, joinRemittance(f.remittance));
+    if (prev.executionDate) add("Ausführung", dateText(prev.executionDate), f.date ? dateText(f.date) : "");
+    if (prev.recurrence) add("Turnus", rhythmText(prev.recurrence), rhythmText(recurrenceOfForm(f)));
+    return out;
 };
 
 /** A saved payee or a counterparty from the bookings, as the form takes it over. */
@@ -206,57 +281,23 @@ const initials = (name: string): string =>
         .map((w) => w[0]!.toUpperCase())
         .join("");
 
-const FIELD_ID: Record<keyof TransferForm, string> = { accountId: "tr-acc", payeeName: "tr-name", payeeIban: "tr-iban", payeeBic: "tr-bic", amount: "tr-amount", remittance: "tr-purpose", instant: "tr-instant", pin: "tr-pin" };
+const FIELD_ID: Record<keyof TransferForm, string> = {
+    accountId: "tr-acc", payeeName: "tr-name", payeeIban: "tr-iban", payeeBic: "tr-bic", amount: "tr-amount", remittance: "tr-purpose", instant: "tr-instant", pin: "tr-pin",
+    execution: "tr-exec", date: EXEC_FIELD.date, unit: EXEC_FIELD.rhythm, every: EXEC_FIELD.rhythm, executionDay: EXEC_FIELD.rhythm, firstDate: EXEC_FIELD.first, lastDate: EXEC_FIELD.last,
+};
 
-function Composer({ draft, accounts, onSent, onCancel }: { draft: TransferDraft | null; accounts: TransferAccount[]; onSent: (id: number) => void; onCancel: () => void }) {
-    const [form, setForm] = useState<TransferForm>(() => formOf(draft, accounts));
-    const account = accounts.find((a) => String(a.id) === form.accountId);
-    const [step, setStep] = useState<"edit" | "review">(() => (draft?.review && !hasErrors(checkTransfer(formOf(draft, accounts), !!account?.pinRequired)) ? "review" : "edit"));
-    const [errors, setErrors] = useState<FieldErrors>({});
+/**
+ * Sends what the form or a confirmation prepared; asks for the password again where the server
+ * wants it, and starts afresh (new request ID) when an earlier send of it arrived with other data.
+ */
+function useSend(onSent: (id: number) => void) {
     const [sending, setSending] = useState(false);
     // One per form: sending it twice (double click, retry after a lost answer) gives the same transfer
     const [requestId, setRequestId] = useState(newRequestId);
-    const recent = (useTransferPayees().data?.payees ?? []).slice(0, 5);
-    const amountRef = useRef<HTMLInputElement>(null);
-    const cents = parseAmount(form.amount);
-    const remittance = joinRemittance(form.remittance);
-    const bic = bicToSend(form);
-
-    const set = <K extends keyof TransferForm>(k: K, v: TransferForm[K]) => {
-        setForm((f) => ({ ...f, [k]: v }));
-        if (errors[FIELD_ID[k]]) setErrors((e) => ({ ...e, [FIELD_ID[k]]: undefined }));
-    };
-    const takePayee = (p: PayeePick) => {
-        setForm((f) => ({ ...f, payeeName: p.name.slice(0, SEPA_NAME_MAX), payeeIban: groupIban(p.iban), payeeBic: p.bic ?? "" }));
-        setErrors((e) => ({ ...e, "tr-name": undefined, "tr-iban": undefined, "tr-bic": undefined }));
-        requestAnimationFrame(() => amountRef.current?.focus());
-    };
-
-    const review = (e: React.FormEvent) => {
-        e.preventDefault();
-        const next = checkTransfer(form, !!account?.pinRequired);
-        setErrors(next);
-        if (focusFirstError(next)) return;
-        setForm((f) => ({ ...f, payeeIban: groupIban(f.payeeIban), payeeName: f.payeeName.trim(), payeeBic: f.payeeBic.trim().toUpperCase(), remittance: f.remittance.map((l) => l.trim()) }));
-        setStep("review");
-    };
-
-    const send = async () => {
+    const send = async (fn: (requestId: string) => Promise<Transfer>, purpose = "der Überweisung"): Promise<void> => {
         setSending(true);
         try {
-            const t = await call(routes.createTransfer, {
-                body: {
-                    requestId,
-                    accountId: Number(form.accountId),
-                    payeeName: form.payeeName.trim(),
-                    payeeIban: cleanIban(form.payeeIban),
-                    payeeBic: bic,
-                    amount: parseAmount(form.amount)!,
-                    remittance,
-                    instant: form.instant,
-                    ...(account?.pinRequired ? { pin: form.pin } : {}),
-                },
-            });
+            const t = await fn(requestId);
             invalidate("transfers");
             onSent(t.id);
         } catch (err) {
@@ -264,10 +305,10 @@ function Composer({ draft, accounts, onSent, onCancel }: { draft: TransferDraft 
                 ui.confirmSecret({
                     secret: "password",
                     title: "Passwort bestätigen",
-                    text: "Deine letzte Passworteingabe ist eine Weile her. Bitte bestätige vor der Überweisung, dass du es bist.",
+                    text: `Deine letzte Passworteingabe ist eine Weile her. Bitte bestätige vor ${purpose}, dass du es bist.`,
                     confirm: "Bestätigen",
                     run: (password) => call(routes.confirmPassword, { body: { password } }),
-                    onDone: () => void send(),
+                    onDone: () => void send(fn, purpose),
                 });
             } else {
                 // An earlier send of this form arrived with other data: it shows in the history; sending
@@ -282,30 +323,105 @@ function Composer({ draft, accounts, onSent, onCancel }: { draft: TransferDraft 
             setSending(false);
         }
     };
+    return { send, sending };
+}
 
+/** What a change may touch: all of a scheduled transfer, of a standing order what the bank allows. */
+function changeableOf(change: OrderRef | undefined, account: TransferAccount | undefined): StandingOrderChangeable | null {
+    if (!change) return null;
+    if (change.kind === "scheduled") return { payeeAccount: true, payeeName: true, amount: true, remittance: true, firstDate: true, unit: false, every: true, executionDay: true, lastDate: true };
+    return account?.orderRules?.standingChange?.changeable ?? { payeeAccount: true, payeeName: true, amount: true, remittance: true, firstDate: true, unit: false, every: true, executionDay: true, lastDate: true };
+}
+
+function Composer({ draft, accounts, onSent, onCancel }: { draft: TransferDraft | null; accounts: TransferAccount[]; onSent: (id: number) => void; onCancel: () => void }) {
+    const [form, setForm] = useState<TransferForm>(() => formOf(draft, accounts));
+    const account = accounts.find((a) => String(a.id) === form.accountId);
+    const change = draft?.change;
+    const can = changeableOf(change, account);
+    const check = (f: TransferForm) =>
+        checkTransfer(f, !!account?.pinRequired, account?.orderRules, todayIso(), { change: !!change, firstDateFixed: !!change?.previous.recurrence && f.firstDate === change.previous.recurrence.firstDate });
+    const [step, setStep] = useState<"edit" | "review">(() => (draft?.review && !hasErrors(check(formOf(draft, accounts))) ? "review" : "edit"));
+    const [errors, setErrors] = useState<FieldErrors>({});
+    const { send: sendWith, sending } = useSend(onSent);
+    const payees = useTransferPayees().data?.payees;
+    const recent = change ? [] : (payees ?? []).slice(0, 5);
+    const amountRef = useRef<HTMLInputElement>(null);
+    const cents = parseAmount(form.amount);
+    const remittance = joinRemittance(form.remittance);
+    const bic = bicToSend(form);
+
+    const accountName = useAccounts().data?.find((a) => String(a.id) === form.accountId)?.name ?? "";
+    const set = <K extends keyof TransferForm>(k: K, v: TransferForm[K]) => {
+        setForm((f) => ({ ...f, [k]: v }));
+        if (errors[FIELD_ID[k]]) setErrors((e) => ({ ...e, [FIELD_ID[k]]: undefined }));
+    };
+    const takePayee = (p: PayeePick) => {
+        setForm((f) => ({ ...f, payeeName: p.name.slice(0, SEPA_NAME_MAX), payeeIban: groupIban(p.iban), payeeBic: p.bic ?? "" }));
+        setErrors((e) => ({ ...e, "tr-name": undefined, "tr-iban": undefined, "tr-bic": undefined }));
+        requestAnimationFrame(() => amountRef.current?.focus());
+    };
+
+    const review = (e: React.FormEvent) => {
+        e.preventDefault();
+        const next = check(form);
+        setErrors(next);
+        if (focusFirstError(next)) return;
+        if (change && changedFields(form, change.previous).length === 0) {
+            ui.toast("Es ist nichts geändert.", "info");
+            return;
+        }
+        setForm((f) => ({ ...f, payeeIban: groupIban(f.payeeIban), payeeName: f.payeeName.trim(), payeeBic: f.payeeBic.trim().toUpperCase(), remittance: f.remittance.map((l) => l.trim()) }));
+        setStep("review");
+    };
+
+    const send = () => {
+        const fields = { payeeName: form.payeeName.trim(), payeeIban: cleanIban(form.payeeIban), payeeBic: bic, amount: parseAmount(form.amount)!, remittance, ...(account?.pinRequired ? { pin: form.pin } : {}) };
+        if (change) {
+            const execution = executionOf(form);
+            if (execution.kind === "now") return;
+            return sendWith((requestId) => call(routes.changeOrder, { params: { kind: change.kind, id: change.orderId }, body: { requestId, ...fields, execution } }), "der Änderung");
+        }
+        return sendWith((requestId) => call(routes.createTransfer, { body: { requestId, accountId: Number(form.accountId), ...fields, instant: form.instant, execution: executionOf(form) } }), form.execution === "now" ? "der Überweisung" : "dem Auftrag");
+    };
     if (step === "review") {
         return (
             <section className="panel tf-main" aria-label="Überweisung prüfen">
                 <Steps at={1} />
                 <div>
-                    <span className="label">{form.instant ? "Echtzeitüberweisung" : "Überweisung"} an</span>
+                    <span className="label">{change ? kindLabel({ execution: form.execution, action: "change", instant: false }) : kindLabel({ execution: form.execution, action: "create", instant: form.instant })} an</span>
                     <h2 className="tf-payee">{form.payeeName}</h2>
                 </div>
                 <div className="r-amount review-amount amt">{fmt(cents!)}</div>
+                {change && (
+                    <dl className="d-list tf-diff" aria-label="Änderungen">
+                        {changedFields(form, change.previous).map((c) => (
+                            <Row
+                                key={c.label}
+                                k={c.label}
+                                v={
+                                    <>
+                                        <s className="faint">{c.before || "—"}</s> → <b>{c.after || "—"}</b>
+                                    </>
+                                }
+                            />
+                        ))}
+                    </dl>
+                )}
                 <dl className="d-list">
                     <Row k="IBAN" v={<span className="mono">{groupIban(form.payeeIban)}</span>} />
                     {bic && <Row k="BIC" v={<span className="mono">{bic}</span>} />}
                     <Row k="Bank" v={<BankName iban={form.payeeIban} />} />
-                    <Row k="Von Konto" v={account?.name ?? ""} />
+                    <Row k="Von Konto" v={account?.name ?? accountName} />
                     <Row k="Verwendungszweck" v={remittance || <span className="faint">ohne</span>} />
-                    <Row k="Ausführung" v={form.instant ? "sofort, in Sekunden beim Empfänger" : "am nächsten Bankarbeitstag"} />
+                    <Row k="Ausführung" v={executionText({ execution: form.execution, instant: form.instant, executionDate: form.date || null, recurrence: form.execution === "standing" ? recurrenceOfForm(form) : null })} />
                 </dl>
+                {change && <p className="muted small">Die Bank bekommt den vollständigen Auftrag mit den Änderungen. Sie gelten ab der nächsten Ausführung.</p>}
                 <div className="note">
                     <Ic icon={ShieldCheck} size={16} />
                     <span>
                         {account?.payeeVerification
-                            ? "Die Bank prüft zuerst, ob der Name zur IBAN passt. Danach gibst du die Überweisung in deiner App frei."
-                            : "Danach gibst du die Überweisung in deiner App frei. Diese Bank meldet keine Empfängerüberprüfung."}
+                            ? `Die Bank prüft zuerst, ob der Name zur IBAN passt. Danach gibst du ${form.execution === "now" ? "die Überweisung" : "den Auftrag"} in deiner App frei.`
+                            : `Danach gibst du ${form.execution === "now" ? "die Überweisung" : "den Auftrag"} in deiner App frei. Diese Bank meldet keine Empfängerüberprüfung.`}
                     </span>
                 </div>
                 <div className="actions">
@@ -321,10 +437,24 @@ function Composer({ draft, accounts, onSent, onCancel }: { draft: TransferDraft 
     }
 
     const remLeft = remittanceLeft(form.remittance);
+    const pickAccount = (a: TransferAccount) =>
+        setForm((f) => {
+            const execution = executionFor(a, f.execution);
+            // Another bank may allow other rhythms: start from its first one
+            const rhythm = a.orderRules?.standing === account?.orderRules?.standing ? {} : defaultRhythm(a);
+            return { ...f, ...rhythm, accountId: String(a.id), execution, instant: execution === "now" && f.instant && a.instant, pin: "" };
+        });
     return (
-        <form className="panel tf-main tf-edit" aria-label="Überweisung erfassen" onSubmit={review} noValidate>
+        <form className="panel tf-main tf-edit" aria-label={change ? "Auftrag ändern" : "Überweisung erfassen"} onSubmit={review} noValidate>
             <Steps at={0} />
-            <FromAccount accounts={accounts} value={form.accountId} error={errors["tr-acc"]} onPick={(a) => setForm((f) => ({ ...f, accountId: String(a.id), instant: f.instant && a.instant, pin: "" }))} />
+            {change ? (
+                <div className="tf-change-head">
+                    <span className="label">{kindLabel({ execution: form.execution, action: "change", instant: false })}</span>
+                    <b>von {account?.name ?? accountName}</b>
+                </div>
+            ) : (
+                <FromAccount accounts={accounts} value={form.accountId} error={errors["tr-acc"]} onPick={pickAccount} />
+            )}
             {recent.length > 0 && (
                 <div className="recent" aria-label="Zuletzt genutzte Empfänger">
                     <span className="label">Zuletzt</span>
@@ -338,8 +468,12 @@ function Composer({ draft, accounts, onSent, onCancel }: { draft: TransferDraft 
                     ))}
                 </div>
             )}
-            <PayeeField name={form.payeeName} error={errors["tr-name"]} onName={(v) => set("payeeName", v)} onPick={takePayee} />
-            <IbanField value={form.payeeIban} error={errors["tr-iban"]} onChange={(v) => set("payeeIban", v)} />
+            {can && !can.payeeName ? (
+                <Locked label="Empfänger" value={form.payeeName} />
+            ) : (
+                <PayeeField name={form.payeeName} error={errors["tr-name"]} onName={(v) => set("payeeName", v)} onPick={takePayee} />
+            )}
+            {can && !can.payeeAccount ? <Locked label="IBAN" value={groupIban(form.payeeIban)} mono /> : <IbanField value={form.payeeIban} error={errors["tr-iban"]} onChange={(v) => set("payeeIban", v)} />}
             {needsBic(cleanIban(form.payeeIban)) && (
                 <Field id="tr-bic" label="BIC (optional)" error={errors["tr-bic"]} hint="Für Überweisungen in dieses Land verlangen manche Banken die BIC.">
                     <input
@@ -354,18 +488,51 @@ function Composer({ draft, accounts, onSent, onCancel }: { draft: TransferDraft 
                     />
                 </Field>
             )}
-            <Field id="tr-amount" label="Betrag" error={errors["tr-amount"]}>
-                <div className="amount-wrap tf-amount">
-                    <input ref={amountRef} className="inp" inputMode="decimal" placeholder="0,00" autoComplete="off" value={form.amount} onChange={(e) => set("amount", e.target.value)} {...fieldProps("tr-amount", errors["tr-amount"])} />
-                    <span className="cur">€</span>
-                </div>
-            </Field>
-            <Field id="tr-purpose" label="Verwendungszweck" error={errors["tr-purpose"]} hint={remLeft < 30 ? `Noch ${Math.max(remLeft, 0)} Zeichen` : undefined}>
-                <RemittanceLines lines={form.remittance} error={errors["tr-purpose"]} hasHint={remLeft < 30} onChange={(v) => set("remittance", v)} />
-            </Field>
-            {(account?.instant || account?.pinRequired) && (
+            {can && !can.amount ? (
+                <Locked label="Betrag" value={fmt(parseAmount(form.amount) ?? 0)} />
+            ) : (
+                <Field id="tr-amount" label="Betrag" error={errors["tr-amount"]}>
+                    <div className="amount-wrap tf-amount">
+                        <input ref={amountRef} className="inp" inputMode="decimal" placeholder="0,00" autoComplete="off" value={form.amount} onChange={(e) => set("amount", e.target.value)} {...fieldProps("tr-amount", errors["tr-amount"])} />
+                        <span className="cur">€</span>
+                    </div>
+                </Field>
+            )}
+            {can && !can.remittance ? (
+                <Locked label="Verwendungszweck" value={remittance || "ohne"} />
+            ) : (
+                <Field id="tr-purpose" label="Verwendungszweck" error={errors["tr-purpose"]} hint={remLeft < 30 ? `Noch ${Math.max(remLeft, 0)} Zeichen` : undefined}>
+                    <RemittanceLines lines={form.remittance} error={errors["tr-purpose"]} hasHint={remLeft < 30} onChange={(v) => set("remittance", v)} />
+                </Field>
+            )}
+            {(account?.instant || account?.pinRequired || executionsOf(account).length > 1 || change) && (
                 <div className="exec">
-                    {account.instant && (
+                    {!change && executionsOf(account).length > 1 && (
+                        <div className="field">
+                            <span className="flabel" id="tr-exec-label">
+                                Ausführung
+                            </span>
+                            <div className="seg tf-exec" role="group" aria-labelledby="tr-exec-label" id="tr-exec">
+                                {executionsOf(account).map((x) => (
+                                    <button key={x} type="button" aria-pressed={form.execution === x} onClick={() => setForm((f) => ({ ...f, execution: x, instant: x === "now" && f.instant }))}>
+                                        {EXECUTION_LABEL[x]}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    {form.execution !== "now" && account?.orderRules && (
+                        <ExecutionFields
+                            form={form}
+                            setForm={setForm}
+                            errors={errors}
+                            onClear={(...ids) => setErrors((e) => Object.fromEntries(Object.entries(e).filter(([k]) => !ids.includes(k))))}
+                            account={account}
+                            change={change}
+                            can={can}
+                        />
+                    )}
+                    {form.execution === "now" && account?.instant && (
                         <div className="switch-row">
                             <span>
                                 <b>
@@ -376,8 +543,8 @@ function Composer({ draft, accounts, onSent, onCancel }: { draft: TransferDraft 
                             <Switch checked={form.instant} onChange={(v) => set("instant", v)} label="Echtzeitüberweisung" />
                         </div>
                     )}
-                    {account.pinRequired && (
-                        <Field id="tr-pin" label="PIN" error={errors["tr-pin"]} hint="Die PIN ist nicht gespeichert und gilt nur für diese Überweisung.">
+                    {account?.pinRequired && (
+                        <Field id="tr-pin" label="PIN" error={errors["tr-pin"]} hint={`Die PIN ist nicht gespeichert und gilt nur für ${form.execution === "now" ? "diese Überweisung" : "diesen Auftrag"}.`}>
                             <input className="inp" type="password" autoComplete="off" value={form.pin} onChange={(e) => set("pin", e.target.value)} {...fieldProps("tr-pin", errors["tr-pin"], true)} />
                         </Field>
                     )}
@@ -392,6 +559,216 @@ function Composer({ draft, accounts, onSent, onCancel }: { draft: TransferDraft 
                 </Button>
             </div>
         </form>
+    );
+}
+
+/** A part of an order the bank does not let a change touch. */
+function Locked({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+    return (
+        <div className="field">
+            <span className="flabel">{label}</span>
+            <div className={`tf-locked ${mono ? "mono" : ""}`}>{value}</div>
+            <p className="hint">Die Bank erlaubt nicht, das zu ändern.</p>
+        </div>
+    );
+}
+
+/**
+ * The date of a scheduled transfer, or the rhythm of a standing order: only what the bank allows
+ * for the account, with the first run after its lead time and a preview of the next runs.
+ */
+function ExecutionFields({
+    form,
+    setForm,
+    errors,
+    onClear,
+    account,
+    change,
+    can,
+}: {
+    form: TransferForm;
+    setForm: React.Dispatch<React.SetStateAction<TransferForm>>;
+    errors: FieldErrors;
+    onClear: (...ids: string[]) => void;
+    account: TransferAccount;
+    change?: OrderRef;
+    can: StandingOrderChangeable | null;
+}) {
+    const rules = account.orderRules;
+    const today = todayIso();
+    const clear = onClear;
+    if (form.execution === "date") {
+        const r = change ? rules?.scheduledChange : rules?.scheduled;
+        const range = r ? orderDateRange(r, today) : null;
+        const err = errors[EXEC_FIELD.date];
+        return (
+            <Field id={EXEC_FIELD.date} label="Ausführen am" error={err} hint={form.date && !err ? dateWithBankingDay(form.date) : range ? `Frühestens ${dateText(range.earliest)}, höchstens bis ${dateText(range.latest)}` : undefined}>
+                <input
+                    className="inp tf-date"
+                    type="date"
+                    min={range?.earliest}
+                    max={range?.latest}
+                    value={form.date}
+                    onChange={(e) => {
+                        clear(EXEC_FIELD.date);
+                        setForm((f) => ({ ...f, date: e.target.value }));
+                    }}
+                    {...fieldProps(EXEC_FIELD.date, err, !!form.date)}
+                />
+            </Field>
+        );
+    }
+    const r = change ? rules?.standingChange : rules?.standing;
+    const fixedUnit = !!can && !can.unit;
+    // A change keeps the order's own rhythm and day on offer, even where the bank no longer lists them
+    const rhythms = rhythmOptions(r, change ? { unit: form.unit, every: form.every } : undefined).filter((o) => !fixedUnit || o.unit === form.unit);
+    const days = dayOptions(form.unit, r, change ? form.executionDay : undefined);
+    const range = r ? orderDateRange(r, today) : null;
+    // A new order's first run follows the rhythm; a change keeps the first date unless asked to
+    const setRhythm = (unit: "month" | "week", every: number, executionDay: number) =>
+        setForm((f) => {
+            const next = { ...f, unit, every, executionDay };
+            if (!change && r) {
+                const earliest = earliestFirstRun(r, { unit, executionDay });
+                next.firstDate = earliest;
+            }
+            return next;
+        });
+    const runs = nextRuns(recurrenceOfForm(form));
+    const first = errors[EXEC_FIELD.first];
+    const last = errors[EXEC_FIELD.last];
+    return (
+        <>
+            <div className="exec-grid">
+                <Field id={EXEC_FIELD.rhythm} label="Turnus" error={errors[EXEC_FIELD.rhythm]}>
+                    <select
+                        className="inp"
+                        value={`${form.unit}:${form.every}`}
+                        disabled={!!can && !can.every}
+                        onChange={(e) => {
+                            const [unit, every] = e.target.value.split(":") as ["month" | "week", string];
+                            clear(EXEC_FIELD.rhythm, EXEC_FIELD.first);
+                            const day = unit === form.unit ? form.executionDay : (dayOptions(unit, r)[0]?.value ?? 1);
+                            setRhythm(unit, Number(every), day);
+                        }}
+                        {...fieldProps(EXEC_FIELD.rhythm, errors[EXEC_FIELD.rhythm])}
+                    >
+                        {rhythms.map((o) => (
+                            <option key={`${o.unit}:${o.every}`} value={`${o.unit}:${o.every}`}>
+                                {o.label}
+                            </option>
+                        ))}
+                    </select>
+                </Field>
+                <Field id="tr-day" label="Ausführungstag">
+                    <select
+                        className="inp"
+                        id="tr-day"
+                        value={form.executionDay}
+                        disabled={!!can && !can.executionDay}
+                        onChange={(e) => {
+                            clear(EXEC_FIELD.rhythm, EXEC_FIELD.first);
+                            setRhythm(form.unit, form.every, Number(e.target.value));
+                        }}
+                    >
+                        {days.map((d) => (
+                            <option key={d.value} value={d.value}>
+                                {d.label}
+                            </option>
+                        ))}
+                    </select>
+                </Field>
+                <Field id={EXEC_FIELD.first} label="Erste Ausführung" error={first}>
+                    <input
+                        className="inp"
+                        type="date"
+                        min={change ? undefined : range?.earliest}
+                        max={range?.latest}
+                        value={form.firstDate}
+                        disabled={!!can && !can.firstDate}
+                        onChange={(e) => {
+                            clear(EXEC_FIELD.first);
+                            setForm((f) => ({ ...f, firstDate: e.target.value }));
+                        }}
+                        {...fieldProps(EXEC_FIELD.first, first)}
+                    />
+                </Field>
+                <Field id={EXEC_FIELD.last} label="Letzte Ausführung (optional)" error={last} hint={!last && !form.lastDate ? "Leer: unbefristet" : undefined}>
+                    <input
+                        className="inp"
+                        type="date"
+                        min={form.firstDate || range?.earliest}
+                        value={form.lastDate}
+                        disabled={!!can && !can.lastDate}
+                        onChange={(e) => {
+                            clear(EXEC_FIELD.last);
+                            setForm((f) => ({ ...f, lastDate: e.target.value }));
+                        }}
+                        {...fieldProps(EXEC_FIELD.last, last, !last && !form.lastDate)}
+                    />
+                </Field>
+            </div>
+            {runs.length > 0 && (
+                <p className="muted small tf-runs">
+                    <Ic icon={Repeat} size={13} /> Nächste Termine: {runs.map(dateText).join(", ")}
+                </p>
+            )}
+        </>
+    );
+}
+
+/** Deleting an order: what goes, and the confirmation; the bank then asks for the approval. */
+function DeleteReview({ order, account, onSent, onCancel }: { order: OrderRef; account?: TransferAccount; onSent: (id: number) => void; onCancel: () => void }) {
+    const [pin, setPin] = useState("");
+    const [error, setError] = useState<string>();
+    const { send, sending } = useSend(onSent);
+    const accountName = useAccounts().data?.find((a) => a.id === account?.id)?.name ?? account?.name ?? "";
+    const p = order.previous;
+    const what = order.kind === "standing" ? "Dauerauftrag" : "Terminüberweisung";
+    // The bank needs a few days ahead; a run that close may still go out
+    const soon = order.nextDate !== null && order.nextDate <= addDaysIso(todayIso(), 3);
+    const remove = () => {
+        if (account?.pinRequired && !pin) {
+            setError("Bitte die PIN eingeben.");
+            return;
+        }
+        void send((requestId) => call(routes.deleteOrder, { params: { kind: order.kind, id: order.orderId }, body: { requestId, ...(account?.pinRequired ? { pin } : {}) } }), "dem Löschen");
+    };
+    return (
+        <section className="panel tf-main" aria-label={`${what} löschen`}>
+            <Steps at={1} />
+            <div>
+                <span className="label">{what} löschen</span>
+                <h2 className="tf-payee">{p.payeeName}</h2>
+            </div>
+            <div className="r-amount review-amount amt">{fmt(p.amount)}</div>
+            <dl className="d-list">
+                <Row k="IBAN" v={<span className="mono">{groupIban(p.payeeIban)}</span>} />
+                <Row k="Von Konto" v={accountName} />
+                <Row k="Verwendungszweck" v={p.remittance || <span className="faint">ohne</span>} />
+                <Row k="Ausführung" v={executionText({ execution: order.kind === "standing" ? "standing" : "date", instant: false, executionDate: p.executionDate, recurrence: p.recurrence })} />
+            </dl>
+            {soon && (
+                <div className="note warn">
+                    <Ic icon={AlertTriangle} size={16} />
+                    <span>Die nächste Ausführung am {dateText(order.nextDate!)} steht kurz bevor. Die Bank führt sie womöglich noch aus.</span>
+                </div>
+            )}
+            <p className="muted small">Die Bank führt den {what === "Dauerauftrag" ? "Dauerauftrag" : "Auftrag"} danach nicht mehr aus. Rückgängig machen lässt sich das nicht; neu anlegen geht jederzeit.</p>
+            {account?.pinRequired && (
+                <Field id="tr-pin" label="PIN" error={error} hint="Die PIN ist nicht gespeichert und gilt nur für diesen Auftrag.">
+                    <input className="inp" type="password" autoComplete="off" value={pin} onChange={(e) => (setPin(e.target.value), setError(undefined))} {...fieldProps("tr-pin", error, true)} />
+                </Field>
+            )}
+            <div className="actions">
+                <Button className="btn-ghost" onClick={onCancel} disabled={sending}>
+                    Abbrechen
+                </Button>
+                <Button className="btn-danger" icon={Trash2} busy={sending} onClick={remove} autoFocus>
+                    Bei der Bank löschen
+                </Button>
+            </div>
+        </section>
     );
 }
 
@@ -766,7 +1143,22 @@ function PayeeField({ name, error, onName, onPick }: { name: string; error?: str
 
 // ---------- On its way ----------
 
-const draftOf = (t: Transfer): TransferDraft => ({ accountId: t.accountId, payeeName: t.payeeName, payeeIban: t.payeeIban, payeeBic: t.payeeBic, amount: t.amount, remittance: t.remittance, instant: t.instant });
+const orderKindOf = (t: Pick<Transfer, "execution">): "standing" | "scheduled" => (t.execution === "standing" ? "standing" : "scheduled");
+
+/** A transfer as a form again; a change stays a change of the same order. */
+const draftOf = (t: Transfer): TransferDraft => ({
+    accountId: t.accountId,
+    payeeName: t.payeeName,
+    payeeIban: t.payeeIban,
+    payeeBic: t.payeeBic,
+    amount: t.amount,
+    remittance: t.remittance,
+    instant: t.instant,
+    execution: t.execution,
+    executionDate: t.executionDate,
+    recurrence: t.recurrence,
+    ...(t.action === "change" && t.orderId !== null && t.previous ? { change: { kind: orderKindOf(t), orderId: t.orderId, previous: t.previous, nextDate: null } } : {}),
+});
 
 /** Design class of the verification result (`.vop.match` …). */
 const VOP_CLASS: Record<VopResult, string> = { match: "match", close_match: "close", no_match: "nomatch", not_applicable: "close", pending: "close", none: "none" };
@@ -786,7 +1178,7 @@ function RunView({ id, onNew, onEdit, onClose }: { id: number; onNew: () => void
                 <div className="tan" role="status">
                     <Orb small />
                     <h2>Wird an die Bank gesendet</h2>
-                    <p className="muted">Die Bank prüft, ob der Name zur IBAN passt.</p>
+                    <p className="muted">{t.action === "delete" ? "Die Bank prüft den Auftrag." : "Die Bank prüft, ob der Name zur IBAN passt."}</p>
                 </div>
             )}
             {t.status === "awaiting_vop_confirm" && <VopDecision t={t} onEdit={onEdit} />}
@@ -801,13 +1193,19 @@ function RunSummary({ t, account }: { t: Transfer; account?: string }) {
     return (
         <div className="tf-sum">
             <div className="tf-sum-main">
-                <span className="label">{t.instant ? "Echtzeitüberweisung" : "Überweisung"} an</span>
+                <span className="label">{kindLabel(t)} an</span>
                 <b>{t.payeeName}</b>
                 <small>
                     <span className="mono">{groupIban(t.payeeIban)}</span>
                     {account && ` · von ${account}`}
                 </small>
                 {t.remittance && <small className="tf-sum-rem">{t.remittance}</small>}
+                {t.execution !== "now" && (
+                    <small className="tf-sum-rem tf-sum-exec">
+                        <Ic icon={t.execution === "standing" ? Repeat : CalendarDays} size={12} />
+                        <span>{executionText(t)}</span>
+                    </small>
+                )}
             </div>
             <Amt cents={t.amount} className="tf-sum-amt" />
         </div>
@@ -945,7 +1343,7 @@ function ApprovalWait({ t }: { t: Transfer }) {
 }
 
 const OUTCOME_TITLE: Partial<Record<Transfer["status"], (t: Transfer) => string>> = {
-    executed: (t) => (t.instant ? (t.unconfirmed ? "Echtzeitüberweisung eingereicht" : "Echtzeitüberweisung ausgeführt") : "Überweisung ausgeführt"),
+    executed: executedTitle,
     rejected: () => "Von der Bank abgelehnt",
     failed: () => "Nicht gesendet",
     cancelled: () => "Abgebrochen",
@@ -975,20 +1373,24 @@ function Outcome({ t, onNew, onEdit, onClose }: { t: Transfer; onNew: () => void
                 </small>
             )}
             {ok && t.unconfirmed && <p className="muted small">Die Bank hat den Eingang beim Empfänger noch nicht bestätigt. Bitte beim nächsten Abruf in den Umsätzen prüfen.</p>}
-            {ok && !t.transactionId && <p className="muted small">Die Buchung erscheint beim nächsten Abruf.</p>}
+            {ok && t.execution === "now" && !t.transactionId && <p className="muted small">Die Buchung erscheint beim nächsten Abruf.</p>}
+            {t.execution !== "now" && (ok || t.status === "unknown" || t.status === "failed") && <OrderAfter t={t} onClose={onClose} />}
             <div className="actions tan-actions">
-                {(t.status === "rejected" || t.status === "failed" || t.status === "cancelled") && (
+                {(t.status === "rejected" || t.status === "failed" || t.status === "cancelled") && t.action !== "delete" && (
                     <Button icon={Pencil} onClick={() => onEdit(draftOf(t))}>
                         Ändern und neu senden
                     </Button>
                 )}
-                {t.status === "unknown" && (
+                {t.status === "unknown" && t.action !== "delete" && (
                     <Button
                         icon={Pencil}
                         onClick={() =>
                             ui.confirm({
                                 title: "Neu erfassen?",
-                                text: "Ob die erste Überweisung ausgeführt wurde, ist unbekannt. Bitte erst nach dem nächsten Abruf in den Umsätzen prüfen, sonst überweist du womöglich doppelt.",
+                                text:
+                                    t.execution === "now"
+                                        ? "Ob die erste Überweisung ausgeführt wurde, ist unbekannt. Bitte erst nach dem nächsten Abruf in den Umsätzen prüfen, sonst überweist du womöglich doppelt."
+                                        : "Ob der Auftrag bei der Bank angekommen ist, ist unbekannt. Bitte erst in den Aufträgen oder im Online-Banking nachsehen, sonst legst du ihn womöglich doppelt an.",
                                 confirm: "Trotzdem neu erfassen",
                                 onConfirm: () => onEdit(draftOf(t)),
                             })
@@ -998,11 +1400,56 @@ function Outcome({ t, onNew, onEdit, onClose }: { t: Transfer; onNew: () => void
                     </Button>
                 )}
                 <Button onClick={onClose}>Schließen</Button>
-                <Button className="btn-primary" icon={Send} onClick={onNew}>
-                    Neue Überweisung
-                </Button>
+                {t.execution === "now" ? (
+                    <Button className="btn-primary" icon={Send} onClick={onNew}>
+                        Neue Überweisung
+                    </Button>
+                ) : (
+                    <Button className="btn-primary" icon={Repeat} onClick={() => onEdit({ accountId: t.accountId, execution: t.execution })}>
+                        Neuer Auftrag
+                    </Button>
+                )}
             </div>
         </div>
+    );
+}
+
+/**
+ * After an order: the bank's list shows what happened. MBM fetches it on its own unless the bank
+ * wants an approval for that; then a button does.
+ */
+function OrderAfter({ t, onClose }: { t: Transfer; onClose: () => void }) {
+    const navigate = useNavigate();
+    const account = useOrders("all").data?.accounts.find((a) => a.accountId === t.accountId);
+    const open = t.status === "executed" && t.action !== "delete" && t.orderId !== null;
+    return (
+        <>
+            {account?.needsApproval ? (
+                <p className="muted small">Deine Bank verlangt für den Abruf der Aufträge eine Freigabe. Ruf sie ab, um den neuen Stand zu sehen.</p>
+            ) : (
+                <p className="muted small">MBM ruft die Aufträge des Kontos neu ab und zeigt dort den Stand der Bank.</p>
+            )}
+            {(account?.needsApproval || open) && (
+                <div className="actions tan-actions">
+                    {account?.needsApproval && (
+                        <Button icon={RefreshCw} onClick={() => void startSync({ accountId: t.accountId }, undefined, true)}>
+                            Aufträge abrufen
+                        </Button>
+                    )}
+                    {open && (
+                        <Button
+                            icon={CalendarDays}
+                            onClick={() => {
+                                onClose();
+                                void navigate({ to: "/orders" }).then(() => ui.openOrder(orderKey({ kind: orderKindOf(t), id: t.orderId! })));
+                            }}
+                        >
+                            Zum Auftrag
+                        </Button>
+                    )}
+                </div>
+            )}
+        </>
     );
 }
 
@@ -1026,7 +1473,8 @@ function History({ transfers }: { transfers: Transfer[] }) {
             <div className="up-list flat">
                 {transfers.map((t) => {
                     const [d, m] = chipDate(localDate(t.createdAt));
-                    const detail = [STATUS_LABEL[t.status], accounts.find((a) => a.id === t.accountId)?.name, several ? `von ${t.createdBy}` : "", t.remittance].filter(Boolean).join(" · ");
+                    const kind = t.execution === "now" ? "" : t.action === "create" && t.executionDate ? `${kindLabel(t)} für ${dateText(t.executionDate)}` : kindLabel(t);
+                    const detail = [kind, STATUS_LABEL[t.status], accounts.find((a) => a.id === t.accountId)?.name, several ? `von ${t.createdBy}` : "", t.remittance].filter(Boolean).join(" · ");
                     return (
                         <button key={t.id} type="button" className={`up ${open === t.id ? "sel" : ""}`} aria-pressed={open === t.id || undefined} onClick={() => ui.openTransfer(open === t.id ? null : t.id)}>
                             <span className="datechip">
@@ -1040,7 +1488,7 @@ function History({ transfers }: { transfers: Transfer[] }) {
                                     <span>{detail}</span>
                                 </small>
                             </span>
-                            <Amt cents={-t.amount} className="up-amt" />
+                            <Amt cents={-t.amount} className={`up-amt ${t.action === "delete" ? "faint" : ""}`} />
                         </button>
                     );
                 })}

@@ -98,8 +98,24 @@ const SHOTS: Shot[] = [
         name: "auftrag-details",
         route: "/orders",
         themes: ["dark"],
+        // The details with their buttons are taller than the list
+        viewport: { width: WIDTH, height: 900 },
         prepare: async (page) => {
             await page.getByText("Hausverwaltung Lindenhof GmbH").first().click();
+        },
+    },
+    {
+        name: "auftrag-neu",
+        route: "/orders",
+        themes: ["dark"],
+        viewport: { width: WIDTH, height: 1180 },
+        prepare: async (page) => {
+            await page.getByRole("button", { name: "Neuer Auftrag" }).click();
+            await page.getByPlaceholder("Name oder Firma").fill("Mia Muster");
+            await page.getByPlaceholder("DE00 0000 0000 0000 0000 00").fill("DE44500105179438371294");
+            await page.getByPlaceholder("0,00").fill("50,00");
+            await page.locator("#tr-purpose").fill("Taschengeld");
+            await page.locator("#tr-name").blur();
         },
     },
     { name: "einstellungen-konten", route: "/settings?tab=accounts", themes: ["dark"] },

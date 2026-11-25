@@ -135,6 +135,10 @@ jobs:
               uses: docker/metadata-action@v6
               with:
                   images: ${{ env.IMAGE }}
+                  # The license label says MIT (from the repository); for mbm-server-full the
+                  # description points to NOTICE: the FinTS product ID inside is not under MIT.
+                  labels: |
+                      ${{ matrix.image == 'server-full' && 'org.opencontainers.image.description=My Banking Manager: Server, Web-Client und FinTS-Konnektor. MIT-Lizenz; die FinTS-Produkt-ID offizieller Images ist davon ausgenommen (siehe /app/NOTICE).' || '' }}
 
             # An official mbm-server-full build gets the secret and no cache at all: Docker leaves the
             # content of a secret out of the cache key, and a cached layer holding the number

@@ -82,7 +82,7 @@ async function sync(path = "/api/sync", body: object = {}): Promise<Run> {
 describe("orders", () => {
     it("come with a fetch and replace what was there", async () => {
         const ids = await setUpAccess();
-        expect((await api<Orders>("GET", "/api/orders")).body).toEqual({ orders: [], accounts: [{ accountId: ids.giro, standingOrders: true, scheduledTransfers: true, needsApproval: false, fetchedAt: null }] });
+        expect((await api<Orders>("GET", "/api/orders")).body).toEqual({ orders: [], accounts: [{ accountId: ids.giro, standingOrders: true, scheduledTransfers: true, needsApproval: false, fetchedAt: null, createScheduled: false, changeScheduled: false, deleteScheduled: false, createStanding: false, changeStanding: false, deleteStanding: false }] });
 
         expect(await sync()).toMatchObject({ status: "done", ordersOnly: false, ordersMessage: null });
         // Only the account that offers orders is asked
@@ -131,7 +131,7 @@ describe("orders", () => {
         const ids = await setUpAccess();
         await sync();
         expect(fc.received.some((r) => r.route === "standingOrders" || r.route === "scheduledTransfers")).toBe(false);
-        expect((await api<Orders>("GET", "/api/orders")).body).toEqual({ orders: [], accounts: [{ accountId: ids.giro, standingOrders: true, scheduledTransfers: true, needsApproval: true, fetchedAt: null }] });
+        expect((await api<Orders>("GET", "/api/orders")).body).toEqual({ orders: [], accounts: [{ accountId: ids.giro, standingOrders: true, scheduledTransfers: true, needsApproval: true, fetchedAt: null, createScheduled: false, changeScheduled: false, deleteScheduled: false, createStanding: false, changeStanding: false, deleteStanding: false }] });
         const lastSync = () => (t.vault.database.prepare("SELECT last_sync_at FROM bank_logins").get() as { last_sync_at: string }).last_sync_at;
         const fetchedAt = lastSync();
 

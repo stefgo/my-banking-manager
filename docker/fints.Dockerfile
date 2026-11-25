@@ -23,6 +23,8 @@ FROM node:26-trixie-slim
 ENV NODE_ENV=production \
     MBM_FINTS_SOCKET=/run/mbm/fints.sock
 WORKDIR /app
+# License and notice (NOTICE: the FinTS product ID of official images is not under MIT)
+COPY LICENSE NOTICE ./
 COPY package.json package-lock.json ./
 COPY shared/package.json shared/
 COPY server/package.json server/

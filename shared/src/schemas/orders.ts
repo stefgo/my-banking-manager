@@ -19,6 +19,8 @@ const OrderBase = z.object({
     payeeAccountId: Id.nullable(),
     /** Next date the order runs, today included; null if it has ended. */
     nextDate: IsoDate.nullable(),
+    /** The bank's identification; changing and deleting need it. */
+    bankOrderId: z.string().nullable(),
     /** Whether the bank lets it be changed or deleted; null if it does not say. */
     canChange: z.boolean().nullable(),
     canDelete: z.boolean().nullable(),
@@ -50,6 +52,13 @@ export const OrderAccount = z.object({
     needsApproval: z.boolean(),
     /** Last successful fetch of the orders; null if never. */
     fetchedAt: Timestamp.nullable(),
+    /** What the user's login may write at the bank for this account. */
+    createScheduled: z.boolean(),
+    changeScheduled: z.boolean(),
+    deleteScheduled: z.boolean(),
+    createStanding: z.boolean(),
+    changeStanding: z.boolean(),
+    deleteStanding: z.boolean(),
 });
 export type OrderAccount = z.infer<typeof OrderAccount>;
 

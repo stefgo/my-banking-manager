@@ -162,15 +162,22 @@ Abfrage höchstens passen kann.
 
 ## Termin- und Daueraufträge
 
-MBM zeigt Aufträge nur an (Stand M5b Teil 1); anlegen, ändern und löschen folgen nach den
-Überweisungen. Die Bank ist die Quelle: Jeder Abruf ersetzt die Aufträge eines Kontos durch ihre
-Liste, lokal wird nichts bearbeitet.
+Die Bank ist die Quelle: Jeder Abruf ersetzt die Aufträge eines Kontos durch ihre Liste, lokal wird
+nichts bearbeitet. Anlegen, ändern und löschen schickt MBM an die Bank und ruft danach neu ab.
 
 - **Konnektor:**
   - `segments/orders.ts` und `jobs/jobs.ts` lesen Daueraufträge (HKCDB) und Terminüberweisungen
     (HKCSB); die Zahlung selbst steht als pain.001 in der Antwort (`formats/pain001.ts`).
   - Je Konto meldet er, ob die Listen abrufbar sind und ob die Bank dafür jedes Mal eine Freigabe
     verlangt (`standingOrdersTan`, `scheduledTransfersTan`).
+  - Schreiben: HKCSE/HKCSA/HKCSL und HKCDE/HKCDN/HKCDL (`segments/orders.ts`), die Abläufe in
+    `jobs/payments.ts` über denselben `sendPayment` wie die Überweisung (Empfängerüberprüfung, wo
+    HIVPPS den Auftrag nennt). Ändern und Löschen holen im selben Dialog zuerst den Bestand; fehlt
+    der Auftrag dort oder weicht er ab, endet der Vorgang mit `order_changed`, bevor etwas gesendet
+    ist. Eine Löschung schickt pain-Nachricht und Dauerauftragdetails so zurück, wie die Bank sie
+    geliefert hat. Die Regeln der Bank (Vorlaufzeit in Kalendertagen, Turnusse, Ausführungstage,
+    änderbare Felder aus HICSES/HICSAS/HICDES/HICDNS) meldet er je Konto als `orderRules`; geprüft
+    wird mit den Funktionen aus `shared/src/orders.ts`.
 - **Server:**
   - `services/orders.ts` speichert die Listen in `standing_orders` und `scheduled_transfers`. Ein
     Auftrag, den die Bank unter derselben Kennung weiter meldet, behält seine ID.
@@ -179,13 +186,23 @@ Liste, lokal wird nichts bearbeitet.
     Auftragsteil fehl, gilt der Abruf als erfolgreich und trägt `ordersMessage`.
   - `listOrders`, `upcomingOrders` und die Vorschau in `series` (`forecastDays`) rechnen aus den
     gespeicherten Aufträgen. Ein Auftrag an ein eigenes Konto belastet das eine und erhöht das andere.
+  - Schreiben läuft durch den `TransferManager` (siehe Überweisungen): `transfers.execution` =
+    `date` | `standing`, `transfers.action` = `create` | `change` | `delete`, Routen `createTransfer`
+    (mit `execution`), `changeOrder`, `deleteOrder`. Danach startet er einen Abruf „nur Aufträge“
+    für das Konto, wenn die Bank dafür keine Freigabe verlangt. `resolveOrderTransfers` klärt nach
+    dem Abruf „Ausgang unbekannt“ über die End-to-End-ID, die Auftragsnummer oder das Fehlen eines
+    gelöschten Auftrags.
 - **Termine** berechnet `shared/src/orders.ts` für Server und Clients gleich: Turnus in Monaten oder
   Wochen, Ausführungstag (97–99 zählen vom Monatsende), Bankarbeitstage ohne Wochenenden und
   TARGET-Feiertage. Ein Termin rückt auf den nächsten Bankarbeitstag, am Monatsende auf den
   vorherigen.
 - **Web-Client:** Seite `pages/Orders.tsx` mit den Details in `pages/OrderDrawer.tsx`, Karte
-  „Demnächst“ und die gestrichelte Vorschau in `components/BalanceChart.tsx`.
-- Hintergrund: `plans/m5b-umsetzung.md`.
+  „Demnächst“ und die gestrichelte Vorschau in `components/BalanceChart.tsx`. Neue, geänderte und
+  gelöschte Aufträge gehen durch den Dialog aus `pages/Transfer.tsx` (`TransferDialog`, Entwurf mit
+  `change` bzw. `remove`); die Formular-Logik steht in `lib/transfer.ts`.
+- Die simulierte Bank spielt das Schreiben mit `orderWrites` (`testing/personal-bank.ts`), mit
+  Parametern wie bei einer Sparkasse und einem Bestand, den die Aufträge wirklich ändern.
+- Hintergrund: `plans/m5b-umsetzung.md` und `plans/m5b-teil2-schreiben.md`.
 
 ## Überweisungen
 

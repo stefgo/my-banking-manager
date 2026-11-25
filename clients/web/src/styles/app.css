@@ -578,6 +578,24 @@ select.inp { appearance: none; background-image: linear-gradient(45deg, transpar
 .tf-edit .tf-iban { max-width: calc(42ch + 40px); }
 .tf-edit .tf-amount { max-width: 240px; }
 .tf-edit .tf-bic { max-width: calc(18ch + 40px); }
+/* Execution of orders: date, or rhythm in two columns; what a change may not touch */
+.tf-exec { justify-self: start; }
+.exec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+.exec-grid select.inp:disabled, .exec-grid input.inp:disabled { opacity: 0.6; }
+.tf-edit .tf-date { max-width: 200px; }
+.tf-runs { display: flex; align-items: center; gap: 6px; margin: 0; }
+.tf-sum-exec { display: flex; align-items: center; gap: 5px; }
+.tf-locked { padding: 9px 12px; border-radius: 10px; background: var(--surface-2); color: var(--fg); font-size: 14.5px; }
+.tf-change-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.tf-change-head b { font-weight: 500; }
+.tf-diff s { text-decoration-thickness: 1px; }
+.note.warn { background: var(--warn-soft); color: var(--fg); }
+.note.warn .ic { color: var(--warn); }
+@media (max-width: 600px) {
+    .exec-grid { grid-template-columns: 1fr; }
+    .tf-exec { justify-self: stretch; display: flex; }
+    .tf-exec button { flex: 1; }
+}
 .switch-label { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); cursor: pointer; }
 .switch { width: 46px; height: 28px; border-radius: 999px; border: 0; padding: 3px; background: var(--surface-3); flex: none; transition: background 0.2s; }
 .switch span { display: block; width: 22px; height: 22px; border-radius: 50%; background: var(--fg); transition: transform 0.2s cubic-bezier(.3,1.4,.5,1); }

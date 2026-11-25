@@ -11,8 +11,8 @@ import {
     type JobAccount, type SepaAccount,
 } from "./../segments/jobs.js";
 import { vopParameters } from "../segments/payments.js";
-import { CDB_VERSIONS, CSB_VERSIONS, hkcdb, hkcsb, painFormats, parseHicdb, parseHicsb } from "../segments/orders.js";
-import { FintsSyntaxError, type SegmentInput } from "../syntax/types.js";
+import { CDB_VERSIONS, CSB_VERSIONS, hkcdb, hkcsb, orderRules, painFormats, parseHicdb, parseHicsb } from "../segments/orders.js";
+import { FintsSyntaxError, type Element, type SegmentInput } from "../syntax/types.js";
 import { parseCamt } from "../formats/camt.js";
 import { parseMt940 } from "../formats/mt940.js";
 import { parseCardStatement } from "../formats/kku.js";
@@ -74,6 +74,7 @@ export async function fetchAccounts(send: Send, state: FintsState): Promise<Conn
         sepa = pages.flatMap((m) => m.findAll("HISPA").flatMap(parseHispa));
     }
     const vop = vopParameters(state.bpd);
+    const rules = orderRules(state.bpd);
     return upd.accounts
         .filter((a) => a.account || a.iban)
         .map((a) => {
@@ -101,6 +102,13 @@ export async function fetchAccounts(send: Send, state: FintsState): Promise<Conn
                     standingOrdersTan: state.bpd?.pinTan?.tanRequired.HKCDB === true,
                     scheduledTransfersTan: state.bpd?.pinTan?.tanRequired.HKCSB === true,
                     payeeVerification: vop?.jobs.includes("HKCCS") === true,
+                    createScheduledTransfer: allowed(state, a, "HKCSE"),
+                    changeScheduledTransfer: allowed(state, a, "HKCSA"),
+                    deleteScheduledTransfer: allowed(state, a, "HKCSL"),
+                    createStandingOrder: allowed(state, a, "HKCDE"),
+                    changeStandingOrder: allowed(state, a, "HKCDN"),
+                    deleteStandingOrder: allowed(state, a, "HKCDL"),
+                    orderRules: ["HKCSE", "HKCSA", "HKCDE", "HKCDN"].some((j) => allowed(state, a, j)) ? rules : null,
                 },
             };
         });
@@ -190,8 +198,17 @@ function listFormats(state: FintsState, job: ReturnType<typeof requireJob>): str
     return formats;
 }
 
+/** An order as listed, with the pain message the bank sent: a change or deletion needs both. */
+export interface Listed<T> {
+    order: T;
+    descriptor: string;
+    pain: Uint8Array;
+    /** Standing orders: the Dauerauftragdetails as the bank sent them. */
+    details: Element | null;
+}
+
 /** Standing orders of an account, as they would run at their next date (HKCDB). */
-export async function fetchStandingOrders(send: Send, state: FintsState, blz: string, account: ConnectorAccountRef): Promise<ConnectorStandingOrder[]> {
+export async function listStandingOrders(send: Send, state: FintsState, blz: string, account: ConnectorAccountRef): Promise<Listed<ConnectorStandingOrder>[]> {
     const job = requireJob(state.bpd, "HKCDB", CDB_VERSIONS);
     const formats = listFormats(state, job);
     const a = jobAccount(account, blz);
@@ -203,13 +220,16 @@ export async function fetchStandingOrders(send: Send, state: FintsState, blz: st
             if (!s.firstDate || !s.unit || !s.every || !s.executionDay) throw new FintsSyntaxError("HICDB without Dauerauftragdetails");
             // The 31st is to be coded as the last day of the month (99); some banks send 31 all the same.
             const executionDay = s.unit === "month" && s.executionDay === 31 ? 99 : s.executionDay;
-            return { ...orderBase(p, s), firstDate: s.firstDate, unit: s.unit, every: s.every, executionDay, lastDate: s.lastDate };
+            return { order: { ...orderBase(p, s), firstDate: s.firstDate, unit: s.unit, every: s.every, executionDay, lastDate: s.lastDate }, descriptor: s.descriptor, pain: s.pain!, details: s.details };
         }),
     );
 }
 
+export const fetchStandingOrders = async (send: Send, state: FintsState, blz: string, account: ConnectorAccountRef): Promise<ConnectorStandingOrder[]> =>
+    (await listStandingOrders(send, state, blz, account)).map((l) => l.order);
+
 /** Scheduled transfers of an account that are still to be executed (HKCSB). */
-export async function fetchScheduledTransfers(send: Send, state: FintsState, blz: string, account: ConnectorAccountRef): Promise<ConnectorScheduledTransfer[]> {
+export async function listScheduledTransfers(send: Send, state: FintsState, blz: string, account: ConnectorAccountRef): Promise<Listed<ConnectorScheduledTransfer>[]> {
     const job = requireJob(state.bpd, "HKCSB", CSB_VERSIONS);
     const formats = listFormats(state, job);
     const a = jobAccount(account, blz);
@@ -219,7 +239,10 @@ export async function fetchScheduledTransfers(send: Send, state: FintsState, blz
             const s = parseHicsb(seg);
             const p = paymentOf(s.pain, "HICSB");
             if (!p.executionDate) throw new FintsSyntaxError("HICSB without an execution date");
-            return { ...orderBase(p, s), executionDate: p.executionDate };
+            return { order: { ...orderBase(p, s), executionDate: p.executionDate }, descriptor: s.descriptor, pain: s.pain!, details: null };
         }),
     );
 }
+
+export const fetchScheduledTransfers = async (send: Send, state: FintsState, blz: string, account: ConnectorAccountRef): Promise<ConnectorScheduledTransfer[]> =>
+    (await listScheduledTransfers(send, state, blz, account)).map((l) => l.order);

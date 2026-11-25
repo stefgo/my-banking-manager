@@ -57,3 +57,14 @@ export class FintsOutcomeUnknownError extends Error {
 export function lostAnswer(e: unknown): unknown {
     return e instanceof FintsTransportError || e instanceof FintsSyntaxError ? new FintsOutcomeUnknownError() : e;
 }
+
+/**
+ * The order to change or delete is gone at the bank or no longer what the user saw. Found before
+ * anything was sent; the user fetches the orders again.
+ */
+export class FintsOrderChangedError extends Error {
+    constructor() {
+        super("The order differs from the bank's current list");
+        this.name = "FintsOrderChangedError";
+    }
+}

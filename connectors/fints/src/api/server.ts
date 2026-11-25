@@ -6,10 +6,13 @@ import { z } from "zod";
 import { connectorRoutes, type ConnectorBank, type ConnectorError, type ConnectorLogin, type ConnectorRouteDef, type ConnectorRoutes } from "@mbm/shared";
 import { fetchBankParameters } from "../dialog/anonymous.js";
 import type { DialogOptions } from "../dialog/dialog.js";
-import { FintsBankError, FintsOutcomeUnknownError, FintsPinError, FintsSetupError } from "../dialog/errors.js";
+import { FintsBankError, FintsOrderChangedError, FintsOutcomeUnknownError, FintsPinError, FintsSetupError } from "../dialog/errors.js";
 import { discoverTanMethods } from "../dialog/session.js";
 import { FintsNotSupportedError, fetchAccounts, fetchBalance, fetchCardTransactions, fetchScheduledTransfers, fetchStandingOrders, fetchTransactions } from "../jobs/jobs.js";
-import { submitTransfer, type PaymentOptions } from "../jobs/payments.js";
+import {
+    changeScheduledTransfer, changeStandingOrder, createScheduledTransfer, createStandingOrder, deleteScheduledTransfer, deleteStandingOrder, submitTransfer,
+    type OrderContext, type PaymentOptions,
+} from "../jobs/payments.js";
 import { JobRunner, type Outcome } from "../operations/runner.js";
 import { OperationStore } from "../operations/store.js";
 import { hktab, hktabVersion, parseHitab } from "../segments/tan.js";
@@ -89,7 +92,7 @@ export function buildApi(o: ApiOptions): { app: FastifyInstance; store: Operatio
         name: "fints",
         version: o.version,
         productConfigured: !!o.productId,
-        capabilities: ["accounts", "balances", "transactions", "card-transactions", "tan-media", "standing-orders", "scheduled-transfers", "transfers"],
+        capabilities: ["accounts", "balances", "transactions", "card-transactions", "tan-media", "standing-orders", "scheduled-transfers", "transfers", "order-writes"],
     }));
 
     route("checkBank", async ({ body }) => {
@@ -171,6 +174,24 @@ export function buildApi(o: ApiOptions): { app: FastifyInstance; store: Operatio
         return runner.run(d, "transfer", (_send, _dialog, io) => submitTransfer(io, d.state, body.bank.blz, body.account, body.transfer, o.payments), "HKIDN", { payment: true });
     });
 
+    // Orders that are written run as payments: a lost answer after sending leaves the outcome open
+    const order = <K extends "createScheduledTransfer" | "changeScheduledTransfer" | "deleteScheduledTransfer" | "createStandingOrder" | "changeStandingOrder" | "deleteStandingOrder">(
+        name: K,
+        job: (c: OrderContext, body: Body<K>) => Promise<unknown>,
+    ) =>
+        route(name, async ({ body }) => {
+            const b = body as Body<K> & { bank: ConnectorBank; login: ConnectorLogin; account: OrderContext["account"] };
+            const d = dialogOptions(b);
+            requireMethod(d);
+            return runner.run(d, name, (send, _dialog, io) => job({ send, io, state: d.state, blz: b.bank.blz, account: b.account, o: o.payments ?? {} }, body), "HKIDN", { payment: true });
+        });
+    order("createScheduledTransfer", (c, b) => createScheduledTransfer(c, b.order));
+    order("changeScheduledTransfer", (c, b) => changeScheduledTransfer(c, b.expected, b.order));
+    order("deleteScheduledTransfer", (c, b) => deleteScheduledTransfer(c, b.expected));
+    order("createStandingOrder", (c, b) => createStandingOrder(c, b.order));
+    order("changeStandingOrder", (c, b) => changeStandingOrder(c, b.expected, b.order));
+    order("deleteStandingOrder", (c, b) => deleteStandingOrder(c, b.expected));
+
     const unknownOperation = () => new ApiError(404, { error: "operation_unknown", message: "Der Vorgang ist unbekannt oder abgelaufen." });
 
     route("operation", async ({ params }) => (await runner.advance(params.id)) ?? Promise.reject(unknownOperation()));
@@ -219,7 +240,8 @@ function sendError(reply: FastifyReply, e: unknown) {
     let status = 500;
     let body: ConnectorError = { error: "internal", message: "Interner Fehler im Konnektor." };
     if (e instanceof ApiError) ({ status, body } = e);
-    else if (e instanceof FintsOutcomeUnknownError) [status, body] = [502, { error: "outcome_unknown", message: "Die Antwort der Bank ist nicht angekommen. Ob die Überweisung ausgeführt wurde, ist unbekannt." }];
+    else if (e instanceof FintsOutcomeUnknownError) [status, body] = [502, { error: "outcome_unknown", message: "Die Antwort der Bank ist nicht angekommen. Ob der Auftrag ausgeführt wurde, ist unbekannt." }];
+    else if (e instanceof FintsOrderChangedError) [status, body] = [409, { error: "order_changed", message: "Der Auftrag wurde inzwischen bei der Bank geändert oder gelöscht. Bitte die Aufträge neu abrufen. Es wurde nichts gesendet." }];
     else if (e instanceof FintsPinError) [status, body] = [422, { error: "pin_wrong", message: "Die Bank hat die PIN abgelehnt oder den Zugang gesperrt.", bankCodes: bankCodes(e.codes) }];
     else if (e instanceof FintsBankError) [status, body] = [422, { error: "bank_error", message: e.message, bankCodes: bankCodes(e.codes) }];
     else if (e instanceof FintsNotSupportedError) [status, body] = [422, { error: "not_supported", message: e.message }];

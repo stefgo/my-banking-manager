@@ -10796,6 +10796,193 @@ paths:
                                 payeeVerification:
                                   default: false
                                   type: boolean
+                                createScheduledTransfer:
+                                  default: false
+                                  type: boolean
+                                changeScheduledTransfer:
+                                  default: false
+                                  type: boolean
+                                deleteScheduledTransfer:
+                                  default: false
+                                  type: boolean
+                                createStandingOrder:
+                                  default: false
+                                  type: boolean
+                                changeStandingOrder:
+                                  default: false
+                                  type: boolean
+                                deleteStandingOrder:
+                                  default: false
+                                  type: boolean
+                                orderRules:
+                                  default: null
+                                  anyOf:
+                                    - type: object
+                                      properties:
+                                        scheduled:
+                                          anyOf:
+                                            - type: object
+                                              properties:
+                                                minDays:
+                                                  type: integer
+                                                  minimum: 0
+                                                  maximum: 9007199254740991
+                                                maxDays:
+                                                  type: integer
+                                                  minimum: 0
+                                                  maximum: 9007199254740991
+                                              required:
+                                                - minDays
+                                                - maxDays
+                                              additionalProperties: false
+                                            - type: "null"
+                                        scheduledChange:
+                                          anyOf:
+                                            - type: object
+                                              properties:
+                                                minDays:
+                                                  type: integer
+                                                  minimum: 0
+                                                  maximum: 9007199254740991
+                                                maxDays:
+                                                  type: integer
+                                                  minimum: 0
+                                                  maximum: 9007199254740991
+                                              required:
+                                                - minDays
+                                                - maxDays
+                                              additionalProperties: false
+                                            - type: "null"
+                                        standing:
+                                          anyOf:
+                                            - type: object
+                                              properties:
+                                                minDays:
+                                                  type: integer
+                                                  minimum: 0
+                                                  maximum: 9007199254740991
+                                                maxDays:
+                                                  type: integer
+                                                  minimum: 0
+                                                  maximum: 9007199254740991
+                                                months:
+                                                  type: array
+                                                  items:
+                                                    type: integer
+                                                    minimum: -9007199254740991
+                                                    maximum: 9007199254740991
+                                                monthDays:
+                                                  type: array
+                                                  items:
+                                                    type: integer
+                                                    minimum: -9007199254740991
+                                                    maximum: 9007199254740991
+                                                weeks:
+                                                  type: array
+                                                  items:
+                                                    type: integer
+                                                    minimum: -9007199254740991
+                                                    maximum: 9007199254740991
+                                                weekDays:
+                                                  type: array
+                                                  items:
+                                                    type: integer
+                                                    minimum: -9007199254740991
+                                                    maximum: 9007199254740991
+                                              required:
+                                                - minDays
+                                                - maxDays
+                                                - months
+                                                - monthDays
+                                                - weeks
+                                                - weekDays
+                                              additionalProperties: false
+                                            - type: "null"
+                                        standingChange:
+                                          anyOf:
+                                            - type: object
+                                              properties:
+                                                minDays:
+                                                  type: integer
+                                                  minimum: 0
+                                                  maximum: 9007199254740991
+                                                maxDays:
+                                                  type: integer
+                                                  minimum: 0
+                                                  maximum: 9007199254740991
+                                                months:
+                                                  type: array
+                                                  items:
+                                                    type: integer
+                                                    minimum: -9007199254740991
+                                                    maximum: 9007199254740991
+                                                monthDays:
+                                                  type: array
+                                                  items:
+                                                    type: integer
+                                                    minimum: -9007199254740991
+                                                    maximum: 9007199254740991
+                                                weeks:
+                                                  type: array
+                                                  items:
+                                                    type: integer
+                                                    minimum: -9007199254740991
+                                                    maximum: 9007199254740991
+                                                weekDays:
+                                                  type: array
+                                                  items:
+                                                    type: integer
+                                                    minimum: -9007199254740991
+                                                    maximum: 9007199254740991
+                                                changeable:
+                                                  type: object
+                                                  properties:
+                                                    payeeAccount:
+                                                      type: boolean
+                                                    payeeName:
+                                                      type: boolean
+                                                    amount:
+                                                      type: boolean
+                                                    remittance:
+                                                      type: boolean
+                                                    firstDate:
+                                                      type: boolean
+                                                    unit:
+                                                      type: boolean
+                                                    every:
+                                                      type: boolean
+                                                    executionDay:
+                                                      type: boolean
+                                                    lastDate:
+                                                      type: boolean
+                                                  required:
+                                                    - payeeAccount
+                                                    - payeeName
+                                                    - amount
+                                                    - remittance
+                                                    - firstDate
+                                                    - unit
+                                                    - every
+                                                    - executionDay
+                                                    - lastDate
+                                                  additionalProperties: false
+                                              required:
+                                                - minDays
+                                                - maxDays
+                                                - months
+                                                - monthDays
+                                                - weeks
+                                                - weekDays
+                                                - changeable
+                                              additionalProperties: false
+                                            - type: "null"
+                                      required:
+                                        - scheduled
+                                        - scheduledChange
+                                        - standing
+                                        - standingChange
+                                      additionalProperties: false
+                                    - type: "null"
                               required:
                                 - balance
                                 - transactions
@@ -10807,6 +10994,13 @@ paths:
                                 - standingOrdersTan
                                 - scheduledTransfersTan
                                 - payeeVerification
+                                - createScheduledTransfer
+                                - changeScheduledTransfer
+                                - deleteScheduledTransfer
+                                - createStandingOrder
+                                - changeStandingOrder
+                                - deleteStandingOrder
+                                - orderRules
                               additionalProperties: false
                             accountId:
                               anyOf:
@@ -10946,6 +11140,193 @@ paths:
                                     payeeVerification:
                                       default: false
                                       type: boolean
+                                    createScheduledTransfer:
+                                      default: false
+                                      type: boolean
+                                    changeScheduledTransfer:
+                                      default: false
+                                      type: boolean
+                                    deleteScheduledTransfer:
+                                      default: false
+                                      type: boolean
+                                    createStandingOrder:
+                                      default: false
+                                      type: boolean
+                                    changeStandingOrder:
+                                      default: false
+                                      type: boolean
+                                    deleteStandingOrder:
+                                      default: false
+                                      type: boolean
+                                    orderRules:
+                                      default: null
+                                      anyOf:
+                                        - type: object
+                                          properties:
+                                            scheduled:
+                                              anyOf:
+                                                - type: object
+                                                  properties:
+                                                    minDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                    maxDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                  required:
+                                                    - minDays
+                                                    - maxDays
+                                                  additionalProperties: false
+                                                - type: "null"
+                                            scheduledChange:
+                                              anyOf:
+                                                - type: object
+                                                  properties:
+                                                    minDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                    maxDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                  required:
+                                                    - minDays
+                                                    - maxDays
+                                                  additionalProperties: false
+                                                - type: "null"
+                                            standing:
+                                              anyOf:
+                                                - type: object
+                                                  properties:
+                                                    minDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                    maxDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                    months:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                    monthDays:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                    weeks:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                    weekDays:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                  required:
+                                                    - minDays
+                                                    - maxDays
+                                                    - months
+                                                    - monthDays
+                                                    - weeks
+                                                    - weekDays
+                                                  additionalProperties: false
+                                                - type: "null"
+                                            standingChange:
+                                              anyOf:
+                                                - type: object
+                                                  properties:
+                                                    minDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                    maxDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                    months:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                    monthDays:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                    weeks:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                    weekDays:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                    changeable:
+                                                      type: object
+                                                      properties:
+                                                        payeeAccount:
+                                                          type: boolean
+                                                        payeeName:
+                                                          type: boolean
+                                                        amount:
+                                                          type: boolean
+                                                        remittance:
+                                                          type: boolean
+                                                        firstDate:
+                                                          type: boolean
+                                                        unit:
+                                                          type: boolean
+                                                        every:
+                                                          type: boolean
+                                                        executionDay:
+                                                          type: boolean
+                                                        lastDate:
+                                                          type: boolean
+                                                      required:
+                                                        - payeeAccount
+                                                        - payeeName
+                                                        - amount
+                                                        - remittance
+                                                        - firstDate
+                                                        - unit
+                                                        - every
+                                                        - executionDay
+                                                        - lastDate
+                                                      additionalProperties: false
+                                                  required:
+                                                    - minDays
+                                                    - maxDays
+                                                    - months
+                                                    - monthDays
+                                                    - weeks
+                                                    - weekDays
+                                                    - changeable
+                                                  additionalProperties: false
+                                                - type: "null"
+                                          required:
+                                            - scheduled
+                                            - scheduledChange
+                                            - standing
+                                            - standingChange
+                                          additionalProperties: false
+                                        - type: "null"
                                   required:
                                     - balance
                                     - transactions
@@ -10957,6 +11338,13 @@ paths:
                                     - standingOrdersTan
                                     - scheduledTransfersTan
                                     - payeeVerification
+                                    - createScheduledTransfer
+                                    - changeScheduledTransfer
+                                    - deleteScheduledTransfer
+                                    - createStandingOrder
+                                    - changeStandingOrder
+                                    - deleteStandingOrder
+                                    - orderRules
                                   additionalProperties: false
                                 accountId:
                                   anyOf:
@@ -11960,6 +12348,10 @@ paths:
                               type:
                                 - string
                                 - "null"
+                            bankOrderId:
+                              type:
+                                - string
+                                - "null"
                             canChange:
                               type:
                                 - boolean
@@ -12003,6 +12395,7 @@ paths:
                             - remittance
                             - payeeAccountId
                             - nextDate
+                            - bankOrderId
                             - canChange
                             - canDelete
                             - fetchedAt
@@ -12047,6 +12440,10 @@ paths:
                               type:
                                 - string
                                 - "null"
+                            bankOrderId:
+                              type:
+                                - string
+                                - "null"
                             canChange:
                               type:
                                 - boolean
@@ -12073,6 +12470,7 @@ paths:
                             - remittance
                             - payeeAccountId
                             - nextDate
+                            - bankOrderId
                             - canChange
                             - canDelete
                             - fetchedAt
@@ -12099,12 +12497,30 @@ paths:
                             - type: string
                               description: ISO 8601 date and time
                             - type: "null"
+                        createScheduled:
+                          type: boolean
+                        changeScheduled:
+                          type: boolean
+                        deleteScheduled:
+                          type: boolean
+                        createStanding:
+                          type: boolean
+                        changeStanding:
+                          type: boolean
+                        deleteStanding:
+                          type: boolean
                       required:
                         - accountId
                         - standingOrders
                         - scheduledTransfers
                         - needsApproval
                         - fetchedAt
+                        - createScheduled
+                        - changeScheduled
+                        - deleteScheduled
+                        - createStanding
+                        - changeStanding
+                        - deleteStanding
                       additionalProperties: false
                 required:
                   - orders
@@ -12395,6 +12811,180 @@ paths:
                       type: boolean
                     pinRequired:
                       type: boolean
+                    transfer:
+                      type: boolean
+                    scheduled:
+                      type: boolean
+                    standing:
+                      type: boolean
+                    orderRules:
+                      anyOf:
+                        - type: object
+                          properties:
+                            scheduled:
+                              anyOf:
+                                - type: object
+                                  properties:
+                                    minDays:
+                                      type: integer
+                                      minimum: 0
+                                      maximum: 9007199254740991
+                                    maxDays:
+                                      type: integer
+                                      minimum: 0
+                                      maximum: 9007199254740991
+                                  required:
+                                    - minDays
+                                    - maxDays
+                                  additionalProperties: false
+                                - type: "null"
+                            scheduledChange:
+                              anyOf:
+                                - type: object
+                                  properties:
+                                    minDays:
+                                      type: integer
+                                      minimum: 0
+                                      maximum: 9007199254740991
+                                    maxDays:
+                                      type: integer
+                                      minimum: 0
+                                      maximum: 9007199254740991
+                                  required:
+                                    - minDays
+                                    - maxDays
+                                  additionalProperties: false
+                                - type: "null"
+                            standing:
+                              anyOf:
+                                - type: object
+                                  properties:
+                                    minDays:
+                                      type: integer
+                                      minimum: 0
+                                      maximum: 9007199254740991
+                                    maxDays:
+                                      type: integer
+                                      minimum: 0
+                                      maximum: 9007199254740991
+                                    months:
+                                      type: array
+                                      items:
+                                        type: integer
+                                        minimum: -9007199254740991
+                                        maximum: 9007199254740991
+                                    monthDays:
+                                      type: array
+                                      items:
+                                        type: integer
+                                        minimum: -9007199254740991
+                                        maximum: 9007199254740991
+                                    weeks:
+                                      type: array
+                                      items:
+                                        type: integer
+                                        minimum: -9007199254740991
+                                        maximum: 9007199254740991
+                                    weekDays:
+                                      type: array
+                                      items:
+                                        type: integer
+                                        minimum: -9007199254740991
+                                        maximum: 9007199254740991
+                                  required:
+                                    - minDays
+                                    - maxDays
+                                    - months
+                                    - monthDays
+                                    - weeks
+                                    - weekDays
+                                  additionalProperties: false
+                                - type: "null"
+                            standingChange:
+                              anyOf:
+                                - type: object
+                                  properties:
+                                    minDays:
+                                      type: integer
+                                      minimum: 0
+                                      maximum: 9007199254740991
+                                    maxDays:
+                                      type: integer
+                                      minimum: 0
+                                      maximum: 9007199254740991
+                                    months:
+                                      type: array
+                                      items:
+                                        type: integer
+                                        minimum: -9007199254740991
+                                        maximum: 9007199254740991
+                                    monthDays:
+                                      type: array
+                                      items:
+                                        type: integer
+                                        minimum: -9007199254740991
+                                        maximum: 9007199254740991
+                                    weeks:
+                                      type: array
+                                      items:
+                                        type: integer
+                                        minimum: -9007199254740991
+                                        maximum: 9007199254740991
+                                    weekDays:
+                                      type: array
+                                      items:
+                                        type: integer
+                                        minimum: -9007199254740991
+                                        maximum: 9007199254740991
+                                    changeable:
+                                      type: object
+                                      properties:
+                                        payeeAccount:
+                                          type: boolean
+                                        payeeName:
+                                          type: boolean
+                                        amount:
+                                          type: boolean
+                                        remittance:
+                                          type: boolean
+                                        firstDate:
+                                          type: boolean
+                                        unit:
+                                          type: boolean
+                                        every:
+                                          type: boolean
+                                        executionDay:
+                                          type: boolean
+                                        lastDate:
+                                          type: boolean
+                                      required:
+                                        - payeeAccount
+                                        - payeeName
+                                        - amount
+                                        - remittance
+                                        - firstDate
+                                        - unit
+                                        - every
+                                        - executionDay
+                                        - lastDate
+                                      additionalProperties: false
+                                  required:
+                                    - minDays
+                                    - maxDays
+                                    - months
+                                    - monthDays
+                                    - weeks
+                                    - weekDays
+                                    - changeable
+                                  additionalProperties: false
+                                - type: "null"
+                          required:
+                            - scheduled
+                            - scheduledChange
+                            - standing
+                            - standingChange
+                          additionalProperties: false
+                        - type: "null"
                   required:
                     - id
                     - name
@@ -12403,6 +12993,10 @@ paths:
                     - instant
                     - payeeVerification
                     - pinRequired
+                    - transfer
+                    - scheduled
+                    - standing
+                    - orderRules
                   additionalProperties: false
         default:
           description: Error
@@ -12413,7 +13007,7 @@ paths:
   /api/transfers:
     post:
       operationId: createTransfer
-      summary: "Submit a transfer with verification of payee; runs in the background. The same request ID gives the same transfer. 403 confirm_required: the password is due again"
+      summary: "Submit a transfer, a scheduled transfer or a standing order with verification of payee; runs in the background. The same request ID gives the same transfer. 403 confirm_required: the password is due again"
       tags:
         - Transfers
       security:
@@ -12456,6 +13050,58 @@ paths:
                 instant:
                   default: false
                   type: boolean
+                execution:
+                  default:
+                    kind: now
+                  oneOf:
+                    - type: object
+                      properties:
+                        kind:
+                          type: string
+                          const: now
+                      required:
+                        - kind
+                    - type: object
+                      properties:
+                        kind:
+                          type: string
+                          const: date
+                        date:
+                          type: string
+                      required:
+                        - kind
+                        - date
+                    - type: object
+                      properties:
+                        firstDate:
+                          type: string
+                        unit:
+                          type: string
+                          enum:
+                            - month
+                            - week
+                        every:
+                          type: integer
+                          minimum: 1
+                          maximum: 99
+                        executionDay:
+                          type: integer
+                          minimum: 1
+                          maximum: 99
+                        lastDate:
+                          type:
+                            - string
+                            - "null"
+                        kind:
+                          type: string
+                          const: standing
+                      required:
+                        - firstDate
+                        - unit
+                        - every
+                        - executionDay
+                        - lastDate
+                        - kind
                 pin:
                   type: string
                   minLength: 1
@@ -12504,6 +13150,129 @@ paths:
                     type: string
                   instant:
                     type: boolean
+                  execution:
+                    type: string
+                    enum:
+                      - now
+                      - date
+                      - standing
+                  action:
+                    type: string
+                    enum:
+                      - create
+                      - change
+                      - delete
+                  executionDate:
+                    type:
+                      - string
+                      - "null"
+                  recurrence:
+                    anyOf:
+                      - type: object
+                        properties:
+                          firstDate:
+                            type: string
+                          unit:
+                            type: string
+                            enum:
+                              - month
+                              - week
+                          every:
+                            type: integer
+                            minimum: 1
+                            maximum: 99
+                          executionDay:
+                            type: integer
+                            minimum: 1
+                            maximum: 99
+                          lastDate:
+                            type:
+                              - string
+                              - "null"
+                        required:
+                          - firstDate
+                          - unit
+                          - every
+                          - executionDay
+                          - lastDate
+                        additionalProperties: false
+                      - type: "null"
+                  orderId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                  bankOrderId:
+                    type:
+                      - string
+                      - "null"
+                  previous:
+                    anyOf:
+                      - type: object
+                        properties:
+                          bankOrderId:
+                            type: string
+                          payeeName:
+                            type: string
+                          payeeIban:
+                            type: string
+                          payeeBic:
+                            type:
+                              - string
+                              - "null"
+                          amount:
+                            type: integer
+                            minimum: -9007199254740991
+                            maximum: 9007199254740991
+                          remittance:
+                            type: string
+                          executionDate:
+                            type:
+                              - string
+                              - "null"
+                          recurrence:
+                            anyOf:
+                              - type: object
+                                properties:
+                                  firstDate:
+                                    type: string
+                                  unit:
+                                    type: string
+                                    enum:
+                                      - month
+                                      - week
+                                  every:
+                                    type: integer
+                                    minimum: 1
+                                    maximum: 99
+                                  executionDay:
+                                    type: integer
+                                    minimum: 1
+                                    maximum: 99
+                                  lastDate:
+                                    type:
+                                      - string
+                                      - "null"
+                                required:
+                                  - firstDate
+                                  - unit
+                                  - every
+                                  - executionDay
+                                  - lastDate
+                                additionalProperties: false
+                              - type: "null"
+                        required:
+                          - bankOrderId
+                          - payeeName
+                          - payeeIban
+                          - payeeBic
+                          - amount
+                          - remittance
+                          - executionDate
+                          - recurrence
+                        additionalProperties: false
+                      - type: "null"
                   status:
                     type: string
                     enum:
@@ -12606,6 +13375,13 @@ paths:
                   - remittance
                   - endToEndId
                   - instant
+                  - execution
+                  - action
+                  - executionDate
+                  - recurrence
+                  - orderId
+                  - bankOrderId
+                  - previous
                   - status
                   - vop
                   - challenge
@@ -12686,6 +13462,129 @@ paths:
                       type: string
                     instant:
                       type: boolean
+                    execution:
+                      type: string
+                      enum:
+                        - now
+                        - date
+                        - standing
+                    action:
+                      type: string
+                      enum:
+                        - create
+                        - change
+                        - delete
+                    executionDate:
+                      type:
+                        - string
+                        - "null"
+                    recurrence:
+                      anyOf:
+                        - type: object
+                          properties:
+                            firstDate:
+                              type: string
+                            unit:
+                              type: string
+                              enum:
+                                - month
+                                - week
+                            every:
+                              type: integer
+                              minimum: 1
+                              maximum: 99
+                            executionDay:
+                              type: integer
+                              minimum: 1
+                              maximum: 99
+                            lastDate:
+                              type:
+                                - string
+                                - "null"
+                          required:
+                            - firstDate
+                            - unit
+                            - every
+                            - executionDay
+                            - lastDate
+                          additionalProperties: false
+                        - type: "null"
+                    orderId:
+                      anyOf:
+                        - type: integer
+                          exclusiveMinimum: 0
+                          maximum: 9007199254740991
+                        - type: "null"
+                    bankOrderId:
+                      type:
+                        - string
+                        - "null"
+                    previous:
+                      anyOf:
+                        - type: object
+                          properties:
+                            bankOrderId:
+                              type: string
+                            payeeName:
+                              type: string
+                            payeeIban:
+                              type: string
+                            payeeBic:
+                              type:
+                                - string
+                                - "null"
+                            amount:
+                              type: integer
+                              minimum: -9007199254740991
+                              maximum: 9007199254740991
+                            remittance:
+                              type: string
+                            executionDate:
+                              type:
+                                - string
+                                - "null"
+                            recurrence:
+                              anyOf:
+                                - type: object
+                                  properties:
+                                    firstDate:
+                                      type: string
+                                    unit:
+                                      type: string
+                                      enum:
+                                        - month
+                                        - week
+                                    every:
+                                      type: integer
+                                      minimum: 1
+                                      maximum: 99
+                                    executionDay:
+                                      type: integer
+                                      minimum: 1
+                                      maximum: 99
+                                    lastDate:
+                                      type:
+                                        - string
+                                        - "null"
+                                  required:
+                                    - firstDate
+                                    - unit
+                                    - every
+                                    - executionDay
+                                    - lastDate
+                                  additionalProperties: false
+                                - type: "null"
+                          required:
+                            - bankOrderId
+                            - payeeName
+                            - payeeIban
+                            - payeeBic
+                            - amount
+                            - remittance
+                            - executionDate
+                            - recurrence
+                          additionalProperties: false
+                        - type: "null"
                     status:
                       type: string
                       enum:
@@ -12788,6 +13687,13 @@ paths:
                     - remittance
                     - endToEndId
                     - instant
+                    - execution
+                    - action
+                    - executionDate
+                    - recurrence
+                    - orderId
+                    - bankOrderId
+                    - previous
                     - status
                     - vop
                     - challenge
@@ -12859,6 +13765,129 @@ paths:
                     type: string
                   instant:
                     type: boolean
+                  execution:
+                    type: string
+                    enum:
+                      - now
+                      - date
+                      - standing
+                  action:
+                    type: string
+                    enum:
+                      - create
+                      - change
+                      - delete
+                  executionDate:
+                    type:
+                      - string
+                      - "null"
+                  recurrence:
+                    anyOf:
+                      - type: object
+                        properties:
+                          firstDate:
+                            type: string
+                          unit:
+                            type: string
+                            enum:
+                              - month
+                              - week
+                          every:
+                            type: integer
+                            minimum: 1
+                            maximum: 99
+                          executionDay:
+                            type: integer
+                            minimum: 1
+                            maximum: 99
+                          lastDate:
+                            type:
+                              - string
+                              - "null"
+                        required:
+                          - firstDate
+                          - unit
+                          - every
+                          - executionDay
+                          - lastDate
+                        additionalProperties: false
+                      - type: "null"
+                  orderId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                  bankOrderId:
+                    type:
+                      - string
+                      - "null"
+                  previous:
+                    anyOf:
+                      - type: object
+                        properties:
+                          bankOrderId:
+                            type: string
+                          payeeName:
+                            type: string
+                          payeeIban:
+                            type: string
+                          payeeBic:
+                            type:
+                              - string
+                              - "null"
+                          amount:
+                            type: integer
+                            minimum: -9007199254740991
+                            maximum: 9007199254740991
+                          remittance:
+                            type: string
+                          executionDate:
+                            type:
+                              - string
+                              - "null"
+                          recurrence:
+                            anyOf:
+                              - type: object
+                                properties:
+                                  firstDate:
+                                    type: string
+                                  unit:
+                                    type: string
+                                    enum:
+                                      - month
+                                      - week
+                                  every:
+                                    type: integer
+                                    minimum: 1
+                                    maximum: 99
+                                  executionDay:
+                                    type: integer
+                                    minimum: 1
+                                    maximum: 99
+                                  lastDate:
+                                    type:
+                                      - string
+                                      - "null"
+                                required:
+                                  - firstDate
+                                  - unit
+                                  - every
+                                  - executionDay
+                                  - lastDate
+                                additionalProperties: false
+                              - type: "null"
+                        required:
+                          - bankOrderId
+                          - payeeName
+                          - payeeIban
+                          - payeeBic
+                          - amount
+                          - remittance
+                          - executionDate
+                          - recurrence
+                        additionalProperties: false
+                      - type: "null"
                   status:
                     type: string
                     enum:
@@ -12961,6 +13990,13 @@ paths:
                   - remittance
                   - endToEndId
                   - instant
+                  - execution
+                  - action
+                  - executionDate
+                  - recurrence
+                  - orderId
+                  - bankOrderId
+                  - previous
                   - status
                   - vop
                   - challenge
@@ -13032,6 +14068,129 @@ paths:
                     type: string
                   instant:
                     type: boolean
+                  execution:
+                    type: string
+                    enum:
+                      - now
+                      - date
+                      - standing
+                  action:
+                    type: string
+                    enum:
+                      - create
+                      - change
+                      - delete
+                  executionDate:
+                    type:
+                      - string
+                      - "null"
+                  recurrence:
+                    anyOf:
+                      - type: object
+                        properties:
+                          firstDate:
+                            type: string
+                          unit:
+                            type: string
+                            enum:
+                              - month
+                              - week
+                          every:
+                            type: integer
+                            minimum: 1
+                            maximum: 99
+                          executionDay:
+                            type: integer
+                            minimum: 1
+                            maximum: 99
+                          lastDate:
+                            type:
+                              - string
+                              - "null"
+                        required:
+                          - firstDate
+                          - unit
+                          - every
+                          - executionDay
+                          - lastDate
+                        additionalProperties: false
+                      - type: "null"
+                  orderId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                  bankOrderId:
+                    type:
+                      - string
+                      - "null"
+                  previous:
+                    anyOf:
+                      - type: object
+                        properties:
+                          bankOrderId:
+                            type: string
+                          payeeName:
+                            type: string
+                          payeeIban:
+                            type: string
+                          payeeBic:
+                            type:
+                              - string
+                              - "null"
+                          amount:
+                            type: integer
+                            minimum: -9007199254740991
+                            maximum: 9007199254740991
+                          remittance:
+                            type: string
+                          executionDate:
+                            type:
+                              - string
+                              - "null"
+                          recurrence:
+                            anyOf:
+                              - type: object
+                                properties:
+                                  firstDate:
+                                    type: string
+                                  unit:
+                                    type: string
+                                    enum:
+                                      - month
+                                      - week
+                                  every:
+                                    type: integer
+                                    minimum: 1
+                                    maximum: 99
+                                  executionDay:
+                                    type: integer
+                                    minimum: 1
+                                    maximum: 99
+                                  lastDate:
+                                    type:
+                                      - string
+                                      - "null"
+                                required:
+                                  - firstDate
+                                  - unit
+                                  - every
+                                  - executionDay
+                                  - lastDate
+                                additionalProperties: false
+                              - type: "null"
+                        required:
+                          - bankOrderId
+                          - payeeName
+                          - payeeIban
+                          - payeeBic
+                          - amount
+                          - remittance
+                          - executionDate
+                          - recurrence
+                        additionalProperties: false
+                      - type: "null"
                   status:
                     type: string
                     enum:
@@ -13134,6 +14293,13 @@ paths:
                   - remittance
                   - endToEndId
                   - instant
+                  - execution
+                  - action
+                  - executionDate
+                  - recurrence
+                  - orderId
+                  - bankOrderId
+                  - previous
                   - status
                   - vop
                   - challenge
@@ -13218,6 +14384,129 @@ paths:
                     type: string
                   instant:
                     type: boolean
+                  execution:
+                    type: string
+                    enum:
+                      - now
+                      - date
+                      - standing
+                  action:
+                    type: string
+                    enum:
+                      - create
+                      - change
+                      - delete
+                  executionDate:
+                    type:
+                      - string
+                      - "null"
+                  recurrence:
+                    anyOf:
+                      - type: object
+                        properties:
+                          firstDate:
+                            type: string
+                          unit:
+                            type: string
+                            enum:
+                              - month
+                              - week
+                          every:
+                            type: integer
+                            minimum: 1
+                            maximum: 99
+                          executionDay:
+                            type: integer
+                            minimum: 1
+                            maximum: 99
+                          lastDate:
+                            type:
+                              - string
+                              - "null"
+                        required:
+                          - firstDate
+                          - unit
+                          - every
+                          - executionDay
+                          - lastDate
+                        additionalProperties: false
+                      - type: "null"
+                  orderId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                  bankOrderId:
+                    type:
+                      - string
+                      - "null"
+                  previous:
+                    anyOf:
+                      - type: object
+                        properties:
+                          bankOrderId:
+                            type: string
+                          payeeName:
+                            type: string
+                          payeeIban:
+                            type: string
+                          payeeBic:
+                            type:
+                              - string
+                              - "null"
+                          amount:
+                            type: integer
+                            minimum: -9007199254740991
+                            maximum: 9007199254740991
+                          remittance:
+                            type: string
+                          executionDate:
+                            type:
+                              - string
+                              - "null"
+                          recurrence:
+                            anyOf:
+                              - type: object
+                                properties:
+                                  firstDate:
+                                    type: string
+                                  unit:
+                                    type: string
+                                    enum:
+                                      - month
+                                      - week
+                                  every:
+                                    type: integer
+                                    minimum: 1
+                                    maximum: 99
+                                  executionDay:
+                                    type: integer
+                                    minimum: 1
+                                    maximum: 99
+                                  lastDate:
+                                    type:
+                                      - string
+                                      - "null"
+                                required:
+                                  - firstDate
+                                  - unit
+                                  - every
+                                  - executionDay
+                                  - lastDate
+                                additionalProperties: false
+                              - type: "null"
+                        required:
+                          - bankOrderId
+                          - payeeName
+                          - payeeIban
+                          - payeeBic
+                          - amount
+                          - remittance
+                          - executionDate
+                          - recurrence
+                        additionalProperties: false
+                      - type: "null"
                   status:
                     type: string
                     enum:
@@ -13320,6 +14609,13 @@ paths:
                   - remittance
                   - endToEndId
                   - instant
+                  - execution
+                  - action
+                  - executionDate
+                  - recurrence
+                  - orderId
+                  - bankOrderId
+                  - previous
                   - status
                   - vop
                   - challenge
@@ -13391,6 +14687,129 @@ paths:
                     type: string
                   instant:
                     type: boolean
+                  execution:
+                    type: string
+                    enum:
+                      - now
+                      - date
+                      - standing
+                  action:
+                    type: string
+                    enum:
+                      - create
+                      - change
+                      - delete
+                  executionDate:
+                    type:
+                      - string
+                      - "null"
+                  recurrence:
+                    anyOf:
+                      - type: object
+                        properties:
+                          firstDate:
+                            type: string
+                          unit:
+                            type: string
+                            enum:
+                              - month
+                              - week
+                          every:
+                            type: integer
+                            minimum: 1
+                            maximum: 99
+                          executionDay:
+                            type: integer
+                            minimum: 1
+                            maximum: 99
+                          lastDate:
+                            type:
+                              - string
+                              - "null"
+                        required:
+                          - firstDate
+                          - unit
+                          - every
+                          - executionDay
+                          - lastDate
+                        additionalProperties: false
+                      - type: "null"
+                  orderId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                  bankOrderId:
+                    type:
+                      - string
+                      - "null"
+                  previous:
+                    anyOf:
+                      - type: object
+                        properties:
+                          bankOrderId:
+                            type: string
+                          payeeName:
+                            type: string
+                          payeeIban:
+                            type: string
+                          payeeBic:
+                            type:
+                              - string
+                              - "null"
+                          amount:
+                            type: integer
+                            minimum: -9007199254740991
+                            maximum: 9007199254740991
+                          remittance:
+                            type: string
+                          executionDate:
+                            type:
+                              - string
+                              - "null"
+                          recurrence:
+                            anyOf:
+                              - type: object
+                                properties:
+                                  firstDate:
+                                    type: string
+                                  unit:
+                                    type: string
+                                    enum:
+                                      - month
+                                      - week
+                                  every:
+                                    type: integer
+                                    minimum: 1
+                                    maximum: 99
+                                  executionDay:
+                                    type: integer
+                                    minimum: 1
+                                    maximum: 99
+                                  lastDate:
+                                    type:
+                                      - string
+                                      - "null"
+                                required:
+                                  - firstDate
+                                  - unit
+                                  - every
+                                  - executionDay
+                                  - lastDate
+                                additionalProperties: false
+                              - type: "null"
+                        required:
+                          - bankOrderId
+                          - payeeName
+                          - payeeIban
+                          - payeeBic
+                          - amount
+                          - remittance
+                          - executionDate
+                          - recurrence
+                        additionalProperties: false
+                      - type: "null"
                   status:
                     type: string
                     enum:
@@ -13493,6 +14912,735 @@ paths:
                   - remittance
                   - endToEndId
                   - instant
+                  - execution
+                  - action
+                  - executionDate
+                  - recurrence
+                  - orderId
+                  - bankOrderId
+                  - previous
+                  - status
+                  - vop
+                  - challenge
+                  - bankMessage
+                  - bankReference
+                  - unconfirmed
+                  - transactionId
+                  - createdAt
+                  - finishedAt
+                additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/orders/{kind}/{id}/change:
+    post:
+      operationId: changeOrder
+      summary: Change a standing order or scheduled transfer at the bank; runs like a transfer (confirm, approve, cancel under /api/transfers/:id)
+      tags:
+        - Transfers
+      security:
+        - session: []
+        - device: []
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - standing
+              - scheduled
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            exclusiveMinimum: 0
+            maximum: 9007199254740991
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                requestId:
+                  type: string
+                  format: uuid
+                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                payeeName:
+                  type: string
+                  maxLength: 70
+                payeeIban:
+                  type: string
+                payeeBic:
+                  default: null
+                  anyOf:
+                    - type: string
+                      pattern: ^[A-Z0-9]{8}([A-Z0-9]{3})?$
+                    - type: "null"
+                amount:
+                  type: integer
+                  minimum: -9007199254740991
+                  maximum: 9007199254740991
+                remittance:
+                  default: ""
+                  type: string
+                  maxLength: 140
+                execution:
+                  oneOf:
+                    - type: object
+                      properties:
+                        kind:
+                          type: string
+                          const: date
+                        date:
+                          type: string
+                      required:
+                        - kind
+                        - date
+                    - type: object
+                      properties:
+                        firstDate:
+                          type: string
+                        unit:
+                          type: string
+                          enum:
+                            - month
+                            - week
+                        every:
+                          type: integer
+                          minimum: 1
+                          maximum: 99
+                        executionDay:
+                          type: integer
+                          minimum: 1
+                          maximum: 99
+                        lastDate:
+                          type:
+                            - string
+                            - "null"
+                        kind:
+                          type: string
+                          const: standing
+                      required:
+                        - firstDate
+                        - unit
+                        - every
+                        - executionDay
+                        - lastDate
+                        - kind
+                pin:
+                  type: string
+                  minLength: 1
+                  maxLength: 64
+              required:
+                - requestId
+                - payeeName
+                - payeeIban
+                - amount
+                - execution
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 9007199254740991
+                  accountId:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 9007199254740991
+                  createdBy:
+                    type: string
+                  mine:
+                    type: boolean
+                  payeeName:
+                    type: string
+                  payeeIban:
+                    type: string
+                  payeeBic:
+                    type:
+                      - string
+                      - "null"
+                  amount:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  remittance:
+                    type: string
+                  endToEndId:
+                    type: string
+                  instant:
+                    type: boolean
+                  execution:
+                    type: string
+                    enum:
+                      - now
+                      - date
+                      - standing
+                  action:
+                    type: string
+                    enum:
+                      - create
+                      - change
+                      - delete
+                  executionDate:
+                    type:
+                      - string
+                      - "null"
+                  recurrence:
+                    anyOf:
+                      - type: object
+                        properties:
+                          firstDate:
+                            type: string
+                          unit:
+                            type: string
+                            enum:
+                              - month
+                              - week
+                          every:
+                            type: integer
+                            minimum: 1
+                            maximum: 99
+                          executionDay:
+                            type: integer
+                            minimum: 1
+                            maximum: 99
+                          lastDate:
+                            type:
+                              - string
+                              - "null"
+                        required:
+                          - firstDate
+                          - unit
+                          - every
+                          - executionDay
+                          - lastDate
+                        additionalProperties: false
+                      - type: "null"
+                  orderId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                  bankOrderId:
+                    type:
+                      - string
+                      - "null"
+                  previous:
+                    anyOf:
+                      - type: object
+                        properties:
+                          bankOrderId:
+                            type: string
+                          payeeName:
+                            type: string
+                          payeeIban:
+                            type: string
+                          payeeBic:
+                            type:
+                              - string
+                              - "null"
+                          amount:
+                            type: integer
+                            minimum: -9007199254740991
+                            maximum: 9007199254740991
+                          remittance:
+                            type: string
+                          executionDate:
+                            type:
+                              - string
+                              - "null"
+                          recurrence:
+                            anyOf:
+                              - type: object
+                                properties:
+                                  firstDate:
+                                    type: string
+                                  unit:
+                                    type: string
+                                    enum:
+                                      - month
+                                      - week
+                                  every:
+                                    type: integer
+                                    minimum: 1
+                                    maximum: 99
+                                  executionDay:
+                                    type: integer
+                                    minimum: 1
+                                    maximum: 99
+                                  lastDate:
+                                    type:
+                                      - string
+                                      - "null"
+                                required:
+                                  - firstDate
+                                  - unit
+                                  - every
+                                  - executionDay
+                                  - lastDate
+                                additionalProperties: false
+                              - type: "null"
+                        required:
+                          - bankOrderId
+                          - payeeName
+                          - payeeIban
+                          - payeeBic
+                          - amount
+                          - remittance
+                          - executionDate
+                          - recurrence
+                        additionalProperties: false
+                      - type: "null"
+                  status:
+                    type: string
+                    enum:
+                      - submitting
+                      - awaiting_vop_confirm
+                      - awaiting_tan
+                      - executed
+                      - rejected
+                      - failed
+                      - cancelled
+                      - unknown
+                  vop:
+                    anyOf:
+                      - type: object
+                        properties:
+                          result:
+                            type: string
+                            enum:
+                              - match
+                              - close_match
+                              - no_match
+                              - not_applicable
+                              - pending
+                              - none
+                          payeeName:
+                            type:
+                              - string
+                              - "null"
+                          reason:
+                            type:
+                              - string
+                              - "null"
+                          explanation:
+                            type: string
+                          structured:
+                            type: boolean
+                        required:
+                          - result
+                          - payeeName
+                          - reason
+                          - explanation
+                          - structured
+                        additionalProperties: false
+                      - type: "null"
+                  challenge:
+                    anyOf:
+                      - type: object
+                        properties:
+                          decoupled:
+                            type: boolean
+                          text:
+                            type: string
+                          medium:
+                            type: string
+                          validUntil:
+                            type: string
+                          methodName:
+                            type: string
+                        required:
+                          - decoupled
+                          - text
+                          - medium
+                          - validUntil
+                          - methodName
+                        additionalProperties: false
+                      - type: "null"
+                  bankMessage:
+                    type:
+                      - string
+                      - "null"
+                  bankReference:
+                    type:
+                      - string
+                      - "null"
+                  unconfirmed:
+                    type: boolean
+                  transactionId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                  createdAt:
+                    type: string
+                    description: ISO 8601 date and time
+                  finishedAt:
+                    anyOf:
+                      - type: string
+                        description: ISO 8601 date and time
+                      - type: "null"
+                required:
+                  - id
+                  - accountId
+                  - createdBy
+                  - mine
+                  - payeeName
+                  - payeeIban
+                  - payeeBic
+                  - amount
+                  - remittance
+                  - endToEndId
+                  - instant
+                  - execution
+                  - action
+                  - executionDate
+                  - recurrence
+                  - orderId
+                  - bankOrderId
+                  - previous
+                  - status
+                  - vop
+                  - challenge
+                  - bankMessage
+                  - bankReference
+                  - unconfirmed
+                  - transactionId
+                  - createdAt
+                  - finishedAt
+                additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/orders/{kind}/{id}/delete:
+    post:
+      operationId: deleteOrder
+      summary: Delete a standing order or scheduled transfer at the bank; runs like a transfer
+      tags:
+        - Transfers
+      security:
+        - session: []
+        - device: []
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - standing
+              - scheduled
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            exclusiveMinimum: 0
+            maximum: 9007199254740991
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                requestId:
+                  type: string
+                  format: uuid
+                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                pin:
+                  type: string
+                  minLength: 1
+                  maxLength: 64
+              required:
+                - requestId
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 9007199254740991
+                  accountId:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 9007199254740991
+                  createdBy:
+                    type: string
+                  mine:
+                    type: boolean
+                  payeeName:
+                    type: string
+                  payeeIban:
+                    type: string
+                  payeeBic:
+                    type:
+                      - string
+                      - "null"
+                  amount:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  remittance:
+                    type: string
+                  endToEndId:
+                    type: string
+                  instant:
+                    type: boolean
+                  execution:
+                    type: string
+                    enum:
+                      - now
+                      - date
+                      - standing
+                  action:
+                    type: string
+                    enum:
+                      - create
+                      - change
+                      - delete
+                  executionDate:
+                    type:
+                      - string
+                      - "null"
+                  recurrence:
+                    anyOf:
+                      - type: object
+                        properties:
+                          firstDate:
+                            type: string
+                          unit:
+                            type: string
+                            enum:
+                              - month
+                              - week
+                          every:
+                            type: integer
+                            minimum: 1
+                            maximum: 99
+                          executionDay:
+                            type: integer
+                            minimum: 1
+                            maximum: 99
+                          lastDate:
+                            type:
+                              - string
+                              - "null"
+                        required:
+                          - firstDate
+                          - unit
+                          - every
+                          - executionDay
+                          - lastDate
+                        additionalProperties: false
+                      - type: "null"
+                  orderId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                  bankOrderId:
+                    type:
+                      - string
+                      - "null"
+                  previous:
+                    anyOf:
+                      - type: object
+                        properties:
+                          bankOrderId:
+                            type: string
+                          payeeName:
+                            type: string
+                          payeeIban:
+                            type: string
+                          payeeBic:
+                            type:
+                              - string
+                              - "null"
+                          amount:
+                            type: integer
+                            minimum: -9007199254740991
+                            maximum: 9007199254740991
+                          remittance:
+                            type: string
+                          executionDate:
+                            type:
+                              - string
+                              - "null"
+                          recurrence:
+                            anyOf:
+                              - type: object
+                                properties:
+                                  firstDate:
+                                    type: string
+                                  unit:
+                                    type: string
+                                    enum:
+                                      - month
+                                      - week
+                                  every:
+                                    type: integer
+                                    minimum: 1
+                                    maximum: 99
+                                  executionDay:
+                                    type: integer
+                                    minimum: 1
+                                    maximum: 99
+                                  lastDate:
+                                    type:
+                                      - string
+                                      - "null"
+                                required:
+                                  - firstDate
+                                  - unit
+                                  - every
+                                  - executionDay
+                                  - lastDate
+                                additionalProperties: false
+                              - type: "null"
+                        required:
+                          - bankOrderId
+                          - payeeName
+                          - payeeIban
+                          - payeeBic
+                          - amount
+                          - remittance
+                          - executionDate
+                          - recurrence
+                        additionalProperties: false
+                      - type: "null"
+                  status:
+                    type: string
+                    enum:
+                      - submitting
+                      - awaiting_vop_confirm
+                      - awaiting_tan
+                      - executed
+                      - rejected
+                      - failed
+                      - cancelled
+                      - unknown
+                  vop:
+                    anyOf:
+                      - type: object
+                        properties:
+                          result:
+                            type: string
+                            enum:
+                              - match
+                              - close_match
+                              - no_match
+                              - not_applicable
+                              - pending
+                              - none
+                          payeeName:
+                            type:
+                              - string
+                              - "null"
+                          reason:
+                            type:
+                              - string
+                              - "null"
+                          explanation:
+                            type: string
+                          structured:
+                            type: boolean
+                        required:
+                          - result
+                          - payeeName
+                          - reason
+                          - explanation
+                          - structured
+                        additionalProperties: false
+                      - type: "null"
+                  challenge:
+                    anyOf:
+                      - type: object
+                        properties:
+                          decoupled:
+                            type: boolean
+                          text:
+                            type: string
+                          medium:
+                            type: string
+                          validUntil:
+                            type: string
+                          methodName:
+                            type: string
+                        required:
+                          - decoupled
+                          - text
+                          - medium
+                          - validUntil
+                          - methodName
+                        additionalProperties: false
+                      - type: "null"
+                  bankMessage:
+                    type:
+                      - string
+                      - "null"
+                  bankReference:
+                    type:
+                      - string
+                      - "null"
+                  unconfirmed:
+                    type: boolean
+                  transactionId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                  createdAt:
+                    type: string
+                    description: ISO 8601 date and time
+                  finishedAt:
+                    anyOf:
+                      - type: string
+                        description: ISO 8601 date and time
+                      - type: "null"
+                required:
+                  - id
+                  - accountId
+                  - createdBy
+                  - mine
+                  - payeeName
+                  - payeeIban
+                  - payeeBic
+                  - amount
+                  - remittance
+                  - endToEndId
+                  - instant
+                  - execution
+                  - action
+                  - executionDate
+                  - recurrence
+                  - orderId
+                  - bankOrderId
+                  - previous
                   - status
                   - vop
                   - challenge

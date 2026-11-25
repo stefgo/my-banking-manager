@@ -9,6 +9,7 @@ import { counterpartyAccount } from "./0006-counterparty-account.js";
 import { ruleActions } from "./0007-rule-actions.js";
 import { bookingReferences } from "./0008-booking-references.js";
 import { transactionsFetchedAt } from "./0009-transactions-fetched-at.js";
+import { orderWrites } from "./0010-order-writes.js";
 import { applyMigration } from "./index.js";
 
 const columns = (db: Database.Database, table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
@@ -285,6 +286,26 @@ describe("0009-transactions-fetched-at", () => {
         db.exec("INSERT INTO accounts (id, kind, name, icon, color, position, created_at) VALUES (1, 'giro', 'Giro', 'landmark', 'blue', 0, '2026-01-01T00:00:00Z')");
         applyMigration(db, transactionsFetchedAt);
         expect(db.prepare("SELECT transactions_fetched_at AS f FROM accounts").get()).toEqual({ f: null });
+        db.close();
+    });
+});
+
+describe("0010-order-writes", () => {
+    it("lets a transfer row stand for an order write; earlier transfers are creations of 'now'", () => {
+        const db = new Database(":memory:");
+        db.pragma("foreign_keys = ON");
+        for (const m of [initial, unread, bookingDetails, importFormats, bookingReturns, counterpartyAccount, ruleActions, bookingReferences, transactionsFetchedAt]) applyMigration(db, m);
+        db.exec(`
+            INSERT INTO accounts (id, kind, name, icon, color, position, created_at) VALUES (1, 'giro', 'Giro', 'landmark', 'blue', 0, '2026-01-01T00:00:00Z');
+            INSERT INTO transfers (id, request_id, account_id, created_by_name, payee_name, payee_iban, amount, remittance, end_to_end_id, status, created_at, updated_at)
+            VALUES (1, 'r1', 1, 'Anna', 'Erika', 'DE89370400440532013000', 100, '', 'MBM-1', 'executed', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');
+        `);
+        applyMigration(db, orderWrites);
+        expect(db.prepare("SELECT action, execution, order_id AS orderId, previous FROM transfers").get()).toEqual({ action: "create", execution: "now", orderId: null, previous: null });
+        expect(() => db.exec("UPDATE transfers SET action = 'move'")).toThrow();
+        expect(() => db.exec("UPDATE transfers SET unit = 'day'")).toThrow();
+        expect(columns(db, "standing_orders")).toContain("end_to_end_id");
+        expect(columns(db, "scheduled_transfers")).toContain("end_to_end_id");
         db.close();
     });
 });

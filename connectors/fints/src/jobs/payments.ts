@@ -13,17 +13,26 @@
 // "outcome unknown".
 
 import { randomUUID } from "node:crypto";
-import type { ConnectorAccountRef, ConnectorTransfer, ConnectorVop, TransferData, VopResult } from "@mbm/shared";
+import {
+    scheduledDateProblem, standingChangeProblem, standingOrderProblem, todayIso,
+    type ConnectorAccountRef, type ConnectorScheduledTransfer, type ConnectorStandingOrder, type ConnectorTransfer, type ConnectorVop,
+    type ExpectedScheduledTransfer, type ExpectedStandingOrder, type OrderWriteData, type ScheduledTransferWrite, type StandingOrderWrite, type TransferData, type VopResult,
+} from "@mbm/shared";
 import type { BankMessage } from "../message/read.js";
-import { FintsBankError, FintsOutcomeUnknownError, lostAnswer } from "../dialog/errors.js";
+import { FintsBankError, FintsOrderChangedError, FintsOutcomeUnknownError, lostAnswer } from "../dialog/errors.js";
 import type { JobIo } from "../operations/runner.js";
-import { buildPain001, pickPainFormat } from "../formats/pain001.js";
+import { buildPain001, pickPainFormat, type PaymentOrder } from "../formats/pain001.js";
 import { parsePain002 } from "../formats/pain002.js";
-import { painFormats } from "../segments/orders.js";
+import {
+    CDE_VERSIONS, CDL_VERSIONS, CDN_VERSIONS, CSA_VERSIONS, CSE_VERSIONS, CSL_VERSIONS,
+    deleteNeedsData, hkcde, hkcdl, hkcdn, hkcsa, hkcse, hkcsl, orderRules, painFormats, parseOrderId,
+} from "../segments/orders.js";
 import { CCS_VERSIONS, IPZ_VERSIONS, VOP_ID_NOT_PROVIDED, hkccs, hkipz, hkvpa, hkvpp, parseHiipz, parseHivpp, vopParameters, type Hivpp } from "../segments/payments.js";
+import type { JobAccount } from "../segments/jobs.js";
+import { text } from "../syntax/formats.js";
 import type { SegmentInput } from "../syntax/types.js";
 import type { FintsState } from "../state.js";
-import { FintsNotSupportedError, jobAccount, requireJob } from "./jobs.js";
+import { FintsNotSupportedError, jobAccount, listScheduledTransfers, listStandingOrders, requireJob, type Listed, type Send } from "./jobs.js";
 
 export interface PaymentOptions {
     now?: () => Date;
@@ -77,7 +86,7 @@ const acceptedAfterPoll = (m: BankMessage, numbers: number[]): boolean =>
  */
 function resultOf(m: BankMessage, vop: ConnectorVop, instant: boolean): TransferData {
     const codes = m.segmentCodes();
-    const about = codes.filter((c) => ["0010", "0020", "3020", "3045", "3046", "3270"].includes(c.code));
+    const about = codes.filter((c) => ["0010", "0020", "3020", "3030", "3045", "3046", "3270"].includes(c.code));
     const own = about.filter((c) => !/freigabe|authentifizierung|tan\b/i.test(c.text));
     const texts = [...new Set((own.length ? own : about).map((c) => c.text.trim()).filter(Boolean))];
     const hiipz = m.find("HIIPZ");
@@ -90,49 +99,67 @@ function resultOf(m: BankMessage, vop: ConnectorVop, instant: boolean): Transfer
     };
 }
 
-export async function submitTransfer(io: JobIo, state: FintsState, blz: string, account: ConnectorAccountRef, t: ConnectorTransfer, o: PaymentOptions = {}): Promise<TransferData> {
-    const jobId = t.instant ? "HKIPZ" : "HKCCS";
-    const job = requireJob(state.bpd, jobId, t.instant ? IPZ_VERSIONS : CCS_VERSIONS);
-    const descriptor = pickPainFormat(painFormats(state.bpd!, job));
-    if (!descriptor) throw new FintsNotSupportedError("Die Bank nennt kein SEPA-Format, das MBM schreiben kann.");
+/** The account to pay from and its holder's name, as the pain message needs them. */
+function debtor(state: FintsState, blz: string, account: ConnectorAccountRef): { a: JobAccount & { iban: string }; name: string } {
     const a = jobAccount(account, blz);
     if (!a.iban) throw new FintsNotSupportedError("Von diesem Konto kann MBM nicht überweisen: Die Bank nennt keine IBAN.");
     const upd = state.upd?.accounts.find((u) => u.iban === a.iban || (u.account?.number === a.accountNumber && (u.account?.subAccount ?? "") === a.subAccount));
-    const debtorName = (upd?.owner || state.upd?.userName || "").trim().slice(0, 70);
-    if (!debtorName) throw new FintsNotSupportedError("Die Bank nennt keinen Kontoinhaber für dieses Konto.");
+    const name = (upd?.owner || state.upd?.userName || "").trim().slice(0, 70);
+    if (!name) throw new FintsNotSupportedError("Die Bank nennt keinen Kontoinhaber für dieses Konto.");
+    return { a: { ...a, iban: a.iban }, name };
+}
 
-    const now = o.now?.() ?? new Date();
-    const pain = buildPain001(descriptor, {
+type PaymentFields = Pick<PaymentOrder, "payeeName" | "payeeIban" | "payeeBic" | "amount" | "remittance" | "endToEndId">;
+
+/** One pain.001 message for a payment from the account. */
+function painFor(descriptor: string, d: ReturnType<typeof debtor>, t: PaymentFields, extra: { instant?: boolean; executionDate?: string }, now: Date): Uint8Array {
+    const xml = buildPain001(descriptor, {
         messageId: `M${randomUUID().replace(/-/g, "")}`,
         createdAt: now,
-        debtorName,
-        debtorIban: a.iban,
-        debtorBic: a.bic,
+        debtorName: d.name,
+        debtorIban: d.a.iban,
+        debtorBic: d.a.bic,
         payeeName: t.payeeName,
         payeeIban: t.payeeIban,
         payeeBic: t.payeeBic,
         amount: t.amount,
         remittance: t.remittance,
         endToEndId: t.endToEndId,
-        instant: t.instant,
+        instant: extra.instant ?? false,
+        ...(extra.executionDate ? { executionDate: extra.executionDate } : {}),
     });
-    const payment = t.instant ? hkipz(job.version, a, descriptor, Buffer.from(pain, "utf8")) : hkccs(a, descriptor, Buffer.from(pain, "utf8"));
+    return Buffer.from(xml, "utf8");
+}
 
-    // From the first message with the payment on, a lost answer leaves the outcome open.
-    const exchange = async (segments: SegmentInput[]) => {
-        try {
-            return await io.exchange(segments, { scaFor: jobId });
-        } catch (e) {
-            throw lostAnswer(e);
-        }
-    };
+/** The best pain format both sides know for a new order of `jobId`. */
+function newOrderFormat(state: FintsState, job: ReturnType<typeof requireJob>): string {
+    const descriptor = pickPainFormat(painFormats(state.bpd!, job));
+    if (!descriptor) throw new FintsNotSupportedError("Die Bank nennt kein SEPA-Format, das MBM schreiben kann.");
+    return descriptor;
+}
+
+/** From the first message with the payment on, a lost answer leaves the outcome open. */
+async function exchangeOrder(io: JobIo, jobId: string, segments: SegmentInput[]) {
+    try {
+        return await io.exchange(segments, { scaFor: jobId });
+    } catch (e) {
+        throw lostAnswer(e);
+    }
+}
+
+/**
+ * Sends a payment job – a transfer or an order that pays – with the verification of payee where
+ * the bank asks for it, until the bank's final answer is there (see the flow at the top).
+ */
+async function sendPayment(io: JobIo, state: FintsState, jobId: string, payment: SegmentInput, payeeName: string, o: PaymentOptions): Promise<{ message: BankMessage; vop: ConnectorVop }> {
+    const exchange = (segments: SegmentInput[]) => exchangeOrder(io, jobId, segments);
     const unclear = () => new FintsOutcomeUnknownError();
 
     const vopParams = vopParameters(state.bpd);
     if (!vopParams || !vopParams.jobs.includes(jobId)) {
         const r = await exchange([payment]);
-        if (r.kind === "challenge") return resultOf(await io.approve(r, { vop: NO_VOP }), NO_VOP, t.instant);
-        if (accepted(r.message, r.numbers[0])) return resultOf(r.message, NO_VOP, t.instant);
+        if (r.kind === "challenge") return { message: await io.approve(r, { vop: NO_VOP }), vop: NO_VOP };
+        if (accepted(r.message, r.numbers[0])) return { message: r.message, vop: NO_VOP };
         throw unclear();
     }
 
@@ -143,7 +170,7 @@ export async function submitTransfer(io: JobIo, state: FintsState, blz: string, 
         return s ? parseHivpp(s) : null;
     };
     let hivpp = hivppOf(r.message);
-    let vop = vopOf(hivpp, vopParams.structured, t.payeeName) ?? NO_VOP;
+    let vop = vopOf(hivpp, vopParams.structured, payeeName) ?? NO_VOP;
 
     // The result comes later: ask again with the polling ID until the bank sends the VOP-ID
     const sleep = o.sleep ?? ((ms: number) => new Promise((res) => setTimeout(res, ms)));
@@ -151,7 +178,7 @@ export async function submitTransfer(io: JobIo, state: FintsState, blz: string, 
     let polled = false;
     while (r.kind === "done" && hivpp && !hivpp.vopId && hivpp.pollingId) {
         if (Date.now() >= until) {
-            throw new FintsBankError([{ code: "9999", ref: "", text: "Die Bank hat das Ergebnis der Empfängerüberprüfung nicht rechtzeitig geliefert. Die Überweisung wurde nicht ausgeführt.", params: [] }]);
+            throw new FintsBankError([{ code: "9999", ref: "", text: "Die Bank hat das Ergebnis der Empfängerüberprüfung nicht rechtzeitig geliefert. Der Auftrag wurde nicht ausgeführt.", params: [] }]);
         }
         await sleep(Math.min(Math.max(hivpp.waitSeconds ?? 2, 1), 10) * 1000);
         const touchdown = r.message.segmentCodes().find((c) => c.code === "3040")?.params[0] ?? null;
@@ -160,27 +187,171 @@ export async function submitTransfer(io: JobIo, state: FintsState, blz: string, 
         const next = hivppOf(r.message);
         if (!next) break;
         hivpp = next;
-        vop = vopOf(hivpp, vopParams.structured, t.payeeName) ?? vop;
+        vop = vopOf(hivpp, vopParams.structured, payeeName) ?? vop;
     }
     const vopId = hivpp?.vopId ?? VOP_ID_NOT_PROVIDED;
 
     if (r.kind === "challenge") {
         // The name matches: the approval is already on its way; HKVPA goes along unless 3091 says otherwise
         const followUp = r.message.hasCode("3091") ? [] : [hkvpa(vopId)];
-        return resultOf(await io.approve(r, { vop, followUp }), vop, t.instant);
+        return { message: await io.approve(r, { vop, followUp }), vop };
     }
     if (polled) {
         // The poll did not carry the payment: whether a sign of acceptance there means the bank
         // executed the payment it holds is open. Sending it again could pay twice.
         if (acceptedAfterPoll(r.message, r.numbers)) throw unclear();
     } else if (accepted(r.message, paymentRef)) {
-        return resultOf(r.message, vop, t.instant);
+        return { message: r.message, vop };
     }
 
     // Differing name (or the bank wants HKVPA anyway): the user decides; a match after polling goes on
     if (vop.result !== "match") await io.confirm(vop);
     const again = await exchange([hkvpa(vopId), payment]);
-    if (again.kind === "challenge") return resultOf(await io.approve(again, { vop }), vop, t.instant);
-    if (accepted(again.message, again.numbers[1])) return resultOf(again.message, vop, t.instant);
+    if (again.kind === "challenge") return { message: await io.approve(again, { vop }), vop };
+    if (accepted(again.message, again.numbers[1])) return { message: again.message, vop };
     throw unclear();
+}
+
+export async function submitTransfer(io: JobIo, state: FintsState, blz: string, account: ConnectorAccountRef, t: ConnectorTransfer, o: PaymentOptions = {}): Promise<TransferData> {
+    const jobId = t.instant ? "HKIPZ" : "HKCCS";
+    const job = requireJob(state.bpd, jobId, t.instant ? IPZ_VERSIONS : CCS_VERSIONS);
+    const descriptor = newOrderFormat(state, job);
+    const d = debtor(state, blz, account);
+    const pain = painFor(descriptor, d, t, { instant: t.instant }, o.now?.() ?? new Date());
+    const payment = t.instant ? hkipz(job.version, d.a, descriptor, pain) : hkccs(d.a, descriptor, pain);
+    const sent = await sendPayment(io, state, jobId, payment, t.payeeName, o);
+    return resultOf(sent.message, sent.vop, t.instant);
+}
+
+// ---------- Orders ----------
+
+/** What the bank said about an order, with the order identification it gave in `answerId`. */
+function orderResultOf(m: BankMessage, vop: ConnectorVop, answerId: string | null): OrderWriteData {
+    const r = resultOf(m, vop, false);
+    const answer = answerId ? m.find(answerId) : undefined;
+    return { bankMessage: r.bankMessage, reference: r.reference, bankOrderId: answer ? parseOrderId(answer) : null, vop };
+}
+
+const today = (o: PaymentOptions) => todayIso(o.now?.() ?? new Date());
+
+/** The bank's rules for writing orders; the job exists, so its rules do too. */
+function rulesFor<K extends "scheduled" | "scheduledChange" | "standing" | "standingChange">(state: FintsState, key: K) {
+    const rules = orderRules(state.bpd)?.[key];
+    if (!rules) throw new FintsNotSupportedError("Die Bank nennt keine Regeln für diesen Auftrag.");
+    return rules as NonNullable<ReturnType<typeof orderRules>>[K] & object;
+}
+
+const refuse = (problem: string | null) => {
+    if (problem) throw new FintsNotSupportedError(problem);
+};
+
+const norm = (s: string) => s.replace(/\s+/g, " ").trim();
+const samePayment = (a: ConnectorScheduledTransfer | ConnectorStandingOrder, e: ExpectedScheduledTransfer | ExpectedStandingOrder) =>
+    a.payeeIban === e.payeeIban && a.amount === e.amount && norm(a.payeeName) === norm(e.payeeName) && norm(a.remittance) === norm(e.remittance);
+
+/**
+ * The order as the bank holds it now, fetched in the same dialog right before a change or
+ * deletion (Messages C.10.2.2.2, C.10.2.3.2). If it is gone or no longer what the user saw,
+ * nothing is sent.
+ */
+function current<T extends { bankOrderId: string | null }>(listed: Listed<T>[], id: string, same: (o: T) => boolean): Listed<T> {
+    const hit = listed.find((l) => l.order.bankOrderId === id);
+    if (!hit || !same(hit.order)) throw new FintsOrderChangedError();
+    return hit;
+}
+
+/** A change must use the pain format the bank listed the order in (C.10.2.2.2). */
+function listedFormat(l: Listed<unknown>): string {
+    if (!pickPainFormat([l.descriptor])) throw new FintsNotSupportedError("Die Bank führt diesen Auftrag in einem SEPA-Format, das MBM nicht schreiben kann.");
+    return l.descriptor;
+}
+
+/** A deletion: no verification of payee, only the approval. */
+async function sendDeletion(io: JobIo, jobId: string, segment: SegmentInput): Promise<OrderWriteData> {
+    const r = await exchangeOrder(io, jobId, [segment]);
+    const message = r.kind === "challenge" ? await io.approve(r, { vop: NO_VOP }) : accepted(r.message, r.numbers[0]) ? r.message : null;
+    if (!message) throw new FintsOutcomeUnknownError();
+    return orderResultOf(message, NO_VOP, null);
+}
+
+export interface OrderContext {
+    send: Send;
+    io: JobIo;
+    state: FintsState;
+    blz: string;
+    account: ConnectorAccountRef;
+    o: PaymentOptions;
+}
+
+/** HKCSE: a transfer to be executed on a date. */
+export async function createScheduledTransfer(c: OrderContext, order: ScheduledTransferWrite): Promise<OrderWriteData> {
+    const job = requireJob(c.state.bpd, "HKCSE", CSE_VERSIONS);
+    refuse(scheduledDateProblem(rulesFor(c.state, "scheduled"), order.executionDate, today(c.o)));
+    const descriptor = newOrderFormat(c.state, job);
+    const d = debtor(c.state, c.blz, c.account);
+    const pain = painFor(descriptor, d, order, { executionDate: order.executionDate }, c.o.now?.() ?? new Date());
+    const sent = await sendPayment(c.io, c.state, "HKCSE", hkcse(d.a, descriptor, pain), order.payeeName, c.o);
+    return orderResultOf(sent.message, sent.vop, "HICSE");
+}
+
+/** HKCSA: the complete new transfer under the bank's order identification. */
+export async function changeScheduledTransfer(c: OrderContext, expected: ExpectedScheduledTransfer, order: ScheduledTransferWrite): Promise<OrderWriteData> {
+    requireJob(c.state.bpd, "HKCSA", CSA_VERSIONS);
+    refuse(scheduledDateProblem(rulesFor(c.state, "scheduledChange"), order.executionDate, today(c.o)));
+    const d = debtor(c.state, c.blz, c.account);
+    const now = current(await listScheduledTransfers(c.send, c.state, c.blz, c.account), expected.bankOrderId, (x) => samePayment(x, expected) && x.executionDate === expected.executionDate);
+    const descriptor = listedFormat(now);
+    const pain = painFor(descriptor, d, order, { executionDate: order.executionDate }, c.o.now?.() ?? new Date());
+    const sent = await sendPayment(c.io, c.state, "HKCSA", hkcsa(d.a, descriptor, pain, expected.bankOrderId), order.payeeName, c.o);
+    return orderResultOf(sent.message, sent.vop, "HICSA");
+}
+
+/** HKCSL, with the order's data as the bank listed it if it wants them. */
+export async function deleteScheduledTransfer(c: OrderContext, expected: ExpectedScheduledTransfer): Promise<OrderWriteData> {
+    requireJob(c.state.bpd, "HKCSL", CSL_VERSIONS);
+    const a = jobAccount(c.account, c.blz);
+    const now = current(await listScheduledTransfers(c.send, c.state, c.blz, c.account), expected.bankOrderId, (x) => samePayment(x, expected) && x.executionDate === expected.executionDate);
+    const data = deleteNeedsData(c.state.bpd, "HKCSL") ? { descriptor: now.descriptor, pain: now.pain } : null;
+    return sendDeletion(c.io, "HKCSL", hkcsl(a, data, expected.bankOrderId));
+}
+
+const sameRhythm = (a: ConnectorStandingOrder, e: ExpectedStandingOrder) =>
+    a.firstDate === e.firstDate && a.unit === e.unit && a.every === e.every && a.executionDay === e.executionDay && a.lastDate === e.lastDate;
+
+/** Fill value of the execution date in the pain message of a standing order, as for transfers. */
+const STANDING_PAIN_DATE = "1999-01-01";
+
+/** HKCDE: a new standing order. */
+export async function createStandingOrder(c: OrderContext, order: StandingOrderWrite): Promise<OrderWriteData> {
+    const job = requireJob(c.state.bpd, "HKCDE", CDE_VERSIONS);
+    refuse(standingOrderProblem(rulesFor(c.state, "standing"), order.recurrence, today(c.o)));
+    const descriptor = newOrderFormat(c.state, job);
+    const d = debtor(c.state, c.blz, c.account);
+    const pain = painFor(descriptor, d, order, { executionDate: STANDING_PAIN_DATE }, c.o.now?.() ?? new Date());
+    const sent = await sendPayment(c.io, c.state, "HKCDE", hkcde(d.a, descriptor, pain, order.recurrence), order.payeeName, c.o);
+    return orderResultOf(sent.message, sent.vop, "HICDE");
+}
+
+/** HKCDN: the complete changed standing order, effective from its next run. */
+export async function changeStandingOrder(c: OrderContext, expected: ExpectedStandingOrder, order: StandingOrderWrite): Promise<OrderWriteData> {
+    requireJob(c.state.bpd, "HKCDN", CDN_VERSIONS);
+    const rules = rulesFor(c.state, "standingChange");
+    const d = debtor(c.state, c.blz, c.account);
+    const now = current(await listStandingOrders(c.send, c.state, c.blz, c.account), expected.bankOrderId, (x) => samePayment(x, expected) && sameRhythm(x, expected));
+    refuse(standingChangeProblem(rules, now.order, { ...order, ...order.recurrence }, today(c.o)));
+    const descriptor = listedFormat(now);
+    const pain = painFor(descriptor, d, order, { executionDate: STANDING_PAIN_DATE }, c.o.now?.() ?? new Date());
+    const firstAsListed = order.recurrence.firstDate === now.order.firstDate ? text(now.details ?? undefined, 0) || undefined : undefined;
+    const segment = hkcdn(d.a, descriptor, pain, expected.bankOrderId, order.recurrence, firstAsListed);
+    const sent = await sendPayment(c.io, c.state, "HKCDN", segment, order.payeeName, c.o);
+    return orderResultOf(sent.message, sent.vop, "HICDN");
+}
+
+/** HKCDL: deleted at once, with the order's data and rhythm as the bank listed them. */
+export async function deleteStandingOrder(c: OrderContext, expected: ExpectedStandingOrder): Promise<OrderWriteData> {
+    requireJob(c.state.bpd, "HKCDL", CDL_VERSIONS);
+    const a = jobAccount(c.account, c.blz);
+    const now = current(await listStandingOrders(c.send, c.state, c.blz, c.account), expected.bankOrderId, (x) => samePayment(x, expected) && sameRhythm(x, expected));
+    const data = deleteNeedsData(c.state.bpd, "HKCDL") ? { descriptor: now.descriptor, pain: now.pain } : null;
+    return sendDeletion(c.io, "HKCDL", hkcdl(a, data, expected.bankOrderId, now.details ?? []));
 }

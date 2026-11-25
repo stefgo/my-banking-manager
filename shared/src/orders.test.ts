@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isBankingDay, nextStandingOrderDate, recurrenceLabel, standingOrderDates, toBankingDay, type Recurrence } from "./orders.js";
+import { changedParts, firstRunFrom, isBankingDay, isPlannedRun, nextStandingOrderDate, orderDateRange, recurrenceLabel, scheduledDateProblem, standingChangeProblem, standingOrderDates, standingOrderProblem, toBankingDay, type Recurrence } from "./orders.js";
 
 const order = (over: Partial<Recurrence>): Recurrence => ({ unit: "month", every: 1, executionDay: 1, firstDate: "2024-01-01", lastDate: null, ...over });
 
@@ -89,5 +89,55 @@ describe("recurrenceLabel", () => {
         expect(recurrenceLabel({ unit: "week", every: 1, executionDay: 1 })).toBe("wöchentlich montags");
         expect(recurrenceLabel({ unit: "week", every: 2, executionDay: 5 })).toBe("alle 2 Wochen freitags");
         expect(recurrenceLabel({ unit: "week", every: 4, executionDay: 7 })).toBe("alle 4 Wochen sonntags");
+    });
+});
+
+describe("rules for writing orders", () => {
+    const sparkasse = { minDays: 0, maxDays: 9999, months: [1, 2, 3, 6, 12], monthDays: [...Array.from({ length: 30 }, (_, i) => i + 1), 99], weeks: [], weekDays: [] };
+    const monthly = { unit: "month" as const, every: 1, executionDay: 1, firstDate: "2026-12-01", lastDate: null };
+    const today = "2026-11-25";
+
+    it("checks the date of a scheduled transfer against the lead time in calendar days", () => {
+        const rules = { minDays: 1, maxDays: 360 };
+        expect(orderDateRange(rules, today)).toEqual({ earliest: "2026-11-26", latest: "2027-11-20" });
+        expect(scheduledDateProblem(rules, "2026-11-26", today)).toBeNull();
+        expect(scheduledDateProblem(rules, today, today)).toBe("Ausführung: frühestens am 26.11.2026.");
+        expect(scheduledDateProblem(rules, "2027-11-21", today)).toBe("Ausführung: höchstens bis 20.11.2027.");
+        // A minimum of 0 still means tomorrow
+        expect(orderDateRange({ minDays: 0, maxDays: 10 }, today).earliest).toBe("2026-11-26");
+    });
+
+    it("knows the planned runs of a rhythm, also at the end of a month", () => {
+        expect(isPlannedRun({ unit: "month", executionDay: 99 }, "2027-02-28")).toBe(true);
+        expect(isPlannedRun({ unit: "month", executionDay: 30 }, "2027-02-28")).toBe(true);
+        expect(isPlannedRun({ unit: "month", executionDay: 15 }, "2027-02-16")).toBe(false);
+        // 2026-11-27 is a Friday
+        expect(isPlannedRun({ unit: "week", executionDay: 5 }, "2026-11-27")).toBe(true);
+        expect(firstRunFrom({ unit: "month", executionDay: 99 }, "2026-12-02")).toBe("2026-12-31");
+        expect(firstRunFrom({ unit: "month", executionDay: 1 }, "2026-11-26")).toBe("2026-12-01");
+        expect(firstRunFrom({ unit: "week", executionDay: 1 }, "2026-11-26")).toBe("2026-11-30");
+    });
+
+    it("checks rhythm, day and dates of a standing order", () => {
+        expect(standingOrderProblem(sparkasse, monthly, today)).toBeNull();
+        expect(standingOrderProblem(sparkasse, { ...monthly, every: 4 }, today)).toBe("Diesen Turnus bietet die Bank nicht an.");
+        expect(standingOrderProblem(sparkasse, { ...monthly, unit: "week", executionDay: 1, firstDate: "2026-11-30" }, today)).toBe("Wöchentliche Daueraufträge bietet die Bank nicht an.");
+        expect(standingOrderProblem(sparkasse, { ...monthly, executionDay: 31 }, today)).toBe("An diesem Ausführungstag führt die Bank keine Daueraufträge aus.");
+        expect(standingOrderProblem(sparkasse, { ...monthly, firstDate: "2026-12-02" }, today)).toBe("Erste Ausführung: Das Datum passt nicht zum Ausführungstag.");
+        expect(standingOrderProblem(sparkasse, { ...monthly, firstDate: "2026-11-01" }, today)).toBe("Erste Ausführung: frühestens am 26.11.2026.");
+        expect(standingOrderProblem(sparkasse, { ...monthly, lastDate: "2026-11-30" }, today)).toBe("Die letzte Ausführung liegt vor der ersten.");
+        // A change that keeps an earlier first date
+        expect(standingOrderProblem(sparkasse, { ...monthly, firstDate: "2024-01-01" }, today, { firstDateFixed: true })).toBeNull();
+    });
+
+    it("lets a change touch only what the bank allows", () => {
+        const changeable = { payeeAccount: true, payeeName: true, amount: true, remittance: true, firstDate: true, unit: false, every: true, executionDay: true, lastDate: true };
+        const before = { ...monthly, firstDate: "2024-01-01", payeeName: "Hausverwaltung Muster", payeeIban: "DE89370400440532013000", payeeBic: null, amount: 85000, remittance: "Miete" };
+        const rules = { ...sparkasse, changeable };
+        expect(standingChangeProblem(rules, before, { ...before, amount: 90000 }, today)).toBeNull();
+        expect(standingChangeProblem(rules, before, { ...before }, today)).toBe("Es ist nichts geändert.");
+        expect(standingChangeProblem(rules, before, { ...before, unit: "week", executionDay: 1 }, today)).toBe("Die Bank erlaubt nicht, Zeiteinheit zu ändern.");
+        expect(standingChangeProblem({ ...rules, changeable: { ...changeable, amount: false } }, before, { ...before, amount: 1 }, today)).toBe("Die Bank erlaubt nicht, Betrag zu ändern.");
+        expect(changedParts(before, { ...before, remittance: " Miete  ", every: 3 }).map((c) => c.label)).toEqual(["Turnus"]);
     });
 });

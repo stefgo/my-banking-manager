@@ -588,6 +588,7 @@ export const orders: Order[] = [
         remittance: s.remittance,
         payeeAccountId: s.payeeAccountId,
         nextDate: nextStandingOrderDate(s, TODAY),
+        bankOrderId: `DA-${s.id}`,
         canChange: true,
         canDelete: true,
         fetchedAt: FETCHED,
@@ -608,6 +609,7 @@ export const orders: Order[] = [
         remittance: "Winterreifen Auftrag 2211",
         payeeAccountId: null,
         nextDate: "2026-12-03",
+        bankOrderId: "TU-5",
         canChange: true,
         canDelete: true,
         fetchedAt: FETCHED,
@@ -616,7 +618,20 @@ export const orders: Order[] = [
     },
 ];
 
-export const orderAccounts = [GIRO, SAVINGS].map((accountId) => ({ accountId, standingOrders: true, scheduledTransfers: true, needsApproval: false, fetchedAt: FETCHED }));
+const writes = { createScheduled: true, changeScheduled: true, deleteScheduled: true, createStanding: true, changeStanding: true, deleteStanding: true };
+export const orderAccounts = [GIRO, SAVINGS].map((accountId) => ({ accountId, standingOrders: true, scheduledTransfers: true, needsApproval: false, fetchedAt: FETCHED, ...writes }));
+
+/** What a Sparkasse allows for orders: lead times, monthly rhythms only, every part but the unit changeable. */
+const MONTH_DAYS = [...Array.from({ length: 30 }, (_, i) => i + 1), 99];
+const ORDER_RULES = {
+    scheduled: { minDays: 1, maxDays: 360 },
+    scheduledChange: { minDays: 1, maxDays: 360 },
+    standing: { minDays: 0, maxDays: 9999, months: [1, 2, 3, 6, 12], monthDays: MONTH_DAYS, weeks: [], weekDays: [] },
+    standingChange: {
+        minDays: 0, maxDays: 9999, months: [1, 2, 3, 6, 12], monthDays: MONTH_DAYS, weeks: [], weekDays: [],
+        changeable: { payeeAccount: true, payeeName: true, amount: true, remittance: true, firstDate: true, unit: false, every: true, executionDay: true, lastDate: true },
+    },
+};
 
 function runsOf(from: string, to: string) {
     const out: { date: string; order: Order }[] = [];
@@ -663,8 +678,8 @@ export function ordersInScope(scope: string) {
 // ---------- Transfers ----------
 
 export const transferAccounts = [
-    { id: GIRO, name: "Girokonto", iban: "DE02120300000000202051", connectionName: "Sparkasse", instant: true, payeeVerification: true, pinRequired: false },
-    { id: SAVINGS, name: "Tagesgeld", iban: "DE89370400440532013000", connectionName: "Sparkasse", instant: false, payeeVerification: true, pinRequired: false },
+    { id: GIRO, name: "Girokonto", iban: "DE02120300000000202051", connectionName: "Sparkasse", instant: true, payeeVerification: true, pinRequired: false, transfer: true, scheduled: true, standing: true, orderRules: ORDER_RULES },
+    { id: SAVINGS, name: "Tagesgeld", iban: "DE89370400440532013000", connectionName: "Sparkasse", instant: false, payeeVerification: true, pinRequired: false, transfer: true, scheduled: true, standing: true, orderRules: ORDER_RULES },
 ];
 
 const transfer1 = (id: number, date: string, payeeName: string, payeeIban: string, amount: number, remittance: string, extra: object = {}) => ({
@@ -679,6 +694,13 @@ const transfer1 = (id: number, date: string, payeeName: string, payeeIban: strin
     remittance,
     endToEndId: `MBM${date.replace(/-/g, "")}${id}`,
     instant: false,
+    execution: "now" as "now" | "date" | "standing",
+    action: "create" as "create" | "change" | "delete",
+    executionDate: null as string | null,
+    recurrence: null as { firstDate: string; unit: "month" | "week"; every: number; executionDay: number; lastDate: string | null } | null,
+    orderId: null as number | null,
+    bankOrderId: null as string | null,
+    previous: null,
     status: "executed" as const,
     vop: { result: "match" as const, payeeName: null, reason: null, explanation: "", structured: false },
     challenge: null,
@@ -693,6 +715,13 @@ const transfer1 = (id: number, date: string, payeeName: string, payeeIban: strin
 
 export const transfers = [
     transfer1(4, "2026-11-18", "Elektro Funke GmbH", "DE08500105175658541611", 14280, "Rechnung RE-2026-1187", { instant: true }),
+    transfer1(5, "2026-11-12", "Autohaus Weber", "DE44500105175407324931", 38000, "Winterreifen Auftrag 2211", {
+        execution: "date",
+        executionDate: "2026-12-03",
+        orderId: 5,
+        bankOrderId: "TU-5",
+        bankMessage: "Auftrag zur Ausführung vorgemerkt.",
+    }),
     transfer1(3, "2026-11-03", "Kita Sonnenschein", "DE13500105179211312312", 6500, "Essensgeld November", { createdBy: "Sam", mine: false }),
     transfer1(2, "2026-10-21", "Mia Muster", "DE44500105179438371294", 3200, "Konzertkarte", { vop: { result: "close_match", payeeName: "Mia Mustermann", reason: null, explanation: "", structured: false } }),
     transfer1(1, "2026-10-02", "Zahnarztpraxis Dr. Lächeln", "DE06500105178386297562", 8915, "Rechnung 2026-0912"),

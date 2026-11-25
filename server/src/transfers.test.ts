@@ -98,7 +98,7 @@ describe("transfers", () => {
     it("lists only accounts with an own login that allows transfers", async () => {
         const { giro } = await setUpAccess();
         const { body } = await api<unknown[]>("GET", "/api/transfers/accounts");
-        expect(body).toEqual([{ id: giro, name: "Girokonto", iban: GIRO.iban, connectionName: expect.any(String), instant: true, payeeVerification: true, pinRequired: false }]);
+        expect(body).toEqual([{ id: giro, name: "Girokonto", iban: GIRO.iban, connectionName: expect.any(String), instant: true, payeeVerification: true, pinRequired: false, transfer: true, scheduled: false, standing: false, orderRules: null }]);
     });
 
     it("submits, shows the result of the check next to the approval, and ends executed", async () => {

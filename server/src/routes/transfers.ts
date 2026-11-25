@@ -22,6 +22,24 @@ export function registerTransferRoutes(app: FastifyInstance, ctx: AppContext): v
         }
     });
 
+    // Standing orders and scheduled transfers: changed and deleted at the bank like a transfer
+    handle(app, ctx, routes.changeOrder, async ({ db, session, params, body, userKey }) => {
+        const key = userKey();
+        try {
+            return await transfers().changeOrder(db, session, key, params.kind, params.id, body);
+        } finally {
+            key.fill(0);
+        }
+    });
+    handle(app, ctx, routes.deleteOrder, async ({ db, session, params, body, userKey }) => {
+        const key = userKey();
+        try {
+            return await transfers().deleteOrder(db, session, key, params.kind, params.id, body);
+        } finally {
+            key.fill(0);
+        }
+    });
+
     handle(app, ctx, routes.listTransfers, ({ db, session, query }) => transfers().list(db, session.userId, query));
     handle(app, ctx, routes.getTransfer, ({ db, session, params }) => transfers().view(db, params.id, session.userId));
     handle(app, ctx, routes.confirmTransfer, ({ session, params }) => transfers().confirm(params.id, session.userId));
