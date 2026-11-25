@@ -100,6 +100,9 @@ lädt die betroffenen Abfragen neu (`clients/web/src/lib/socket.ts`).
   jeder übergeordneten Zeile die ganze Tabelle (Import rückgängig, Konto löschen). Ausnahmen (kleine
   Tabellen, seltenes Löschen) stehen mit Begründung in `WITHOUT_INDEX` in
   `server/src/db/migrations/migrations.test.ts`; der Test dort meldet jede neue Spalte ohne Index.
+- **Leer oder `NULL`:** Neue Textspalten sind `NOT NULL DEFAULT ''`. `NULL` nur, wo „fehlt“ und
+  „leer“ etwas anderes bedeuten. Ältere Ausnahmen in `transactions`: `counterparty_iban`,
+  `end_to_end_id`, `value_date`, `fingerprint`, `raw`.
 - **Offline oder Bank:** Ein Konto ist offline, wenn es keinen Bankzugang hat (`connection_id IS
   NULL`, in `shared`: `isOffline`). `kind` sagt nur, was es ist (`giro`, `savings`, `credit_card`,
   `loan`, `other` für selbst angelegte). Ein vom Bankzugang gelöstes Konto behält seine Art. Einen
