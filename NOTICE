@@ -1,0 +1,34 @@
+My Banking Manager
+Copyright (c) 2026 Stefan
+
+Der Quellcode und die daraus gebauten Programme stehen unter der MIT-Lizenz (Datei LICENSE).
+
+FinTS-Produkt-ID
+----------------
+
+Die offiziellen Release-Images von mbm-server-full (ghcr.io/stefgo/mbm-server-full, Versions-Tags
+und :latest) enthalten eine FinTS-Produkt-ID (Datei connectors/fints/dist/product-id). Diese
+Produkt-ID ist nicht Teil der unter der MIT-Lizenz stehenden Software, und die MIT-Lizenz gewährt
+an ihr keine Rechte. Die Deutsche Kreditwirtschaft hat sie für My Banking Manager registriert.
+
+Die Produkt-ID darf nur zusammen mit dem unveränderten offiziellen Image genutzt werden. Nicht
+erlaubt ist,
+
+- sie aus dem Image herauszulösen oder in anderen Programmen zu verwenden,
+- sie in veränderten oder abgeleiteten Images weiterzugeben, auch nicht in Images, die auf dem
+  offiziellen Image aufbauen (FROM ghcr.io/stefgo/mbm-server-full),
+- sie mit einem selbst gebauten oder veränderten My Banking Manager zu verwenden.
+
+Wer My Banking Manager selbst baut, verändert oder weitergibt, registriert eine eigene Produkt-ID
+kostenlos auf https://www.fints.org/de/hersteller/produktregistrierung und setzt sie in der
+Umgebungsvariablen MBM_FINTS_PRODUCT_ID. Sie hat immer Vorrang vor der ID im Image.
+
+---
+
+The FinTS product registration number contained in the official release images of
+mbm-server-full is not part of the MIT-licensed software, and the MIT license grants no rights to
+it. It is registered for My Banking Manager by Die Deutsche Kreditwirtschaft and may only be used
+with the unmodified official image. Do not extract it, use it in other software, or redistribute it
+in modified or derived images (including images built FROM the official image). Anyone who builds,
+modifies or redistributes My Banking Manager registers their own number at fints.org and sets it in
+MBM_FINTS_PRODUCT_ID.

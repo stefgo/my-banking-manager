@@ -43,6 +43,8 @@ ENV NODE_ENV=production \
     MBM_PORT=3040 \
     MBM_FINTS_EMBEDDED=1
 WORKDIR /app
+# License and notice (NOTICE: the FinTS product ID of official images is not under MIT)
+COPY LICENSE NOTICE ./
 COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules node_modules
 COPY --from=build /app/shared/package.json shared/

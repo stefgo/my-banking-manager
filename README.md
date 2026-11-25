@@ -68,7 +68,7 @@ Nach jedem Neustart ist MBM gesperrt, bis sich jemand mit seinem Passwort anmeld
 Release-Images von `mbm-server-full` bringen die von MBM mit. Wer MBM selbst baut, verändert oder
 Server und Konnektor als zwei Container betreibt (`compose.split.yaml`, Images `mbm-server` und
 `mbm-fints`), registriert eine eigene auf fints.org und trägt sie als `MBM_FINTS_PRODUCT_ID` in die
-`.env` ein.
+`.env` ein. Die ID im Image steht nicht unter der MIT-Lizenz ([NOTICE](NOTICE)).
 
 Der [Schnellstart in der Dokumentation](https://stefgo.github.io/my-banking-manager/schnellstart/)
 erklärt dieselben Schritte mit Bildern, dazu Reverse Proxy und Konfiguration.
@@ -113,4 +113,6 @@ Einrichtung, Aufbau und Veröffentlichung stehen in der
 
 ## Lizenz
 
-MIT — siehe [LICENSE](LICENSE).
+MIT — siehe [LICENSE](LICENSE). Ausgenommen ist die FinTS-Produkt-ID in den offiziellen Images von
+`mbm-server-full`: Sie steht nicht unter der MIT-Lizenz und darf nur mit dem unveränderten
+offiziellen Image genutzt werden, siehe [NOTICE](NOTICE).

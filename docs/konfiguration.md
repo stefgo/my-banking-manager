@@ -77,6 +77,13 @@ Eine eigene Produkt-ID beantragst du kostenlos auf
 Produkt-ID nimmt MBM keinen Kontakt zu einer Bank auf; die Einstellungen zeigen dann einen
 Hinweis. Offline-Konten funktionieren trotzdem.
 
+Die Produkt-ID im offiziellen Image steht nicht unter der MIT-Lizenz von MBM. Du darfst sie nur mit
+dem unveränderten offiziellen Image nutzen: nicht herauslösen, nicht in anderen Programmen
+verwenden und nicht in veränderten oder darauf aufbauenden Images weitergeben. Den genauen Wortlaut
+findest du in der Datei
+[NOTICE](https://github.com/stefgo/my-banking-manager/blob/main/NOTICE), im Image unter
+`/app/NOTICE`.
+
 ## Startwerte des Profils
 
 Jeder Benutzer stellt Darstellung und „Beträge beim Start ausblenden“ unter
