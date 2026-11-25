@@ -36,6 +36,10 @@ Nothing inside an HTML comment is published.
 
 ### Upgrade
 
+- Beim ersten Start räumt MBM die Datenbank auf (Migrationen 0011–0014). Es löscht dabei nichts:
+  Sollte eine Buchung doppelt gespeichert sein, bleiben beide stehen, und nur die jüngere verliert
+  ihren Abgleich mit der Bank. Ein bereits gelöstes Konto mit Kartennummer wird wieder eine
+  Kreditkarte, andere Offline-Konten bekommen die Kontoart „Sonstiges“.
 - **API:** Die Kontoart `offline` gibt es nicht mehr. Ein Konto ist offline, wenn `connectionId`
   leer ist. Selbst angelegte Konten haben die neue Art `other`.
 

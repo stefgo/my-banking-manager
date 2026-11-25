@@ -13,6 +13,7 @@ import { orderWrites } from "./0010-order-writes.js";
 import { foreignKeyIndexes } from "./0011-foreign-key-indexes.js";
 import { bookingGuards } from "./0012-booking-guards.js";
 import { accountKind } from "./0013-account-kind.js";
+import { transferChecks } from "./0014-transfer-checks.js";
 import { applyMigration, migrations, type Migration } from "./index.js";
 
 const columns = (db: Database.Database, table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
@@ -470,5 +471,74 @@ describe("0013-account-kind", () => {
         expect(() => db.exec("INSERT INTO accounts (connection_id, external_id, name, kind, icon, color, position, created_at) VALUES (1, 'DE02', 'Doppelt', 'giro', 'x', 'x', 9, 'x')")).toThrow();
         db.exec("UPDATE accounts SET connection_id = NULL, external_id = NULL WHERE id = 1");
         db.exec("DELETE FROM bank_connections WHERE id = 1");
+    });
+});
+
+describe("0014-transfer-checks", () => {
+    const insert = (db: Database.Database, id: number, columns: Record<string, string | number | null>) => {
+        const all: Record<string, string | number | null> = {
+            id, request_id: `r${id}`, account_id: 1, created_by_name: "Anna", payee_name: "Erika", payee_iban: "DE89370400440532013000", amount: 100, remittance: "",
+            end_to_end_id: `MBM-${id}`, status: "executed", created_at: T0, updated_at: T0, ...columns,
+        };
+        db.prepare(`INSERT INTO transfers (${Object.keys(all).join(", ")}) VALUES (${Object.keys(all).map(() => "?").join(", ")})`).run(...Object.values(all));
+    };
+    const RHYTHM = { first_date: "2026-02-01", unit: "month", every: 1, execution_day: 1 };
+    const prepared = () => {
+        const db = before(transferChecks);
+        db.exec(`INSERT INTO accounts (id, kind, name, icon, color, position, created_at) VALUES (1, 'other', 'Giro', 'landmark', 'blue', 0, '${T0}')`);
+        insert(db, 1, {});
+        insert(db, 2, { execution: "date", execution_date: "2026-02-01" });
+        insert(db, 3, { execution: "standing", ...RHYTHM, order_id: 4 });
+        insert(db, 4, { execution: "standing", action: "change", ...RHYTHM, bank_order_id: "B1", previous: "{}" });
+        insert(db, 5, { execution: "date", action: "delete", execution_date: "2026-02-01", bank_order_id: "B2", previous: "{}" });
+        insert(db, 6, { bank_order_id: "B3" });
+        return db;
+    };
+
+    it("keeps the rows and their indexes", () => {
+        const db = prepared();
+        applyMigration(db, transferChecks);
+        expect(db.prepare("SELECT id, execution, action, bank_order_id AS b FROM transfers ORDER BY id").all()).toEqual([
+            { id: 1, execution: "now", action: "create", b: null },
+            { id: 2, execution: "date", action: "create", b: null },
+            { id: 3, execution: "standing", action: "create", b: null },
+            { id: 4, execution: "standing", action: "change", b: "B1" },
+            { id: 5, execution: "date", action: "delete", b: "B2" },
+            { id: 6, execution: "now", action: "create", b: "B3" },
+        ]);
+        const indexes = (db.pragma("index_list(transfers)") as { name: string }[]).map((i) => i.name);
+        expect(indexes).toEqual(expect.arrayContaining(["transfers_account", "transfers_created", "transfers_transaction"]));
+        db.close();
+    });
+
+    it("refuses rows that do not fit their kind", () => {
+        const db = prepared();
+        applyMigration(db, transferChecks);
+        const refused: Record<string, string | number | null>[] = [
+            { action: "change", bank_order_id: "B", previous: "{}" }, // now: only a creation
+            { execution_date: "2026-02-01" }, // now: no date
+            { ...RHYTHM }, // now: no rhythm
+            { previous: "{}" }, // now: no previous order
+            { execution: "date" }, // date: without a date
+            { execution: "date", execution_date: "2026-02-01", ...RHYTHM }, // date: with a rhythm
+            { execution: "standing", first_date: "2026-02-01", unit: "month", every: 1 }, // standing: without the day
+            { execution: "standing", ...RHYTHM, execution_date: "2026-02-01" }, // standing: with a date
+            { execution: "date", execution_date: "2026-02-01", action: "delete", previous: "{}" }, // without the bank's order
+            { execution: "date", execution_date: "2026-02-01", action: "change", bank_order_id: "B" }, // without the order before
+            { instant: 2 },
+            { vop_structured: 2 },
+            { unconfirmed: 2 },
+        ];
+        refused.forEach((columns, i) => expect(() => insert(db, 100 + i, columns), JSON.stringify(columns)).toThrow());
+        db.close();
+    });
+
+    it("stops with the ids, and nothing else, when a stored row does not fit", () => {
+        const db = prepared();
+        db.exec("UPDATE transfers SET execution_date = NULL WHERE id = 2");
+        db.exec("UPDATE transfers SET previous = NULL WHERE id = 5");
+        expect(() => applyMigration(db, transferChecks)).toThrow("2 transfer rows do not fit their kind (ids 2, 5)");
+        expect(columns(db, "transfers")).toContain("previous");
+        db.close();
     });
 });
