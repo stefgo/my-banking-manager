@@ -22,6 +22,7 @@ Nothing inside an HTML comment is published.
 - Das Fenster „Abruf“, das sich für eine Freigabe öffnet, schließt sich nach einem erfolgreichen Abruf von selbst; das Ergebnis meldet wie gewohnt eine Nachricht. Offen bleibt es nur, wenn es etwas zu lesen gibt, etwa neue oder fehlende Konten bei der Bank. Statt „Alle abrufen“ bietet es bei einem fehlgeschlagenen Abruf „Erneut abrufen“ für diesen Bankzugang an.
 - Über der Umsatzliste steht nicht mehr die Zeile mit Anzahl und Summe der Umsätze. Die Summe einer Kategorie zeigt weiterhin ihr Kopf.
 - In den Details eines Umsatzes steht sein Name rechts neben dem Symbol der Kategorie statt darunter.
+- Suchfeld und Filter der Umsatzliste bleiben beim Scrollen am oberen Rand stehen, auch am Handy unter der oberen Leiste.
 
 ### Behoben
 

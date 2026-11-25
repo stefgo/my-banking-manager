@@ -214,6 +214,8 @@ export function TxList({ items, balances, accounts, cat, showAccount = true, foc
     return <VirtualRows rows={rows} render={render} focusId={focusId} />;
 }
 
+const HEAD_HEIGHT = 38;
+
 function VirtualRows({ rows, render, focusId }: { rows: ListRow[]; render: (r: ListRow) => React.ReactNode; focusId: number | null }) {
     const ref = useRef<HTMLDivElement>(null);
     const [margin, setMargin] = useState(0);
@@ -227,15 +229,17 @@ function VirtualRows({ rows, render, focusId }: { rows: ListRow[]; render: (r: L
         observer.observe(list.closest("main") ?? document.body);
         return () => observer.disconnect();
     }, []);
+    // Keep the focused booking in view while moving with J/K: clear of the sticky bars and day head
+    const focusIndex = focusId === null ? -1 : rows.findIndex((r) => r.type === "tx" && r.tx.id === focusId);
+    const padStart = useMemo(() => (focusIndex < 0 ? 0 : (parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0) + HEAD_HEIGHT), [focusIndex]);
     const v = useWindowVirtualizer({
         count: rows.length,
-        estimateSize: (i) => (rows[i]!.type === "head" ? 38 : 58),
+        estimateSize: (i) => (rows[i]!.type === "head" ? HEAD_HEIGHT : 58),
         overscan: 12,
         scrollMargin: margin,
+        scrollPaddingStart: padStart,
         getItemKey: (i) => rows[i]!.key,
     });
-    // Keep the focused booking in view while moving with J/K
-    const focusIndex = focusId === null ? -1 : rows.findIndex((r) => r.type === "tx" && r.tx.id === focusId);
     useLayoutEffect(() => {
         if (focusIndex >= 0) v.scrollToIndex(focusIndex, { align: "auto" });
     }, [focusIndex, v]);

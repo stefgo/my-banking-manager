@@ -94,6 +94,8 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body { height: 100%; }
+/* Scrolling to an element leaves it clear of the sticky top bar and the bar of the transaction list */
+html { scroll-padding-top: calc(var(--stick-top) + var(--sticky-bar, 0px)); }
 body {
     -webkit-tap-highlight-color: transparent;
     background: radial-gradient(1100px 520px at 72% -180px, var(--bg-glow), transparent 70%) no-repeat, var(--bg);
@@ -414,7 +416,7 @@ button.av:hover { box-shadow: inset 0 0 0 1px var(--c); }
 
 /* ---------- Transactions ---------- */
 .txlist { display: grid; grid-template-columns: minmax(0, 1fr); }
-.day { position: sticky; top: var(--stick-top); z-index: 1; display: flex; justify-content: space-between; gap: 12px; padding: 14px 12px 6px; font-size: 12px; font-weight: 500; color: var(--muted); background: var(--surface); }
+.day { position: sticky; top: calc(var(--stick-top) + var(--sticky-bar, 0px)); z-index: 1; display: flex; justify-content: space-between; gap: 12px; padding: 14px 12px 6px; font-size: 12px; font-weight: 500; color: var(--muted); background: var(--surface); }
 .day:first-child { padding-top: 4px; }
 .day .amt { color: var(--faint); }
 .day > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -440,7 +442,12 @@ button.av:hover { box-shadow: inset 0 0 0 1px var(--c); }
 .tx-acc { font-size: 11.5px; color: var(--faint); }
 .tx.pending .tx-name, .tx.pending .tx-end .amt { opacity: 0.72; }
 .list-panel { padding: 10px 8px; }
-.toolbar { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+/* Search and filters stay at the top while the list scrolls; the padding covers what passes below */
+.toolbar {
+    display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px;
+    position: sticky; top: var(--stick-top); z-index: 3;
+    padding-block: 10px; margin-block: -10px; background: var(--bg);
+}
 .search {
     display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 12px 0 14px;
     border-radius: 13px; background: var(--surface); border: 1px solid var(--line); color: var(--muted);
