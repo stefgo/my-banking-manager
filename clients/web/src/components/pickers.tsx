@@ -53,7 +53,8 @@ export function Picker({
         <Popover.Root open={open} onOpenChange={setOpen}>
             <Popover.Trigger asChild>{trigger}</Popover.Trigger>
             <Popover.Portal>
-                <Popover.Content className="pop-content" align="start" sideOffset={6} collisionPadding={12}>
+                {/* React bubbles events through portals: a click here must not reach a clickable ancestor of the trigger (e.g. a transaction row) */}
+                <Popover.Content className="pop-content" align="start" sideOffset={6} collisionPadding={12} onClick={(e) => e.stopPropagation()}>
                     <div className="pop" role="dialog">
                         <label className="pop-in">
                             <Ic icon={Search} size={15} />
