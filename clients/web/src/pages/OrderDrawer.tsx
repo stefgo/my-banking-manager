@@ -1,13 +1,14 @@
 import { Dialog as RDialog } from "radix-ui";
-import { Copy, X } from "lucide-react";
+import { Copy, Pencil, Trash2, X } from "lucide-react";
 import { addDaysIso, groupIban, standingOrderDates, todayIso, type AccountScope } from "@mbm/shared";
 import { copyText } from "../lib/clipboard";
 import { dateText, dateTime, fmt } from "../lib/format";
 import { useLocalSetting } from "../lib/localSettings";
 import { INSPECTOR_QUERY, useMedia } from "../lib/media";
-import { orderKey, orderRhythm } from "../lib/orders";
+import { orderKey, orderRhythm, orderWrites, snapshotOfOrder } from "../lib/orders";
 import { useAccounts, useOrders } from "../lib/queries";
 import { ui, useUi } from "../lib/ui";
+import { Button } from "../components/common";
 import { Ic } from "../components/icons";
 
 /** How many coming runs of a standing order the details list. */
@@ -29,13 +30,16 @@ function Drawer({ orderKeyOpen, panel }: { orderKeyOpen: string; panel: boolean 
     const scope = useLocalSetting("ordersScope") as AccountScope;
     const inScope = useOrders(scope).data?.orders.find((o) => orderKey(o) === orderKeyOpen);
     // Opened from elsewhere (the overview), the order may lie outside the page's selection
-    const all = useOrders("all").data?.orders.find((o) => orderKey(o) === orderKeyOpen);
+    const allOrders = useOrders("all").data;
+    const all = allOrders?.orders.find((o) => orderKey(o) === orderKeyOpen);
     const order = inScope ?? all;
     const accounts = useAccounts().data ?? [];
     const close = () => ui.openOrder(null);
     if (!order) return null;
 
     const account = accounts.find((a) => a.id === order.accountId);
+    const writes = orderWrites(order, allOrders?.accounts.find((a) => a.accountId === order.accountId));
+    const ref = { kind: order.kind, orderId: order.id, previous: snapshotOfOrder(order), nextDate: order.nextDate };
     const payeeAccount = order.payeeAccountId !== null ? accounts.find((a) => a.id === order.payeeAccountId) : undefined;
     const today = todayIso();
     const runs = order.kind === "standing" ? standingOrderDates({ unit: order.unit, every: order.every, executionDay: order.executionDay, firstDate: order.firstDate, lastDate: order.lastDate }, today, addDaysIso(today, 800)).slice(0, NEXT_RUNS) : [];
@@ -95,6 +99,20 @@ function Drawer({ orderKeyOpen, panel }: { orderKeyOpen: string; panel: boolean 
                         {row("Stand", `abgerufen am ${dateTime(order.fetchedAt)}`)}
                     </dl>
                     <p className="muted small">Termine berechnet MBM aus dem Turnus; fällt einer auf ein Wochenende oder einen Feiertag, rückt er auf den nächsten Bankarbeitstag. Die Bank kann im Einzelfall abweichen.</p>
+                    {(writes.change || writes.remove) && (
+                        <div className="d-actions">
+                            {writes.change && (
+                                <Button icon={Pencil} onClick={() => ui.newTransfer({ accountId: order.accountId, change: ref })}>
+                                    Ändern
+                                </Button>
+                            )}
+                            {writes.remove && (
+                                <Button icon={Trash2} className="btn-danger" onClick={() => ui.newTransfer({ accountId: order.accountId, remove: ref })}>
+                                    Löschen …
+                                </Button>
+                            )}
+                        </div>
+                    )}
                 </RDialog.Content>
             </RDialog.Portal>
         </RDialog.Root>

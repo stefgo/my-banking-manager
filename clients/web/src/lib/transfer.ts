@@ -4,7 +4,17 @@
 import { useNavigate } from "@tanstack/react-router";
 import {
     BIC_PATTERN,
+    addDaysIso,
     cleanIban,
+    firstRunFrom,
+    isBankingDay,
+    orderDateRange,
+    recurrenceLabel,
+    scheduledDateProblem,
+    standingOrderDates,
+    standingOrderProblem,
+    todayIso,
+    toBankingDay,
     groupIban,
     ibanLength,
     ibanProblem,
@@ -17,9 +27,15 @@ import {
     SEPA_REMITTANCE_MAX,
     sepaCharsMessage,
     TRANSFER_MAX_CENTS,
+    type ConnectorOrderRules,
+    type ConnectorRecurrence,
+    type Transfer,
+    type TransferExecution,
+    type TransferExecutionRequest,
     type TransferStatus,
     type VopResult,
 } from "@mbm/shared";
+import { dateText } from "./format";
 import type { FieldErrors } from "./fields";
 import { ui, type TransferDraft } from "./ui";
 
@@ -64,11 +80,169 @@ export interface TransferForm {
     remittance: string[];
     instant: boolean;
     pin: string;
+    /** Now, on a date (scheduled transfer) or as a standing order. */
+    execution: TransferExecution;
+    /** `date`: the day, JJJJ-MM-TT; "" while none is chosen. */
+    date: string;
+    /** `standing`: the rhythm. */
+    unit: "month" | "week";
+    every: number;
+    executionDay: number;
+    firstDate: string;
+    /** "" = without end. */
+    lastDate: string;
 }
 
 export const emptyLines = (): string[] => Array.from({ length: REMITTANCE_LINES }, () => "");
 
-export const emptyForm = (accountId = ""): TransferForm => ({ accountId, payeeName: "", payeeIban: "", payeeBic: "", amount: "", remittance: emptyLines(), instant: false, pin: "" });
+export const emptyForm = (accountId = ""): TransferForm => ({
+    accountId,
+    payeeName: "",
+    payeeIban: "",
+    payeeBic: "",
+    amount: "",
+    remittance: emptyLines(),
+    instant: false,
+    pin: "",
+    execution: "now",
+    date: "",
+    unit: "month",
+    every: 1,
+    executionDay: 1,
+    firstDate: "",
+    lastDate: "",
+});
+
+// ---------- Execution: now, on a date, standing order ----------
+
+/** What an account allows, as `GET /api/transfers/accounts` reports it. */
+export interface ExecutionAccount {
+    transfer: boolean;
+    instant: boolean;
+    scheduled: boolean;
+    standing: boolean;
+    orderRules: ConnectorOrderRules | null;
+}
+
+export const EXECUTION_LABEL: Record<TransferExecution, string> = { now: "Sofort", date: "Am Datum", standing: "Regelmäßig" };
+
+/** The ways the account can pay: a new scheduled transfer or standing order needs the bank's rules. */
+export function executionsOf(a: ExecutionAccount | undefined): TransferExecution[] {
+    if (!a) return ["now"];
+    const out: TransferExecution[] = [];
+    if (a.transfer || a.instant) out.push("now");
+    if (a.scheduled && a.orderRules?.scheduled) out.push("date");
+    if (a.standing && a.orderRules?.standing) out.push("standing");
+    return out;
+}
+
+const MONTH_RHYTHM: Record<number, string> = { 1: "monatlich", 3: "vierteljährlich", 6: "halbjährlich", 12: "jährlich" };
+
+/** "monatlich", "alle 2 Monate", "wöchentlich", "alle 2 Wochen". */
+export const rhythmLabel = (unit: "month" | "week", every: number): string =>
+    unit === "week" ? (every === 1 ? "wöchentlich" : `alle ${every} Wochen`) : (MONTH_RHYTHM[every] ?? `alle ${every} Monate`);
+
+const WEEKDAY = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
+
+/** "am 15.", "am Monatsende", "Freitag". */
+export function dayLabel(unit: "month" | "week", day: number): string {
+    if (unit === "week") return WEEKDAY[day - 1] ?? String(day);
+    return { 99: "am Monatsende", 98: "am vorletzten Tag", 97: "am drittletzten Tag" }[day] ?? `am ${day}.`;
+}
+
+/**
+ * The rhythms the bank allows, as choices. `keep` (the order's own rhythm, for a change) is
+ * offered even if the bank no longer lists it.
+ */
+export function rhythmOptions(rules: { months: number[]; weeks: number[] } | null | undefined, keep?: { unit: "month" | "week"; every: number }): { unit: "month" | "week"; every: number; label: string }[] {
+    const out = [
+        ...(rules?.months ?? []).map((n) => ({ unit: "month" as const, every: n, label: rhythmLabel("month", n) })),
+        ...(rules?.weeks ?? []).map((n) => ({ unit: "week" as const, every: n, label: rhythmLabel("week", n) })),
+    ];
+    if (keep && !out.some((o) => o.unit === keep.unit && o.every === keep.every)) out.unshift({ ...keep, label: rhythmLabel(keep.unit, keep.every) });
+    return out;
+}
+
+/** The days of execution the bank allows; 97 and 98 (counted from the end) are offered only to `keep` them. */
+export function dayOptions(unit: "month" | "week", rules: { monthDays: number[]; weekDays: number[] } | null | undefined, keep?: number): { value: number; label: string }[] {
+    const days = unit === "week" ? (rules?.weekDays ?? []) : (rules?.monthDays ?? []).filter((d) => d <= 31 || d === 99);
+    const out = days.map((d) => ({ value: d, label: dayLabel(unit, d) }));
+    if (keep !== undefined && !days.includes(keep)) out.unshift({ value: keep, label: dayLabel(unit, keep) });
+    return out;
+}
+
+/** The earliest first run of a rhythm, after the bank's lead time. */
+export function earliestFirstRun(rules: { minDays: number; maxDays: number }, r: { unit: "month" | "week"; executionDay: number }, today = todayIso()): string {
+    return firstRunFrom(r, orderDateRange(rules, today).earliest);
+}
+
+export const recurrenceOfForm = (f: TransferForm): ConnectorRecurrence => ({ firstDate: f.firstDate, unit: f.unit, every: f.every, executionDay: f.executionDay, lastDate: f.lastDate || null });
+
+/** The execution as the server takes it. */
+export function executionOf(f: TransferForm): TransferExecutionRequest {
+    if (f.execution === "date") return { kind: "date", date: f.date };
+    if (f.execution === "standing") return { kind: "standing", ...recurrenceOfForm(f) };
+    return { kind: "now" };
+}
+
+/** A date with the banking day it would run on, if that differs: "05.12.2026 (ausgeführt am 07.12.2026)". */
+export function dateWithBankingDay(iso: string): string {
+    if (!iso || isBankingDay(iso)) return dateText(iso);
+    return `${dateText(iso)} (voraussichtlich ausgeführt am ${dateText(toBankingDay(iso))})`;
+}
+
+/** The rhythm in words with its dates: "monatlich am 1., ab 01.12.2026, unbefristet". */
+export const rhythmText = (r: ConnectorRecurrence): string => `${recurrenceLabel(r)}, ab ${dateText(r.firstDate)}, ${r.lastDate ? `bis ${dateText(r.lastDate)}` : "unbefristet"}`;
+
+/** The next runs of a rhythm from today on, for the preview below the fields. */
+export function nextRuns(r: ConnectorRecurrence, count = 3, today = todayIso()): string[] {
+    if (!r.firstDate) return [];
+    return standingOrderDates(r, today, addDaysIso(today, 800)).slice(0, count);
+}
+
+/** When it runs, in words: "am nächsten Bankarbeitstag", "am 05.12.2026", "monatlich am 1., ab …". */
+export function executionText(f: { execution: TransferExecution; instant: boolean; executionDate: string | null; recurrence: ConnectorRecurrence | null }): string {
+    if (f.execution === "date") return f.executionDate ? `am ${dateWithBankingDay(f.executionDate)}` : "";
+    if (f.execution === "standing") return f.recurrence ? rhythmText(f.recurrence) : "";
+    return f.instant ? "sofort, in Sekunden beim Empfänger" : "am nächsten Bankarbeitstag";
+}
+
+/** What a transfer of the history is: "Überweisung", "Dauerauftrag", "Änderung des Dauerauftrags", … */
+export function kindLabel(t: Pick<Transfer, "execution" | "action" | "instant">): string {
+    if (t.execution === "now") return t.instant ? "Echtzeitüberweisung" : "Überweisung";
+    const noun = t.execution === "date" ? "Terminüberweisung" : "Dauerauftrag";
+    if (t.action === "change") return `Änderung ${t.execution === "date" ? "der Terminüberweisung" : "des Dauerauftrags"}`;
+    if (t.action === "delete") return `Löschung ${t.execution === "date" ? "der Terminüberweisung" : "des Dauerauftrags"}`;
+    return noun;
+}
+
+/** The title of an executed transfer or order. */
+export function executedTitle(t: Pick<Transfer, "execution" | "action" | "instant" | "unconfirmed">): string {
+    if (t.execution === "now") return t.instant ? (t.unconfirmed ? "Echtzeitüberweisung eingereicht" : "Echtzeitüberweisung ausgeführt") : "Überweisung ausgeführt";
+    const noun = t.execution === "date" ? "Terminüberweisung" : "Dauerauftrag";
+    return `${noun} ${{ create: "angelegt", change: "geändert", delete: "gelöscht" }[t.action]}`;
+}
+
+/** Field ids of the execution, for the errors of the form. */
+export const EXEC_FIELD = { date: "tr-date", rhythm: "tr-rhythm", first: "tr-first", last: "tr-last" } as const;
+
+/** The error of the execution, at the field it belongs to. */
+function executionProblems(f: TransferForm, rules: ConnectorOrderRules | null | undefined, today: string, mode: { change?: boolean; firstDateFixed?: boolean }): FieldErrors {
+    if (f.execution === "date") {
+        const r = mode.change ? rules?.scheduledChange : rules?.scheduled;
+        if (!f.date) return { [EXEC_FIELD.date]: "Bitte das Datum wählen." };
+        return { [EXEC_FIELD.date]: r ? (scheduledDateProblem(r, f.date, today) ?? undefined) : undefined };
+    }
+    if (f.execution === "standing") {
+        const r = mode.change ? rules?.standingChange : rules?.standing;
+        if (!f.firstDate) return { [EXEC_FIELD.first]: "Bitte die erste Ausführung wählen." };
+        const problem = r ? standingOrderProblem(r, recurrenceOfForm(f), today, { firstDateFixed: mode.firstDateFixed }) : null;
+        if (!problem) return {};
+        const at = problem.startsWith("Erste") ? EXEC_FIELD.first : problem.startsWith("Letzte") || problem.startsWith("Die letzte") ? EXEC_FIELD.last : EXEC_FIELD.rhythm;
+        return { [at]: problem };
+    }
+    return {};
+}
 
 /** The BIC the transfer carries: only where the form offers it, and only if one is entered. */
 export const bicToSend = (f: TransferForm): string | null => {
@@ -126,8 +300,11 @@ function remittanceProblem(lines: string[]): string | undefined {
     return sepaCharsMessage(text) ?? undefined;
 }
 
-/** The form's errors by field id; the server checks the same once more. */
-export function checkTransfer(f: TransferForm, pinRequired: boolean): FieldErrors {
+/**
+ * The form's errors by field id; the server checks the same once more. `rules` are the bank's
+ * rules for orders; `mode.change` checks against the rules for changes.
+ */
+export function checkTransfer(f: TransferForm, pinRequired: boolean, rules?: ConnectorOrderRules | null, today = todayIso(), mode: { change?: boolean; firstDateFixed?: boolean } = {}): FieldErrors {
     const cents = parseAmount(f.amount);
     const iban = cleanIban(f.payeeIban);
     const name = f.payeeName.trim();
@@ -139,6 +316,7 @@ export function checkTransfer(f: TransferForm, pinRequired: boolean): FieldError
         "tr-amount": cents === null || cents <= 0 ? "Bitte einen Betrag größer als 0 eingeben." : cents > TRANSFER_MAX_CENTS ? "Der Betrag ist zu groß." : undefined,
         "tr-purpose": remittanceProblem(f.remittance),
         "tr-pin": pinRequired && !f.pin ? "Bitte die PIN eingeben." : undefined,
+        ...executionProblems(f, rules, today, mode),
     };
 }
 

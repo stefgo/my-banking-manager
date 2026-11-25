@@ -12348,6 +12348,10 @@ paths:
                               type:
                                 - string
                                 - "null"
+                            bankOrderId:
+                              type:
+                                - string
+                                - "null"
                             canChange:
                               type:
                                 - boolean
@@ -12391,6 +12395,7 @@ paths:
                             - remittance
                             - payeeAccountId
                             - nextDate
+                            - bankOrderId
                             - canChange
                             - canDelete
                             - fetchedAt
@@ -12435,6 +12440,10 @@ paths:
                               type:
                                 - string
                                 - "null"
+                            bankOrderId:
+                              type:
+                                - string
+                                - "null"
                             canChange:
                               type:
                                 - boolean
@@ -12461,6 +12470,7 @@ paths:
                             - remittance
                             - payeeAccountId
                             - nextDate
+                            - bankOrderId
                             - canChange
                             - canDelete
                             - fetchedAt

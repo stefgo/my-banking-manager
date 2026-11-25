@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { parseBankText } from "./bankText";
 import { CreateTransferRequest, groupIban } from "@mbm/shared";
-import { bicToSend, blzOfIban, checkTransfer, emptyForm, ibanAsTyped, newRequestId, remittanceLeft } from "./transfer";
+import { hasErrors } from "./fields";
+import { bicToSend, blzOfIban, checkTransfer, dayOptions, earliestFirstRun, emptyForm, EXEC_FIELD, executedTitle, executionOf, executionsOf, executionText, ibanAsTyped, kindLabel, newRequestId, nextRuns, remittanceLeft, rhythmOptions } from "./transfer";
 
 describe("bank text", () => {
     it("builds a tree of the allowed markup and keeps everything else as text", () => {
@@ -89,5 +90,61 @@ describe("request id", () => {
         for (const id of ids) expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
         expect(new Set(ids).size).toBe(50);
         expect(CreateTransferRequest.shape.requestId.safeParse(ids[0]).success).toBe(true);
+    });
+});
+
+describe("orders in the transfer form", () => {
+    const days = [...Array.from({ length: 30 }, (_, i) => i + 1), 99];
+    const rules = {
+        scheduled: { minDays: 1, maxDays: 360 },
+        scheduledChange: null,
+        standing: { minDays: 0, maxDays: 9999, months: [1, 2, 3, 6, 12], monthDays: days, weeks: [], weekDays: [] },
+        standingChange: null,
+    };
+    const account = { transfer: true, instant: false, scheduled: true, standing: true, orderRules: rules };
+    const today = "2026-11-17";
+    const form = (over: Partial<ReturnType<typeof emptyForm>>) => ({ ...emptyForm("1"), payeeName: "Erika Mustermann", payeeIban: "DE89 3704 0044 0532 0130 00", amount: "25,00", ...over });
+
+    it("offers only what the account and the bank's rules allow", () => {
+        expect(executionsOf(account)).toEqual(["now", "date", "standing"]);
+        expect(executionsOf({ ...account, orderRules: null })).toEqual(["now"]);
+        expect(executionsOf({ ...account, transfer: false, standing: false })).toEqual(["date"]);
+        expect(executionsOf(undefined)).toEqual(["now"]);
+    });
+
+    it("names rhythms and days, and keeps an order's own ones on offer for a change", () => {
+        expect(rhythmOptions(rules.standing).map((o) => o.label)).toEqual(["monatlich", "alle 2 Monate", "vierteljährlich", "halbjährlich", "jährlich"]);
+        expect(rhythmOptions(rules.standing, { unit: "week", every: 2 })[0]).toEqual({ unit: "week", every: 2, label: "alle 2 Wochen" });
+        expect(dayOptions("month", rules.standing).at(-1)).toEqual({ value: 99, label: "am Monatsende" });
+        expect(dayOptions("month", rules.standing, 98)[0]).toEqual({ value: 98, label: "am vorletzten Tag" });
+        expect(dayOptions("week", { monthDays: [], weekDays: [1, 5] })).toEqual([{ value: 1, label: "Montag" }, { value: 5, label: "Freitag" }]);
+    });
+
+    it("proposes the first run after the lead time and previews the next ones", () => {
+        expect(earliestFirstRun(rules.standing, { unit: "month", executionDay: 1 }, today)).toBe("2026-12-01");
+        expect(earliestFirstRun(rules.standing, { unit: "month", executionDay: 99 }, today)).toBe("2026-11-30");
+        expect(nextRuns({ firstDate: "2026-12-01", unit: "month", every: 1, executionDay: 1, lastDate: null }, 3, today)).toEqual(["2026-12-01", "2027-01-04", "2027-02-01"]);
+    });
+
+    it("checks date and rhythm at the field they belong to", () => {
+        expect(checkTransfer(form({ execution: "date", date: "" }), false, rules, today)[EXEC_FIELD.date]).toBe("Bitte das Datum wählen.");
+        expect(checkTransfer(form({ execution: "date", date: today }), false, rules, today)[EXEC_FIELD.date]).toBe("Ausführung: frühestens am 18.11.2026.");
+        expect(hasErrors(checkTransfer(form({ execution: "date", date: "2026-11-27" }), false, rules, today))).toBe(false);
+        const standing = form({ execution: "standing", firstDate: "2026-12-01", executionDay: 1 });
+        expect(hasErrors(checkTransfer(standing, false, rules, today))).toBe(false);
+        expect(checkTransfer({ ...standing, firstDate: "2026-12-02" }, false, rules, today)[EXEC_FIELD.first]).toBe("Erste Ausführung: Das Datum passt nicht zum Ausführungstag.");
+        expect(checkTransfer({ ...standing, lastDate: "2026-11-30" }, false, rules, today)[EXEC_FIELD.last]).toBe("Die letzte Ausführung liegt vor der ersten.");
+        expect(checkTransfer({ ...standing, every: 4 }, false, rules, today)[EXEC_FIELD.rhythm]).toBe("Diesen Turnus bietet die Bank nicht an.");
+    });
+
+    it("sends the execution as the server takes it and describes it", () => {
+        expect(executionOf(form({}))).toEqual({ kind: "now" });
+        expect(executionOf(form({ execution: "date", date: "2026-11-27" }))).toEqual({ kind: "date", date: "2026-11-27" });
+        expect(executionOf(form({ execution: "standing", firstDate: "2026-12-31", every: 3, executionDay: 99 }))).toEqual({ kind: "standing", firstDate: "2026-12-31", unit: "month", every: 3, executionDay: 99, lastDate: null });
+        expect(executionText({ execution: "date", instant: false, executionDate: "2026-11-28", recurrence: null })).toBe("am 28.11.2026 (voraussichtlich ausgeführt am 30.11.2026)");
+        expect(executionText({ execution: "standing", instant: false, executionDate: null, recurrence: { firstDate: "2026-12-01", unit: "month", every: 1, executionDay: 1, lastDate: "2027-12-01" } })).toBe("monatlich am 1., ab 01.12.2026, bis 01.12.2027");
+        expect(kindLabel({ execution: "standing", action: "delete", instant: false })).toBe("Löschung des Dauerauftrags");
+        expect(executedTitle({ execution: "date", action: "change", instant: false, unconfirmed: false })).toBe("Terminüberweisung geändert");
+        expect(executedTitle({ execution: "now", action: "create", instant: false, unconfirmed: false })).toBe("Überweisung ausgeführt");
     });
 });

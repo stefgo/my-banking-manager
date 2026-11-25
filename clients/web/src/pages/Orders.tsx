@@ -1,10 +1,10 @@
-import { CalendarDays, RefreshCw } from "lucide-react";
+import { CalendarDays, Plus, RefreshCw } from "lucide-react";
 import type { AccountScope, Order } from "@mbm/shared";
 import { isActive, startSync, useConnections, useSyncRuns } from "../lib/bank";
 import { dateTime, plural } from "../lib/format";
 import { useLocalSetting, writeLocalSetting } from "../lib/localSettings";
 import { orderKey, orderRhythm } from "../lib/orders";
-import { useAccounts, useOrders } from "../lib/queries";
+import { useAccounts, useOrders, useTransferAccounts, useTransfers } from "../lib/queries";
 import { ui, useUi } from "../lib/ui";
 import { Button, Empty, NoBankAccess } from "../components/common";
 import { Ic } from "../components/icons";
@@ -12,6 +12,7 @@ import { OrderRow } from "../components/OrderRow";
 import { Picker, PickerButton } from "../components/pickers";
 import { scopeLabel, useScopeItems } from "../components/pickItems";
 import { SkeletonRows } from "../components/Skeleton";
+import { TransferDialog } from "./Transfer";
 
 /** Standing orders and scheduled transfers as last fetched from the banks; the bank is the source. */
 export function OrdersPage() {
@@ -20,13 +21,18 @@ export function OrdersPage() {
     // A saved account or group that no longer exists falls back to all accounts
     const scope: AccountScope = scopeItems.some((i) => i.value === saved) ? saved : "all";
     const list = useOrders(scope);
+    const data = list.data;
     const accounts = useAccounts().data ?? [];
     const open = useUi((s) => s.drawerOrder);
     const connections = useConnections();
     const hasLogin = (connections.data ?? []).some((c) => c.myLogin !== null);
     const fetching = (useSyncRuns().data ?? []).some((r) => r.ordersOnly && isActive(r));
+    // New, changed and deleted orders go through the transfer dialog, shown here as well
+    const formOpen = useUi((s) => s.transferForm);
+    const transferAccounts = useTransferAccounts().data ?? [];
+    const transfers = useTransfers().data ?? [];
+    const canCreate = (data?.accounts ?? []).some((a) => a.createScheduled || a.createStanding);
 
-    const data = list.data;
     const orders = data?.orders ?? [];
     const standing = orders.filter((o) => o.kind === "standing");
     const scheduled = orders.filter((o) => o.kind === "scheduled");
@@ -87,7 +93,23 @@ export function OrdersPage() {
                         {status && <p className="bank-line">{status}</p>}
                     </div>
                 </div>
-                {reachable.length > 0 && <div className="ctx-actions">{fetchButton()}</div>}
+                {reachable.length > 0 && (
+                    <div className="ctx-actions">
+                        {fetchButton()}
+                        {canCreate && (
+                            <Button
+                                icon={Plus}
+                                className="btn-primary btn-sm"
+                                onClick={() => {
+                                    const a = reachable.find((x) => x.createStanding) ?? reachable.find((x) => x.createScheduled);
+                                    ui.newTransfer({ accountId: a?.accountId, execution: a?.createStanding ? "standing" : "date" });
+                                }}
+                            >
+                                Neuer Auftrag
+                            </Button>
+                        )}
+                    </div>
+                )}
                 {reachable.some((a) => a.needsApproval) && (
                     <p className="muted small note">Deine Bank verlangt für Aufträge jedes Mal eine Freigabe. Sie kommen deshalb nicht mit dem Abruf der Umsätze, sondern nur über „Abrufen“.</p>
                 )}
@@ -134,6 +156,7 @@ export function OrdersPage() {
                     </>
                 )}
             </section>
+            {formOpen && transferAccounts.length > 0 && <TransferDialog accounts={transferAccounts} transfers={transfers} />}
         </>
     );
 }

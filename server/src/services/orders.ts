@@ -141,6 +141,7 @@ const baseOf = (r: BaseRow, own: Map<string, number>) => {
         amount: r.amount,
         remittance: r.remittance,
         payeeAccountId: payeeAccountId === r.account_id ? null : payeeAccountId,
+        bankOrderId: r.bank_order_id,
         canChange: bool(r.can_change),
         canDelete: bool(r.can_delete),
         fetchedAt: r.fetched_at,

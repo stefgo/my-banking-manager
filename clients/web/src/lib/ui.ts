@@ -2,6 +2,7 @@
 // Kept in memory only; nothing goes to browser storage.
 
 import { useSyncExternalStore } from "react";
+import type { ConnectorRecurrence, OrderSnapshot, TransferExecution } from "@mbm/shared";
 import type { InfoTarget } from "./info";
 
 export type Dialog =
@@ -50,6 +51,15 @@ export type Dialog =
  * What the transfer form starts with (from the history, a booking or a payee). Bank data, so it
  * goes through memory only and never into the URL, where the browser history would keep it.
  */
+/** An order to change or delete, as it was when the user picked it. */
+export interface OrderRef {
+    kind: "standing" | "scheduled";
+    orderId: number;
+    previous: OrderSnapshot;
+    /** Its next run; a deletion within the bank's lead time may come too late for it. */
+    nextDate: string | null;
+}
+
 export interface TransferDraft {
     accountId?: number;
     payeeName?: string;
@@ -60,6 +70,16 @@ export interface TransferDraft {
     instant?: boolean;
     /** Open at the check step (e.g. after taking over the name the payee's bank holds). */
     review?: boolean;
+    /** Now (default), on a date, or as a standing order. */
+    execution?: TransferExecution;
+    executionDate?: string | null;
+    recurrence?: ConnectorRecurrence | null;
+    /** Change an order: the form starts with it, and sends the complete changed order. */
+    change?: OrderRef;
+    /** Delete an order: the dialog shows it and asks to confirm. */
+    remove?: OrderRef;
+    /** Show this transfer (e.g. one just started elsewhere) instead of a form. */
+    runId?: number;
     /** Set by `prefillTransfer`: a new draft starts the form afresh. */
     seq?: number;
 }

@@ -6,7 +6,7 @@ import { copyText } from "../lib/clipboard";
 import { dateTime, fmt } from "../lib/format";
 import { INSPECTOR_QUERY, useMedia } from "../lib/media";
 import { useAccounts, useTransfers } from "../lib/queries";
-import { STATUS_LABEL, useStartTransfer, VOP_VIEW } from "../lib/transfer";
+import { executionText, kindLabel, rhythmText, STATUS_LABEL, useStartTransfer, VOP_VIEW } from "../lib/transfer";
 import { ui, useUi } from "../lib/ui";
 import { Button } from "../components/common";
 import { Ic } from "../components/icons";
@@ -46,7 +46,7 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                     onInteractOutside={panel ? (e) => e.preventDefault() : undefined}
                 >
                     <div className="d-top">
-                        <span className="label">{t.instant ? "Echtzeitüberweisung" : "Überweisung"}</span>
+                        <span className="label">{kindLabel(t)}</span>
                         <RDialog.Close className="icon-btn" aria-label="Schließen">
                             <Ic icon={X} />
                         </RDialog.Close>
@@ -55,7 +55,7 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                         <RDialog.Title asChild>
                             <h2>{t.payeeName}</h2>
                         </RDialog.Title>
-                        <div className="d-amount amt">{fmt(-t.amount)}</div>
+                        <div className={`d-amount amt ${t.action === "delete" ? "faint" : ""}`}>{fmt(-t.amount)}</div>
                         <span className="muted">{STATUS_LABEL[t.status]}</span>
                     </div>
                     <dl className="d-list">
@@ -71,21 +71,28 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                             </>,
                         )}
                         {t.payeeBic && row("BIC", <span className="mono">{t.payeeBic}</span>)}
+                        {t.execution !== "now" && row("Ausführung", executionText(t))}
+                        {t.action === "change" && t.previous && t.previous.amount !== t.amount && row("Betrag vorher", fmt(-t.previous.amount))}
+                        {t.action === "change" && t.previous?.recurrence && t.recurrence && rhythmText(t.previous.recurrence) !== rhythmText(t.recurrence) && row("Turnus vorher", rhythmText(t.previous.recurrence))}
+                        {t.action === "change" && t.previous?.executionDate && t.previous.executionDate !== t.executionDate && row("Ausführung vorher", executionText({ ...t, executionDate: t.previous.executionDate }))}
+                        {t.bankOrderId && row("Auftragsnummer", <span className="mono">{t.bankOrderId}</span>)}
                         {row("Empfängerprüfung", vop ? `${vop.title}${t.vop?.payeeName ? ` (Bank kennt „${t.vop.payeeName}“)` : ""}` : "keine")}
                         {t.bankMessage && row("Meldung", t.bankMessage)}
                         {t.bankReference && row("Referenz", <span className="mono">{t.bankReference}</span>)}
                         {row("End-to-End-ID", <span className="mono">{t.endToEndId}</span>)}
                         {row("Gestartet", `${dateTime(t.createdAt)} von ${t.createdBy}`)}
                         {t.finishedAt && row("Abgeschlossen", dateTime(t.finishedAt))}
-                        {row("Buchung", t.transactionId ? "angekommen" : t.status === "executed" || t.status === "unknown" ? "noch nicht abgerufen" : "keine")}
+                        {t.execution !== "standing" && t.action === "create" && row("Buchung", t.transactionId ? "angekommen" : t.status === "executed" || t.status === "unknown" ? "noch nicht abgerufen" : "keine")}
                     </dl>
                     <div className="d-actions">
-                        <Button
-                            icon={Send}
-                            onClick={() => start({ accountId: t.accountId, payeeName: t.payeeName, payeeIban: t.payeeIban, payeeBic: t.payeeBic, amount: t.amount, remittance: t.remittance, instant: t.instant })}
-                        >
-                            Erneut überweisen
-                        </Button>
+                        {t.action !== "delete" && (
+                            <Button
+                                icon={Send}
+                                onClick={() => start({ accountId: t.accountId, payeeName: t.payeeName, payeeIban: t.payeeIban, payeeBic: t.payeeBic, amount: t.amount, remittance: t.remittance, instant: t.instant })}
+                            >
+                                Erneut überweisen
+                            </Button>
+                        )}
                         {t.transactionId && (
                             <Button
                                 icon={List}

@@ -329,6 +329,14 @@ const ACTION_LABELS: Record<string, string> = {
     import: "CSV importiert",
     import_undone: "Import rückgängig",
     import_removed: "Import aus Liste entfernt",
+    sync: "Abgerufen",
+    sync_failed: "Abruf fehlgeschlagen",
+    transfer_submitted: "An die Bank gesendet",
+    transfer_executed: "Von der Bank angenommen",
+    transfer_rejected: "Von der Bank abgelehnt",
+    transfer_failed: "Nicht gesendet",
+    transfer_cancelled: "Abgebrochen",
+    transfer_unknown: "Ausgang unbekannt",
 };
 
 function ActivityTab() {

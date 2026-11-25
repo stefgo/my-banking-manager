@@ -19,6 +19,8 @@ const OrderBase = z.object({
     payeeAccountId: Id.nullable(),
     /** Next date the order runs, today included; null if it has ended. */
     nextDate: IsoDate.nullable(),
+    /** The bank's identification; changing and deleting need it. */
+    bankOrderId: z.string().nullable(),
     /** Whether the bank lets it be changed or deleted; null if it does not say. */
     canChange: z.boolean().nullable(),
     canDelete: z.boolean().nullable(),
