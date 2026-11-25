@@ -23,6 +23,26 @@ Nothing inside an HTML comment is published.
   Server eine neue Version der Oberfläche ausliefert, und bietet **Neu laden** an. Vor der Anmeldung
   lädt es von selbst neu.
 
+### Behoben
+
+- **Reihenfolge der Konten in den Einstellungen:** Unter „Einstellungen → Konten“ stehen die Konten
+  eines Bankzugangs und die Offline-Konten jetzt in der Reihenfolge der Seitenleiste. Bisher waren
+  Konten aus verschiedenen Gruppen durcheinander, sobald sie in mehreren Gruppen lagen.
+- **Löschen ohne Wartezeit:** „Import rückgängig“, das Löschen eines Kontos und ein Abruf mit vielen
+  vorgemerkten Umsätzen hielten den Server bei vielen Buchungen sekundenlang an. Jetzt geht das
+  sofort.
+- **Gelöste Kreditkarte bleibt Kreditkarte:** Löst du ein Konto von seinem Bankzugang, behält es
+  seine Kontoart. Eine Kreditkarte zeigt also weiter ihre Kartennummer statt nur „Offline-Konto“.
+
+### Upgrade
+
+- Beim ersten Start räumt MBM die Datenbank auf (Migrationen 0011–0014). Es löscht dabei nichts:
+  Sollte eine Buchung doppelt gespeichert sein, bleiben beide stehen, und nur die jüngere verliert
+  ihren Abgleich mit der Bank. Ein bereits gelöstes Konto mit Kartennummer wird wieder eine
+  Kreditkarte, andere Offline-Konten bekommen die Kontoart „Sonstiges“.
+- **API:** Die Kontoart `offline` gibt es nicht mehr. Ein Konto ist offline, wenn `connectionId`
+  leer ist. Selbst angelegte Konten haben die neue Art `other`.
+
 ### Lizenz
 
 - **FinTS-Produkt-ID ausgenommen:** Die neue Datei `NOTICE` stellt klar, dass die Produkt-ID in den

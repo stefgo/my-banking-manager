@@ -10,7 +10,11 @@ import { ruleActions } from "./0007-rule-actions.js";
 import { bookingReferences } from "./0008-booking-references.js";
 import { transactionsFetchedAt } from "./0009-transactions-fetched-at.js";
 import { orderWrites } from "./0010-order-writes.js";
-import { applyMigration } from "./index.js";
+import { foreignKeyIndexes } from "./0011-foreign-key-indexes.js";
+import { bookingGuards } from "./0012-booking-guards.js";
+import { accountKind } from "./0013-account-kind.js";
+import { transferChecks } from "./0014-transfer-checks.js";
+import { applyMigration, migrations, type Migration } from "./index.js";
 
 const columns = (db: Database.Database, table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
 
@@ -306,6 +310,235 @@ describe("0010-order-writes", () => {
         expect(() => db.exec("UPDATE transfers SET unit = 'day'")).toThrow();
         expect(columns(db, "standing_orders")).toContain("end_to_end_id");
         expect(columns(db, "scheduled_transfers")).toContain("end_to_end_id");
+        db.close();
+    });
+});
+
+/** A database with every migration before `m`. */
+function before(m: Migration): Database.Database {
+    const db = new Database(":memory:");
+    db.pragma("foreign_keys = ON");
+    for (const x of migrations.slice(0, migrations.indexOf(m))) applyMigration(db, x);
+    return db;
+}
+
+const T0 = "2026-01-01T00:00:00Z";
+
+describe("0011-foreign-key-indexes", () => {
+    // Foreign key columns that stay without an index: small tables, or rows that go one at a time
+    // (a user, a device, a rule), where one pass through the child table costs nothing.
+    const WITHOUT_INDEX = new Set([
+        "accounts.group_id", // a few dozen accounts
+        "accounts.reference_account_id",
+        "account_groups.parent_id",
+        "categories.parent_id",
+        "uncategorized_slot.parent_id",
+        "rules.category_id",
+        "bank_logins.user_id", // one row per user and bank access
+        "devices.user_id",
+        "dashboard_cards.user_id",
+        "imports.user_id", // the user ids: a user is removed once
+        "transactions.created_by",
+        "transfers.created_by",
+        "transfers.login_id", // a bank login goes once
+        "sync_runs.user_id",
+        "activity_log.user_id",
+    ]);
+
+    it("gives every foreign key column an index, apart from the list above", () => {
+        const db = new Database(":memory:");
+        db.pragma("foreign_keys = ON");
+        for (const m of migrations) applyMigration(db, m);
+        const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[]).map((r) => r.name);
+        const missing: string[] = [];
+        for (const table of tables) {
+            const info = db.pragma(`table_info(${table})`) as { name: string; type: string; pk: number }[];
+            const pk = info.filter((c) => c.pk > 0);
+            const leading = new Set((db.pragma(`index_list(${table})`) as { name: string }[]).map((i) => (db.pragma(`index_info(${i.name})`) as { seqno: number; name: string }[]).find((c) => c.seqno === 0)?.name));
+            for (const fk of db.pragma(`foreign_key_list(${table})`) as { from: string }[]) {
+                const rowid = pk.length === 1 && pk[0]!.name === fk.from && pk[0]!.type.toUpperCase() === "INTEGER";
+                if (!rowid && !leading.has(fk.from) && !WITHOUT_INDEX.has(`${table}.${fk.from}`)) missing.push(`${table}.${fk.from}`);
+            }
+        }
+        expect(missing).toEqual([]);
+        db.close();
+    });
+
+    it("lets a booking with a counter booking and a transfer go without a scan", () => {
+        const db = before(foreignKeyIndexes);
+        applyMigration(db, foreignKeyIndexes);
+        const plan = (sql: string) => (db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all() as { detail: string }[]).map((r) => r.detail).join(" ");
+        expect(plan("SELECT id FROM transactions WHERE counter_transaction_id = 1")).toContain("transactions_counter");
+        expect(plan("SELECT id FROM transfers WHERE transaction_id = 1")).toContain("transfers_transaction");
+        db.close();
+    });
+});
+
+describe("0012-booking-guards", () => {
+    let db: Database.Database;
+
+    beforeEach(() => {
+        db = before(bookingGuards);
+        db.exec(`
+            INSERT INTO accounts (id, kind, name, icon, color, position, created_at) VALUES (1, 'giro', 'Giro', 'landmark', 'blue', 0, '${T0}'), (2, 'giro', 'Zweit', 'landmark', 'blue', 1, '${T0}');
+            INSERT INTO categories (id, parent_id, name, icon, color, position) VALUES (1, NULL, 'A', 'tag', 'green', 0), (2, NULL, 'B', 'tag', 'green', 1);
+            INSERT INTO transactions (id, account_id, fingerprint, booking_date, amount, status, first_seen_at, source) VALUES
+                (1, 1, 'fp#1', '2026-01-02', -100, 'booked', '${T0}', 'bank'),
+                (2, 1, 'fp#1', '2026-01-02', -100, 'booked', '${T0}', 'bank'),
+                (3, 1, 'fp#1', '2026-01-02', -100, 'booked', '${T0}', 'bank'),
+                (4, 2, 'fp#1', '2026-01-02', -100, 'booked', '${T0}', 'bank'),
+                (5, 1, NULL, '2026-01-03', -500, 'booked', '${T0}', 'manual'),
+                (6, 1, NULL, '2026-01-03', -100, 'booked', '${T0}', 'manual');
+            INSERT INTO transaction_categories (transaction_id, category_id, amount, source) VALUES
+                (1, 1, -100, 'rule'),
+                (5, 1, -300, 'manual'),
+                (6, 1, -20, 'manual'), (6, 2, -80, 'manual');
+        `);
+        applyMigration(db, bookingGuards);
+    });
+    afterEach(() => db.close());
+
+    it("gives a single share the amount of its booking and leaves the shares of a split alone", () => {
+        expect(db.prepare("SELECT transaction_id AS tx, category_id AS category, amount FROM transaction_categories ORDER BY transaction_id, category_id").all()).toEqual([
+            { tx: 1, category: 1, amount: -100 },
+            { tx: 5, category: 1, amount: -500 },
+            { tx: 6, category: 1, amount: -20 },
+            { tx: 6, category: 2, amount: -80 },
+        ]);
+    });
+
+    it("keeps a fingerprint once per account and marks the younger duplicates instead of deleting them", () => {
+        expect(db.prepare("SELECT id, fingerprint FROM transactions ORDER BY id").all()).toEqual([
+            { id: 1, fingerprint: "fp#1" },
+            { id: 2, fingerprint: "fp#1~2" },
+            { id: 3, fingerprint: "fp#1~3" },
+            { id: 4, fingerprint: "fp#1" },
+            { id: 5, fingerprint: null },
+            { id: 6, fingerprint: null },
+        ]);
+        expect(() => db.exec("UPDATE transactions SET fingerprint = 'fp#1' WHERE id = 2")).toThrow();
+    });
+});
+
+describe("0013-account-kind", () => {
+    let db: Database.Database;
+
+    beforeEach(() => {
+        db = before(accountKind);
+        db.exec(`
+            INSERT INTO bank_connections (id, name, bank_name, blz, fints_url, icon, color, created_at) VALUES (1, 'Sparkasse', 'Sparkasse', '70054306', 'https://x.invalid', 'landmark', 'red', '${T0}');
+            INSERT INTO account_groups (id, parent_id, name, icon, color, position) VALUES (1, NULL, 'Alltag', 'wallet', 'blue', 0);
+            INSERT INTO accounts (id, connection_id, external_id, card_number, name, kind, reference_account_id, group_id, icon, color, position, hidden, opening_balance, created_at, transactions_fetched_at) VALUES
+                (1, 1, 'DE02', NULL, 'Giro', 'giro', NULL, 1, 'landmark', 'blue', 0, 0, 500, '${T0}', '${T0}'),
+                (2, NULL, NULL, NULL, 'Bargeld', 'offline', NULL, 1, 'banknote', 'green', 1, 1, 1500, '${T0}', NULL),
+                (3, NULL, NULL, '4111000000001234', 'Visa', 'offline', 1, NULL, 'credit-card', 'violet', 2, 0, -200, '${T0}', NULL),
+                (4, 9, 'DE09', NULL, 'Verwaist', 'savings', NULL, NULL, 'piggy-bank', 'teal', 3, 0, NULL, '${T0}', NULL);
+            INSERT INTO transactions (id, account_id, booking_date, amount, status, first_seen_at, source) VALUES (1, 2, '2026-01-02', -100, 'booked', '${T0}', 'manual');
+            INSERT INTO transfers (id, request_id, account_id, created_by_name, payee_name, payee_iban, amount, remittance, end_to_end_id, status, created_at, updated_at)
+            VALUES (1, 'r1', 1, 'Anna', 'Erika', 'DE89370400440532013000', 100, '', 'MBM-1', 'executed', '${T0}', '${T0}');
+        `);
+        applyMigration(db, accountKind);
+    });
+    afterEach(() => db.close());
+
+    it("turns the kind offline into other, or credit card with a card number, and keeps everything else", () => {
+        expect(db.prepare("SELECT id, connection_id AS c, external_id AS e, kind, reference_account_id AS ref, group_id AS g, hidden, opening_balance AS ob, transactions_fetched_at AS f FROM accounts ORDER BY id").all()).toEqual([
+            { id: 1, c: 1, e: "DE02", kind: "giro", ref: null, g: 1, hidden: 0, ob: 500, f: T0 },
+            { id: 2, c: null, e: null, kind: "other", ref: null, g: 1, hidden: 1, ob: 1500, f: null },
+            { id: 3, c: null, e: null, kind: "credit_card", ref: 1, g: null, hidden: 0, ob: -200, f: null },
+            { id: 4, c: null, e: null, kind: "savings", ref: null, g: null, hidden: 0, ob: null, f: null },
+        ]);
+        expect(() => db.exec("UPDATE accounts SET kind = 'offline' WHERE id = 2")).toThrow();
+        expect(columns(db, "accounts").at(-1)).toBe("transactions_fetched_at");
+    });
+
+    it("keeps the links of the other tables to the accounts", () => {
+        for (const table of ["transactions", "transfers", "balances", "imports", "bank_login_accounts", "sync_runs", "rule_accounts"]) {
+            expect((db.pragma(`foreign_key_list(${table})`) as { table: string; from: string }[]).filter((f) => f.from === "account_id").map((f) => f.table)).toEqual(["accounts"]);
+        }
+        db.exec("DELETE FROM accounts WHERE id = 2");
+        expect(db.prepare("SELECT count(*) AS n FROM transactions").get()).toEqual({ n: 0 });
+        db.exec("DELETE FROM accounts WHERE id = 1");
+        expect(db.prepare("SELECT reference_account_id AS ref FROM accounts WHERE id = 3").get()).toEqual({ ref: null });
+        expect(db.prepare("SELECT count(*) AS n FROM transfers").get()).toEqual({ n: 0 });
+    });
+
+    it("keeps a bank access while accounts hang on it, and links an account fully or not at all", () => {
+        expect(() => db.exec("DELETE FROM bank_connections WHERE id = 1")).toThrow();
+        expect(() => db.exec("UPDATE accounts SET external_id = NULL WHERE id = 1")).toThrow();
+        expect(() => db.exec("UPDATE accounts SET external_id = 'X' WHERE id = 2")).toThrow();
+        expect(() => db.exec("UPDATE accounts SET hidden = 2 WHERE id = 2")).toThrow();
+        expect(() => db.exec("INSERT INTO accounts (connection_id, external_id, name, kind, icon, color, position, created_at) VALUES (1, 'DE02', 'Doppelt', 'giro', 'x', 'x', 9, 'x')")).toThrow();
+        db.exec("UPDATE accounts SET connection_id = NULL, external_id = NULL WHERE id = 1");
+        db.exec("DELETE FROM bank_connections WHERE id = 1");
+    });
+});
+
+describe("0014-transfer-checks", () => {
+    const insert = (db: Database.Database, id: number, columns: Record<string, string | number | null>) => {
+        const all: Record<string, string | number | null> = {
+            id, request_id: `r${id}`, account_id: 1, created_by_name: "Anna", payee_name: "Erika", payee_iban: "DE89370400440532013000", amount: 100, remittance: "",
+            end_to_end_id: `MBM-${id}`, status: "executed", created_at: T0, updated_at: T0, ...columns,
+        };
+        db.prepare(`INSERT INTO transfers (${Object.keys(all).join(", ")}) VALUES (${Object.keys(all).map(() => "?").join(", ")})`).run(...Object.values(all));
+    };
+    const RHYTHM = { first_date: "2026-02-01", unit: "month", every: 1, execution_day: 1 };
+    const prepared = () => {
+        const db = before(transferChecks);
+        db.exec(`INSERT INTO accounts (id, kind, name, icon, color, position, created_at) VALUES (1, 'other', 'Giro', 'landmark', 'blue', 0, '${T0}')`);
+        insert(db, 1, {});
+        insert(db, 2, { execution: "date", execution_date: "2026-02-01" });
+        insert(db, 3, { execution: "standing", ...RHYTHM, order_id: 4 });
+        insert(db, 4, { execution: "standing", action: "change", ...RHYTHM, bank_order_id: "B1", previous: "{}" });
+        insert(db, 5, { execution: "date", action: "delete", execution_date: "2026-02-01", bank_order_id: "B2", previous: "{}" });
+        insert(db, 6, { bank_order_id: "B3" });
+        return db;
+    };
+
+    it("keeps the rows and their indexes", () => {
+        const db = prepared();
+        applyMigration(db, transferChecks);
+        expect(db.prepare("SELECT id, execution, action, bank_order_id AS b FROM transfers ORDER BY id").all()).toEqual([
+            { id: 1, execution: "now", action: "create", b: null },
+            { id: 2, execution: "date", action: "create", b: null },
+            { id: 3, execution: "standing", action: "create", b: null },
+            { id: 4, execution: "standing", action: "change", b: "B1" },
+            { id: 5, execution: "date", action: "delete", b: "B2" },
+            { id: 6, execution: "now", action: "create", b: "B3" },
+        ]);
+        const indexes = (db.pragma("index_list(transfers)") as { name: string }[]).map((i) => i.name);
+        expect(indexes).toEqual(expect.arrayContaining(["transfers_account", "transfers_created", "transfers_transaction"]));
+        db.close();
+    });
+
+    it("refuses rows that do not fit their kind", () => {
+        const db = prepared();
+        applyMigration(db, transferChecks);
+        const refused: Record<string, string | number | null>[] = [
+            { action: "change", bank_order_id: "B", previous: "{}" }, // now: only a creation
+            { execution_date: "2026-02-01" }, // now: no date
+            { ...RHYTHM }, // now: no rhythm
+            { previous: "{}" }, // now: no previous order
+            { execution: "date" }, // date: without a date
+            { execution: "date", execution_date: "2026-02-01", ...RHYTHM }, // date: with a rhythm
+            { execution: "standing", first_date: "2026-02-01", unit: "month", every: 1 }, // standing: without the day
+            { execution: "standing", ...RHYTHM, execution_date: "2026-02-01" }, // standing: with a date
+            { execution: "date", execution_date: "2026-02-01", action: "delete", previous: "{}" }, // without the bank's order
+            { execution: "date", execution_date: "2026-02-01", action: "change", bank_order_id: "B" }, // without the order before
+            { instant: 2 },
+            { vop_structured: 2 },
+            { unconfirmed: 2 },
+        ];
+        refused.forEach((columns, i) => expect(() => insert(db, 100 + i, columns), JSON.stringify(columns)).toThrow());
+        db.close();
+    });
+
+    it("stops with the ids, and nothing else, when a stored row does not fit", () => {
+        const db = prepared();
+        db.exec("UPDATE transfers SET execution_date = NULL WHERE id = 2");
+        db.exec("UPDATE transfers SET previous = NULL WHERE id = 5");
+        expect(() => applyMigration(db, transferChecks)).toThrow("2 transfer rows do not fit their kind (ids 2, 5)");
+        expect(columns(db, "transfers")).toContain("previous");
         db.close();
     });
 });

@@ -64,8 +64,8 @@ interface OldPending {
     counterparty_name: string;
     counterparty_iban: string | null;
     remittance: string;
-    category_id: number | null;
-    category_source: string | null;
+    /** Its categories (more than one for a split booking); filled before it is deleted. */
+    shares: { category_id: number; amount: number; source: string }[];
     /** Users who had not read it; filled before it is deleted. */
     unreadBy: number[];
     /** Its adjusted texts; filled before it is deleted. */
@@ -100,16 +100,17 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
         // Pending bookings of the last fetch, with the category a user may have given them
         const oldPending = db
             .prepare(
-                `SELECT t.id, t.fingerprint, t.booking_date, t.amount, t.counterparty_name, t.counterparty_iban, t.remittance, tc.category_id, tc.source AS category_source
-                 FROM transactions t LEFT JOIN transaction_categories tc ON tc.transaction_id = t.id
-                 WHERE t.account_id = ? AND t.source = 'bank' AND t.status = 'pending'`,
+                `SELECT t.id, t.fingerprint, t.booking_date, t.amount, t.counterparty_name, t.counterparty_iban, t.remittance
+                 FROM transactions t WHERE t.account_id = ? AND t.source = 'bank' AND t.status = 'pending'`,
             )
             .all(accountId) as OldPending[];
+        const sharesOf = db.prepare("SELECT category_id, amount, source FROM transaction_categories WHERE transaction_id = ? ORDER BY category_id");
         const unreadOf = db.prepare("SELECT user_id FROM transaction_unread WHERE transaction_id = ?");
         const editsOf = db.prepare("SELECT field, value, source FROM transaction_edits WHERE transaction_id = ?");
         for (const p of oldPending) {
             p.unreadBy = (unreadOf.all(p.id) as { user_id: number }[]).map((r) => r.user_id);
             p.edits = editsOf.all(p.id) as OldPending["edits"];
+            p.shares = sharesOf.all(p.id) as OldPending["shares"];
         }
         const insertEdit = db.prepare("INSERT OR IGNORE INTO transaction_edits (transaction_id, field, value, source) VALUES (?, ?, ?, ?)");
         const carryEdits = (id: number, from: OldPending) => {
@@ -125,7 +126,11 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
         );
         const rawOf = (t: ConnectorTransaction) =>
             JSON.stringify({ bookingText: t.bookingText, mandateId: t.mandateId, creditorId: t.creditorId, customerReference: t.customerReference, bankReference: t.bankReference, counterpartyBic: t.counterpartyBic });
-        const insertCat = db.prepare("INSERT INTO transaction_categories (transaction_id, category_id, amount, source, rule_id) VALUES (?, ?, ?, ?, ?)");
+        const insertCat = db.prepare("INSERT INTO transaction_categories (transaction_id, category_id, amount, source, rule_id) VALUES (?, ?, ?, ?, NULL)");
+        // A single category takes the booking's amount; a split keeps its shares
+        const carryCategories = (id: number, from: OldPending, amount: number) => {
+            for (const s of from.shares) insertCat.run(id, s.category_id, from.shares.length === 1 ? amount : s.amount, s.source);
+        };
 
         const newIds: number[] = [];
         // A pending booking that comes back is not new to the rules
@@ -136,8 +141,8 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
                 insertTx.run(accountId, fp, t.bookingDate, t.valueDate, t.amount, t.currency, t.counterpartyName, t.ultimateParty, t.counterpartyIban, t.remittance, t.endToEndId, t.bookingText, referenceOf(t), t.mandateId ?? "", t.creditorId ?? "", t.counterpartyBic ?? "", t.counterpartyAccount, t.counterpartyBankCode, refOf(t.customerReference), refOf(t.bankReference), t.isReturn ? 1 : 0, t.returnReason, t.status, rawOf(t), now, userId)
                     .lastInsertRowid,
             );
-            if (carried?.category_id) insertCat.run(id, carried.category_id, t.amount, carried.category_source ?? "manual", null);
             if (carried) {
+                carryCategories(id, carried, t.amount);
                 carryEdits(id, carried);
                 if (t.status === "pending") returning.add(id);
                 markNewFor(db, id, carried.unreadBy);
@@ -269,7 +274,7 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
             if (importedId !== undefined) {
                 adoptImported.run(fp, t.valueDate, t.currency, t.counterpartyName, t.ultimateParty, t.counterpartyIban, t.remittance, t.endToEndId, t.bookingText, referenceOf(t), t.mandateId ?? "", t.creditorId ?? "", t.counterpartyBic ?? "", t.counterpartyAccount, t.counterpartyBankCode, refOf(t.customerReference), refOf(t.bankReference), t.isReturn ? 1 : 0, t.returnReason, rawOf(t), importedId);
                 const carried = successorOf(t);
-                if (carried?.category_id && !hasCategory.get(importedId)) insertCat.run(importedId, carried.category_id, t.amount, carried.category_source ?? "manual", null);
+                if (carried && !hasCategory.get(importedId)) carryCategories(importedId, carried, t.amount);
                 if (carried) carryEdits(importedId, carried);
                 return;
             }

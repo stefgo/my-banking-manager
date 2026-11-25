@@ -96,8 +96,26 @@ lädt die betroffenen Abfragen neu (`clients/web/src/lib/socket.ts`).
   (`server/src/crypto/keystore.ts`). Wer Benutzer anlegt, löscht oder ein Passwort
   setzt, pflegt dort den Eintrag über `Vault`.
 - Beträge sind ganze Cent, Buchungstage `JJJJ-MM-TT`.
-- Kategorien hängen über `transaction_categories` an Buchungen (eine Zeile je Anteil), damit
-  Splitbuchungen später ohne Umbau möglich sind.
+- **Indizes:** Jede Fremdschlüssel-Spalte bekommt einen Index, sonst durchsucht SQLite beim Löschen
+  jeder übergeordneten Zeile die ganze Tabelle (Import rückgängig, Konto löschen). Ausnahmen (kleine
+  Tabellen, seltenes Löschen) stehen mit Begründung in `WITHOUT_INDEX` in
+  `server/src/db/migrations/migrations.test.ts`; der Test dort meldet jede neue Spalte ohne Index.
+- **Leer oder `NULL`:** Neue Textspalten sind `NOT NULL DEFAULT ''`. `NULL` nur, wo „fehlt“ und
+  „leer“ etwas anderes bedeuten. Ältere Ausnahmen in `transactions`: `counterparty_iban`,
+  `end_to_end_id`, `value_date`, `fingerprint`, `raw`.
+- **Offline oder Bank:** Ein Konto ist offline, wenn es keinen Bankzugang hat (`connection_id IS
+  NULL`, in `shared`: `isOffline`). `kind` sagt nur, was es ist (`giro`, `savings`, `credit_card`,
+  `loan`, `other` für selbst angelegte). Ein vom Bankzugang gelöstes Konto behält seine Art. Einen
+  Bankzugang mit Konten lässt das Schema nicht löschen; `deleteConnection` löst oder löscht sie vorher.
+- Der Fingerabdruck einer Bankbuchung ist je Konto eindeutig (Index `transactions_fingerprint`).
+- Kategorien hängen über `transaction_categories` an Buchungen, eine Zeile je Anteil. Noch kann
+  keine Route eine Buchung aufteilen, aber alles Lesende verträgt mehrere Anteile: Die Umsatzliste
+  zeigt den größten Anteil und findet die Buchung unter jeder ihrer Kategorien, die Auswertungen
+  zählen jeden Anteil mit seinem Betrag (`amount`), Regeln und Import lassen eine aufgeteilte Buchung
+  unangetastet, „Kategorie löschen“ mit Ziel fasst Anteile zusammen, die dort zusammentreffen.
+  Eine Buchung mit nur einem Anteil hat dort ihren vollen Betrag. Ändert sich der Betrag einer
+  aufgeteilten Buchung von Hand, bleiben ihre Anteile, wie sie sind; das zu regeln gehört zum
+  Aufteilen selbst.
 - Saldo eines Offline-Kontos: Anfangssaldo + alle Buchungen. Der Anfangssaldo ist der Kontostand vor
   der ersten Buchung und hat kein Datum; auch importierte Buchungen jeden Datums zählen.
 - Saldo eines Bankkontos: ebenfalls Anfangssaldo + alle Buchungen (`services/accounts.ts`). Ein Abruf

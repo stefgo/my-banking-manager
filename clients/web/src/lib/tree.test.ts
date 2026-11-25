@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Account, AccountGroup, Category } from "@mbm/shared";
-import { accountTree, accountsInScope, categoryColor, categoryPath, categorySubtree, childRows, countsInStats, dropPosition, indexCategories, inScope, isInSubtree, scopeName, subtreeHasNone } from "./tree";
+import { accountTree, accountsInScope, accountsInTreeOrder, categoryColor, categoryPath, categorySubtree, childRows, countsInStats, dropPosition, indexCategories, inScope, isInSubtree, scopeName, subtreeHasNone } from "./tree";
 
 const NO_INFO = { attributes: [], notes: "" };
 const group = (id: number, parentId: number | null, position: number, name = `G${id}`): AccountGroup => ({ id, parentId, name, icon: "folder", color: "neutral", position, info: NO_INFO });
 const account = (id: number, groupId: number | null, position: number, balance = 0): Account => ({
-    id, kind: "offline", connectionId: null, name: `A${id}`, icon: "wallet", color: "green", groupId, position, hidden: false, iban: null, cardNumber: null,
+    id, kind: "other", connectionId: null, name: `A${id}`, icon: "wallet", color: "green", groupId, position, hidden: false, iban: null, cardNumber: null,
     currency: "EUR", openingBalance: 0, balance, pendingSum: 0, pendingCount: 0, transactionCount: 0, createdAt: "", info: NO_INFO,
 });
 
@@ -18,6 +18,13 @@ describe("accountTree", () => {
         expect(tree.map((n) => (n.kind === "group" ? `g${n.group.id}` : `a${n.account.id}`))).toEqual(["g1", "g3", "a12"]);
         const privat = tree[0]!;
         expect(privat.kind === "group" && privat.children.map((n) => (n.kind === "group" ? `g${n.group.id}` : `a${n.account.id}`))).toEqual(["g2", "a11"]);
+    });
+
+    it("lists the accounts in the order of the sidebar, not by their position alone", () => {
+        expect(accountsInTreeOrder(groups, accounts).map((a) => a.id)).toEqual([10, 11, 12]);
+        const mixed = [account(20, 3, 0), account(21, 1, 0), account(22, 1, 1)];
+        expect(accountsInTreeOrder([group(1, null, 0), group(3, null, 1)], mixed).map((a) => a.id)).toEqual([21, 22, 20]);
+        expect(accountsInTreeOrder([], accounts).map((a) => a.id)).toEqual([12, 10, 11]);
     });
 });
 

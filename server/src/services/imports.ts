@@ -146,7 +146,7 @@ function chooseFormat(db: Db, content: string, selection: ImportSelection): { fo
 export const detectImportFormat = (db: Db, content: string): { format: ImportFormatDefinition; formatKey: string | null } => chooseFormat(db, content, {});
 
 function plan(db: Db, accountId: number, content: string, selection: ImportSelection): { header: string[]; columns: ColumnMap; format: ImportFormatDefinition; formatKey: string | null; rows: Planned[] } {
-    const isBankAccount = requireAccount(db, accountId).kind !== "offline";
+    const isBankAccount = requireAccount(db, accountId).connection_id !== null;
     const { format, formatKey } = chooseFormat(db, content, selection);
     const table = readWithFormat(content, format);
     if (!table.header.length) throw badRequest("In der Datei steht keine Tabelle.", "empty_file");

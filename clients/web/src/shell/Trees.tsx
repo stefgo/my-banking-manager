@@ -5,7 +5,7 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { ContextMenu, DropdownMenu } from "radix-ui";
 import { Check, ChevronDown, GripVertical, MoreHorizontal, NotebookPen, Palette, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
-import { routes, type Account, type AccountGroup, type AccountScope, type Category } from "@mbm/shared";
+import { isOffline, routes, type Account, type AccountGroup, type AccountScope, type Category } from "@mbm/shared";
 import { call } from "../lib/api";
 import { useIsSyncing } from "../lib/bank";
 import { useAction } from "../lib/queries";
@@ -405,9 +405,9 @@ function AccountRow({ account: a, depth, index, count, parentId, groups, account
                         side="right"
                         open={styleOpen}
                         onOpenChange={setStyleOpen}
-                        trigger={<span role="button" tabIndex={-1} title={a.kind === "offline" ? "Offline-Konto, ohne Abruf" : undefined} style={{ display: "grid" }}><Tile icon={a.icon} color={a.color} /></span>}
+                        trigger={<span role="button" tabIndex={-1} title={isOffline(a) ? "Offline-Konto, ohne Abruf" : undefined} style={{ display: "grid" }}><Tile icon={a.icon} color={a.color} /></span>}
                         name={a.name}
-                        kindName={a.kind === "offline" ? "Offline-Konto" : "Konto"}
+                        kindName={isOffline(a) ? "Offline-Konto" : "Konto"}
                         icon={a.icon}
                         color={a.color}
                         onChange={(patch) => void action.run(() => call(routes.updateAccount, { params: { id: a.id }, body: { icon: patch.icon, color: patch.color ?? undefined } }), { topics: ["accounts"] })}

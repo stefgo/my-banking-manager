@@ -269,7 +269,7 @@ describe("offline accounts", () => {
         const daily = groups.body.find((g) => g.name === "Alltag")!;
         const cash = (await api<Account>("POST", "/api/accounts", { name: "Bargeld", groupId: daily.id, openingBalance: 6000 })).body;
         const box = (await api<Account>("POST", "/api/accounts", { name: "Spardose" })).body;
-        expect(cash.balance).toBe(6000);
+        expect(cash).toMatchObject({ kind: "other", connectionId: null, balance: 6000 });
 
         const spent = await api<Transaction>("POST", `/api/accounts/${cash.id}/transactions`, {
             bookingDate: "2026-11-03",
@@ -1133,6 +1133,65 @@ describe("figures", () => {
         const all = (await api<Series>("GET", `/api/stats/series?scope=account:${cash.id}&range=all`)).body.points;
         expect(all[0]).toEqual({ date: day(-1, 0, 1), balance: 10500 });
         expect(all.at(-1)).toEqual({ date: iso(today), balance: 7000 });
+    });
+});
+
+describe("split bookings", () => {
+    // No route splits a booking yet; the shares are written directly, as a later version would
+    async function setUpSplit() {
+        const { api } = await setUpSignedIn(t);
+        const food = (await api<CategoryList>("GET", "/api/categories")).body.items.find((c) => c.name === "Lebensmittel")!;
+        const a = (await api<{ id: number }>("POST", "/api/categories", { parentId: food.id, name: "A" })).body.id;
+        const b = (await api<{ id: number }>("POST", "/api/categories", { parentId: food.id, name: "B" })).body.id;
+        const cash = (await api<Account>("POST", "/api/accounts", { name: "Bargeld" })).body;
+        const split = (await api<Transaction>("POST", `/api/accounts/${cash.id}/transactions`, { bookingDate: "2026-02-01", amount: -1000, counterpartyName: "Markt", categoryId: a })).body;
+        await api("POST", `/api/accounts/${cash.id}/transactions`, { bookingDate: "2026-02-02", amount: 500, counterpartyName: "Erstattung" });
+        const db = t.vault.database;
+        db.prepare("DELETE FROM transaction_categories WHERE transaction_id = ?").run(split.id);
+        db.prepare("INSERT INTO transaction_categories (transaction_id, category_id, amount, source) VALUES (?, ?, -300, 'manual'), (?, ?, -700, 'manual')").run(split.id, a, split.id, b);
+        const shares = () => db.prepare("SELECT category_id AS category, amount FROM transaction_categories WHERE transaction_id = ? ORDER BY category_id").all(split.id);
+        return { api, a, b, split, shares };
+    }
+
+    it("lists a split booking once, under each of its categories, with its largest share", async () => {
+        const { api, a, b, split } = await setUpSplit();
+        const list = (await api<TransactionList>("GET", "/api/transactions?range=all")).body;
+        expect(list.count).toBe(2);
+        expect(list.items.find((x) => x.id === split.id)!.categoryId).toBe(b);
+        const ids = async (category: string) => (await api<TransactionList>("GET", `/api/transactions?category=${category}&range=all`)).body.items.map((x) => x.id);
+        expect(await ids(String(a))).toEqual([split.id]);
+        expect(await ids(String(b))).toEqual([split.id]);
+        expect(await ids("none")).not.toContain(split.id);
+    });
+
+    it("counts each share in its category and the booking once", async () => {
+        const { api, a, b } = await setUpSplit();
+        const q = "scope=all&from=2026-02-01&to=2026-02-28";
+        expect((await api("GET", `/api/stats/cashflow?${q}`)).body).toEqual({ income: 500, expenses: -1000, count: 2 });
+        const sums = (await api<{ sums: { categoryId: number | null; amount: number; count: number }[] }>("GET", `/api/stats/categories?${q}`)).body.sums;
+        expect(sums.sort((x, y) => (x.categoryId ?? 0) - (y.categoryId ?? 0))).toEqual([
+            { categoryId: null, amount: 500, count: 1 },
+            { categoryId: a, amount: -300, count: 1 },
+            { categoryId: b, amount: -700, count: 1 },
+        ]);
+        // A share in an excluded category does not count, the other one does
+        t.vault.database.prepare("UPDATE categories SET excluded_from_stats = 1 WHERE id = ?").run(b);
+        expect((await api("GET", `/api/stats/cashflow?${q}`)).body).toEqual({ income: 500, expenses: -300, count: 2 });
+    });
+
+    it("joins the shares that meet in the category they move to", async () => {
+        const { api, a, b, shares } = await setUpSplit();
+        expect((await api("DELETE", `/api/categories/${a}?moveTo=${b}`)).status).toBe(200);
+        expect(shares()).toEqual([{ category: b, amount: -1000 }]);
+    });
+
+    it("keeps the shares when the amount of the booking changes", async () => {
+        const { api, a, b, split, shares } = await setUpSplit();
+        expect((await api("PATCH", `/api/transactions/${split.id}`, { amount: -1200 })).status).toBe(200);
+        expect(shares()).toEqual([
+            { category: a, amount: -300 },
+            { category: b, amount: -700 },
+        ]);
     });
 });
 

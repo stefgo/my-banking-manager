@@ -65,7 +65,10 @@ const RETURNED_BY = "(SELECT rb.id FROM transactions rb WHERE rb.return_of_id = 
 const NOT_RETURNED = "t.return_of_id IS NULL AND NOT EXISTS (SELECT 1 FROM transactions rb WHERE rb.return_of_id = t.id)";
 
 const EDIT_COLUMNS = "ec.value AS edit_counterparty, ec.source AS edit_counterparty_source, er.value AS edit_remittance, er.source AS edit_remittance_source";
-const TX_JOINS = `transactions t LEFT JOIN transaction_categories c ON c.transaction_id = t.id
+// One row per booking: a split booking shows its largest share
+const TX_JOINS = `transactions t
+    LEFT JOIN transaction_categories c ON c.rowid = (
+        SELECT x.rowid FROM transaction_categories x WHERE x.transaction_id = t.id ORDER BY abs(x.amount) DESC, x.category_id LIMIT 1)
     LEFT JOIN transaction_edits ec ON ec.transaction_id = t.id AND ec.field = 'counterparty'
     LEFT JOIN transaction_edits er ON er.transaction_id = t.id AND er.field = 'remittance'`;
 
@@ -194,8 +197,9 @@ export function listTransactions(db: Db, f: TxFilter, userId: number): Transacti
         const parent = getSlot(db).parentId;
         const none = picked.has("none") || (parent !== null && ids.includes(parent));
         const parts: string[] = [];
-        if (ids.length) parts.push(`c.category_id IN (${ids.map(() => "?").join(",")})`);
-        if (none) parts.push("c.category_id IS NULL");
+        // A split booking belongs to every category it has a share in
+        if (ids.length) parts.push(`EXISTS (SELECT 1 FROM transaction_categories x WHERE x.transaction_id = t.id AND x.category_id IN (${ids.map(() => "?").join(",")}))`);
+        if (none) parts.push("NOT EXISTS (SELECT 1 FROM transaction_categories x WHERE x.transaction_id = t.id)");
         where.push(`(${parts.join(" OR ")})`);
         args.push(...ids);
     }
@@ -282,6 +286,10 @@ function requireManual(db: Db, id: number): Transaction {
 
 export function updateManual(db: Db, id: number, input: Partial<ManualInput>): Transaction {
     const tx = requireManual(db, id);
+    // A single share follows the new amount; the shares of a split stay as they are
+    const updateShareAmount = db.prepare(
+        "UPDATE transaction_categories SET amount = @amount WHERE transaction_id = @id AND (SELECT count(*) FROM transaction_categories WHERE transaction_id = @id) = 1",
+    );
     if (input.categoryId) requireCategory(db, input.categoryId);
     db.prepare(
         `UPDATE transactions SET booking_date = ?, value_date = ?, amount = ?, counterparty_name = ?, counterparty_iban = ?, remittance = ?, status = ?
@@ -297,7 +305,7 @@ export function updateManual(db: Db, id: number, input: Partial<ManualInput>): T
         id,
     );
     if (input.categoryId !== undefined) setCategory(db, id, input.categoryId, "manual");
-    else db.prepare("UPDATE transaction_categories SET amount = ? WHERE transaction_id = ?").run(input.amount ?? tx.amount, id);
+    else updateShareAmount.run({ amount: input.amount ?? tx.amount, id });
     // A new text by hand is what the booking says now; an older adjustment of it is obsolete
     const dropEdit = db.prepare("DELETE FROM transaction_edits WHERE transaction_id = ? AND field = ?");
     if (input.counterpartyName !== undefined && input.counterpartyName !== tx.counterpartyName) dropEdit.run(id, "counterparty");
@@ -310,9 +318,7 @@ export function updateManual(db: Db, id: number, input: Partial<ManualInput>): T
             input.bookingDate ?? tx.bookingDate,
             tx.counterTransactionId,
         );
-        db.prepare(
-            "UPDATE transaction_categories SET amount = ? WHERE transaction_id = ? AND EXISTS (SELECT 1 FROM transactions WHERE id = ? AND source = 'manual')",
-        ).run(-(input.amount ?? tx.amount), tx.counterTransactionId, tx.counterTransactionId);
+        if (db.prepare("SELECT 1 FROM transactions WHERE id = ? AND source = 'manual'").get(tx.counterTransactionId)) updateShareAmount.run({ amount: -(input.amount ?? tx.amount), id: tx.counterTransactionId });
     }
     return getTransaction(db, id);
 }
@@ -500,9 +506,10 @@ export function cashflow(db: Db, scope: AccountScope, from: string, to: string):
     const none = uncategorizedCounts(db) ? "tc.category_id IS NULL OR " : "";
     const row = db
         .prepare(
-            `SELECT COALESCE(SUM(CASE WHEN t.amount > 0 THEN t.amount END), 0) AS income,
-                    COALESCE(SUM(CASE WHEN t.amount < 0 THEN t.amount END), 0) AS expenses,
-                    count(*) AS count
+            // Per share: a split booking counts with each share in its category
+            `SELECT COALESCE(SUM(CASE WHEN COALESCE(tc.amount, t.amount) > 0 THEN COALESCE(tc.amount, t.amount) END), 0) AS income,
+                    COALESCE(SUM(CASE WHEN COALESCE(tc.amount, t.amount) < 0 THEN COALESCE(tc.amount, t.amount) END), 0) AS expenses,
+                    count(DISTINCT t.id) AS count
              FROM transactions t
              LEFT JOIN transaction_categories tc ON tc.transaction_id = t.id
              WHERE t.account_id IN (${ids.map(() => "?").join(",")}) AND t.booking_date BETWEEN ? AND ?
@@ -518,7 +525,7 @@ export function categorySums(db: Db, scope: AccountScope, from: string, to: stri
     if (!ids.length) return [];
     return db
         .prepare(
-            `SELECT tc.category_id AS categoryId, SUM(t.amount) AS amount, count(*) AS count
+            `SELECT tc.category_id AS categoryId, SUM(COALESCE(tc.amount, t.amount)) AS amount, count(*) AS count
              FROM transactions t LEFT JOIN transaction_categories tc ON tc.transaction_id = t.id
              WHERE t.account_id IN (${ids.map(() => "?").join(",")}) AND t.booking_date BETWEEN ? AND ?
                AND ${NOT_RETURNED}

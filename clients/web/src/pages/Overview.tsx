@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowDown, ArrowDownRight, ArrowUp, ArrowUpRight, Check, ChevronRight, Folder, GripVertical, List, Minus, MoveDiagonal2, Pencil, Plus, RotateCcw } from "lucide-react";
-import { CARD_LABELS, clampCardSize, routes, todayIso, toIsoDate, type AccountScope, type Card } from "@mbm/shared";
+import { CARD_LABELS, clampCardSize, isOffline, routes, todayIso, toIsoDate, type AccountScope, type Card } from "@mbm/shared";
 import { call } from "../lib/api";
 import { setCardsInCache, useAccounts, useAction, useCashflow, useCategoryIndex, useCategorySums, useGroups, useProfile, useSeries, useTransactions, useUpcomingOrders } from "../lib/queries";
 import { accountTree, accountsInScope, categorySubtree, childRows, scopeName, subtreeHasNone, sumBalance, type TreeNode } from "../lib/tree";
@@ -472,7 +472,7 @@ function GroupsCard({ card }: { card: Card }) {
                         <Tile icon={a.icon} color={a.color} size={15} />
                         <span>
                             <b>{a.name}</b>
-                            <small>{a.kind === "offline" ? "Offline-Konto" : (a.iban ?? "")}</small>
+                            <small>{isOffline(a) ? "Offline-Konto" : (a.iban ?? "")}</small>
                         </span>
                         <Amt cents={a.balance} />
                     </button>,

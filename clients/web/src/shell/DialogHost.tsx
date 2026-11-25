@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Command } from "cmdk";
-import { parseTxQuery } from "@mbm/shared";
+import { isOffline, parseTxQuery } from "@mbm/shared";
 import { Dialog as RDialog } from "radix-ui";
 import { CalendarDays, Eye, EyeOff, Home, Keyboard, List, Lock, LogOut, Menu, Plus, Search, Settings, Tag, Wand2, FolderOpen, Send, FileUp } from "lucide-react";
 import { useAccounts, useCategoryIndex, useGroups, useTransactions } from "../lib/queries";
@@ -140,7 +140,7 @@ function Palette() {
                                 </Command.Group>
                                 <Command.Group heading="Konten">
                                     {accounts.map((a) => (
-                                        <Item key={a.id} icon={<Sym name={a.icon} size={17} />} label={a.name} hint={a.kind === "offline" ? "Offline-Konto" : undefined} onSelect={() => go("/transactions", { scope: `account:${a.id}` })} />
+                                        <Item key={a.id} icon={<Sym name={a.icon} size={17} />} label={a.name} hint={isOffline(a) ? "Offline-Konto" : undefined} onSelect={() => go("/transactions", { scope: `account:${a.id}` })} />
                                     ))}
                                     {groups.map((g) => (
                                         <Item key={`g${g.id}`} icon={<Ic icon={FolderOpen} size={17} />} label={g.name} hint="Kontogruppe" onSelect={() => go("/transactions", { scope: `group:${g.id}` })} />

@@ -2,7 +2,7 @@
 // the header of the transaction list.
 
 import { ArrowDown, ArrowUp, CheckCheck, Coins, FileUp, FolderPlus, MoveRight, NotebookPen, Palette, Pencil, Plus, Scale, Trash2 } from "lucide-react";
-import { routes, type Account, type AccountGroup } from "@mbm/shared";
+import { isOffline, routes, type Account, type AccountGroup } from "@mbm/shared";
 import { call } from "./api";
 import type { useAction } from "./queries";
 import { plural } from "./format";
@@ -45,7 +45,7 @@ export function orderEntries(order: TreeOrder | undefined): MenuEntry[] {
 /** `unread`: new bookings of the account, for "Alle als gelesen markieren". */
 export function accountMenu(a: Account, action: Action, openStyle: () => void, order?: TreeOrder, unread = 0): MenuEntry[] {
     const key = `account:${a.id}`;
-    const offline = a.kind === "offline";
+    const offline = isOffline(a);
     return [
         { label: "Alle als gelesen markieren", icon: CheckCheck, disabled: unread === 0, run: () => void markAccountsRead(`account:${a.id}`, [a.id]) },
         { separator: true },

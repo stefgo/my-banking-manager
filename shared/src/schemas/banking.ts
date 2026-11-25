@@ -67,13 +67,14 @@ export const MoveTreeNodeRequest = z.object({
     index: z.number().int().min(0),
 });
 
-export const AccountKind = z.enum(["giro", "savings", "credit_card", "loan", "offline"]);
+/** What an account is; `other` for accounts created by hand. Whether it is offline: `isOffline`. */
+export const AccountKind = z.enum(["giro", "savings", "credit_card", "loan", "other"]);
 export type AccountKind = z.infer<typeof AccountKind>;
 
 export const Account = z.object({
     id: Id,
     kind: AccountKind,
-    connectionId: Id.nullable(),
+    connectionId: Id.nullable().describe("Bank access; null for an offline account"),
     name: z.string(),
     icon: IconKey,
     color: ColorKey,
@@ -92,6 +93,9 @@ export const Account = z.object({
     info: Info,
 });
 export type Account = z.infer<typeof Account>;
+
+/** An offline account has no bank access: its bookings are entered or imported, never fetched. */
+export const isOffline = (account: Pick<Account, "connectionId">): boolean => account.connectionId === null;
 
 export const CreateOfflineAccountRequest = z.object({
     name: Name,

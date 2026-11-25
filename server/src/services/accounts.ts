@@ -165,7 +165,7 @@ export function requireAccount(db: Db, id: number): AccountRow {
 
 export function requireOffline(db: Db, id: number): AccountRow {
     const row = requireAccount(db, id);
-    if (row.kind !== "offline") throw badRequest("Das geht nur bei Offline-Konten.", "not_offline");
+    if (row.connection_id !== null) throw badRequest("Das geht nur bei Offline-Konten.", "not_offline");
     return row;
 }
 
@@ -215,7 +215,7 @@ export function createOfflineAccount(
     const id = Number(
         db.prepare(
             `INSERT INTO accounts (kind, name, currency, icon, color, group_id, position, opening_balance, created_at)
-             VALUES ('offline', ?, 'EUR', ?, ?, ?, ?, ?, ?)`,
+             VALUES ('other', ?, 'EUR', ?, ?, ?, ?, ?, ?)`,
         ).run(input.name, input.icon, input.color, input.groupId, nextPosition(db, input.groupId), input.openingBalance, nowIso()).lastInsertRowid,
     );
     return getAccount(db, id);
@@ -227,7 +227,7 @@ export function updateAccount(
     input: { name?: string; icon?: string; color?: string; hidden?: boolean; openingBalance?: number; info?: Info },
 ): Account {
     const row = requireAccount(db, id);
-    if (input.openingBalance !== undefined && row.kind !== "offline") {
+    if (input.openingBalance !== undefined && row.connection_id !== null) {
         throw badRequest("Den Anfangssaldo gibt es nur bei Offline-Konten.");
     }
     db.prepare("UPDATE accounts SET name = ?, icon = ?, color = ?, hidden = ?, opening_balance = ?, info_attributes = ?, info_notes = ? WHERE id = ?").run(
@@ -244,7 +244,7 @@ export function updateAccount(
 
 export function deleteAccount(db: Db, id: number): AccountRow {
     const row = requireAccount(db, id);
-    if (row.kind !== "offline") throw conflict("Bankkonten verschwinden mit ihrem Bankzugang.", "not_offline");
+    if (row.connection_id !== null) throw conflict("Bankkonten verschwinden mit ihrem Bankzugang.", "not_offline");
     // Counter bookings in other accounts lose their partner; their category stays as it is
     db.prepare("DELETE FROM accounts WHERE id = ?").run(id);
     const rest = siblings(db, row.group_id);
