@@ -791,11 +791,19 @@ a.mini { text-decoration: none; }
 .trees-panel { padding: 12px 8px; }
 .d-hero { display: grid; justify-items: start; gap: 10px; }
 .d-hero h2 { font-size: 18px; font-weight: 600; }
+.d-head { display: flex; align-items: center; gap: 14px; min-width: 0; max-width: 100%; }
+.d-head > .av { flex: none; }
+.d-head h2 { min-width: 0; overflow-wrap: anywhere; }
 .d-amount { font-size: 38px; font-weight: 300; letter-spacing: -0.035em; line-height: 1; }
 .d-list { margin: 0; display: grid; border-top: 1px solid var(--line-soft); }
 .d-list > div { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line-soft); font-size: 13.5px; align-items: center; }
 .d-list dt { color: var(--faint); }
 .d-list dd { margin: 0; min-width: 0; overflow-wrap: anywhere; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+/* The full category path stays visible: it wraps between levels first, the button grows in height */
+.d-list .picker-btn { min-width: 0; max-width: 100%; height: auto; min-height: 30px; padding-top: 5px; padding-bottom: 5px; border-radius: 15px; text-align: left; }
+.d-list .picker-btn > * { flex: none; }
+.d-list .picker-btn > .picker-path { flex: 0 1 auto; min-width: 0; line-height: 1.4; }
+.picker-path .seg-name { display: inline-block; max-width: 100%; }
 .d-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .offer { display: grid; gap: 10px; padding: 14px; border-radius: 14px; background: var(--iris-soft); font-size: 13.5px; }
 .offer .row { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -1318,6 +1326,8 @@ body { margin: 0; }
 .menu-content .menu-label { padding: 8px 10px 4px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); font-weight: 500; }
 .pop-content { z-index: 90; }
 .pop-content .pop { position: static; animation: pop 0.14s ease; }
+/* Never narrower than a wide trigger, e.g. a long category path */
+.pop-content .pop:not(.qhelp) { min-width: min(var(--radix-popover-trigger-width, 0px), calc(100vw - 24px)); }
 .tree-empty { font-size: 12.5px; color: var(--faint); padding: 4px 10px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 

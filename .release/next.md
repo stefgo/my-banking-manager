@@ -21,7 +21,9 @@ Nothing inside an HTML comment is published.
 - Konten mit seltenen Buchungen verlangen beim Abruf nicht mehr jedes Mal eine Freigabe in der App: Ein Abruf beginnt jetzt zwei Wochen vor dem letzten Abruf des Kontos statt zwei Wochen vor seiner neuesten Buchung, die Monate zurückliegen kann. Nach dem Update gilt für jedes Konto beim ersten Abruf noch die alte Regel.
 - Das Fenster „Abruf“, das sich für eine Freigabe öffnet, schließt sich nach einem erfolgreichen Abruf von selbst; das Ergebnis meldet wie gewohnt eine Nachricht. Offen bleibt es nur, wenn es etwas zu lesen gibt, etwa neue oder fehlende Konten bei der Bank. Statt „Alle abrufen“ bietet es bei einem fehlgeschlagenen Abruf „Erneut abrufen“ für diesen Bankzugang an.
 - Über der Umsatzliste steht nicht mehr die Zeile mit Anzahl und Summe der Umsätze. Die Summe einer Kategorie zeigt weiterhin ihr Kopf.
+- In den Details eines Umsatzes steht sein Name rechts neben dem Symbol der Kategorie statt darunter.
 
 ### Behoben
 
 - Wählst du in der Umsatzliste über das Symbol eines Umsatzes eine Kategorie, öffnen sich nicht mehr zusätzlich die Details des Umsatzes.
+- In den Details eines Umsatzes bricht eine Kategorie mit langem Namen oder Pfad sauber um: bevorzugt zwischen den Ebenen, das Feld wächst mit, und die Auswahlliste ist mindestens so breit wie das Feld.

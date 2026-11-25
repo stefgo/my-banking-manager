@@ -6,7 +6,7 @@ import { call } from "../lib/api";
 import { useAccounts, useAction, useCategoryIndex, useGroups, useRules, useTransferAccounts, useTxById } from "../lib/queries";
 import { useStartTransfer } from "../lib/transfer";
 import { firstRuleFor } from "../lib/querytarget";
-import { categoryColor, categoryPath } from "../lib/tree";
+import { categoryAncestors, categoryColor, categoryPath } from "../lib/tree";
 import { dateText, fmtSigned, partyName, shownParty, shownPurpose } from "../lib/format";
 import { openRuleForm, openRunRules } from "../lib/rules";
 import { copyText } from "../lib/clipboard";
@@ -119,28 +119,30 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                         </RDialog.Close>
                     </div>
                     <div className="d-hero">
-                        <Picker
-                            items={catItems}
-                            value={tx.categoryId === null ? "none" : String(tx.categoryId)}
-                            onPick={(v) => void assign(v)}
-                            placeholder="Kategorie suchen …"
-                            trigger={
-                                <button
-                                    className={`av av-l ${c ? `k-${categoryColor(index, c.id)}` : "none"}`}
-                                    aria-label="Kategorie wählen"
-                                    title="Kategorie wählen"
-                                    style={c ? ({ "--c": `var(--p-${categoryColor(index, c.id)})` } as React.CSSProperties) : undefined}
-                                >
-                                    {c ? <Sym name={c.icon} size={26} /> : "?"}
-                                </button>
-                            }
-                        />
-                        <RDialog.Title asChild>
-                            <h2>
-                                {name}
-                                {tx.status === "pending" && <span className="pill">vorgemerkt</span>}
-                            </h2>
-                        </RDialog.Title>
+                        <div className="d-head">
+                            <Picker
+                                items={catItems}
+                                value={tx.categoryId === null ? "none" : String(tx.categoryId)}
+                                onPick={(v) => void assign(v)}
+                                placeholder="Kategorie suchen …"
+                                trigger={
+                                    <button
+                                        className={`av av-l ${c ? `k-${categoryColor(index, c.id)}` : "none"}`}
+                                        aria-label="Kategorie wählen"
+                                        title="Kategorie wählen"
+                                        style={c ? ({ "--c": `var(--p-${categoryColor(index, c.id)})` } as React.CSSProperties) : undefined}
+                                    >
+                                        {c ? <Sym name={c.icon} size={26} /> : "?"}
+                                    </button>
+                                }
+                            />
+                            <RDialog.Title asChild>
+                                <h2>
+                                    {name}
+                                    {tx.status === "pending" && <span className="pill">vorgemerkt</span>}
+                                </h2>
+                            </RDialog.Title>
+                        </div>
                         <div className={`d-amount amt ${tx.amount > 0 ? "pos" : ""}`}>{fmtSigned(tx.amount)}</div>
                     </div>
                     <dl className="d-list">
@@ -154,7 +156,16 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                                     placeholder="Kategorie suchen …"
                                     trigger={
                                         <PickerButton set={!!c} icon={c ? <CatTile idx={index} id={c.id} size={12} className="ti-s" /> : <Ic icon={Tag} size={14} />}>
-                                            {c ? categoryPath(index, c.id) : "Kategorie wählen"}
+                                            <span className="picker-path">
+                                                {c
+                                                    ? [...categoryAncestors(index, c.id).reverse(), c].map((x, n) => (
+                                                          <span key={x.id}>
+                                                              {n > 0 && " › "}
+                                                              <span className="seg-name">{x.name}</span>
+                                                          </span>
+                                                      ))
+                                                    : "Kategorie wählen"}
+                                            </span>
                                         </PickerButton>
                                     }
                                 />
