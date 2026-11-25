@@ -5,11 +5,12 @@ import { routes } from "@mbm/shared";
 import { settingsRoute } from "../router";
 import { SETTINGS_TABS } from "../lib/settingsTabs";
 import { call } from "../lib/api";
-import { useAccounts, useAction, useActivity, useImportFormats, useImports, useStatus } from "../lib/queries";
+import { useAccounts, useAction, useActivity, useGroups, useImportFormats, useImports, useStatus } from "../lib/queries";
 import { useConnectorStatus } from "../lib/bank";
 import { dateTime, plural } from "../lib/format";
 import { copyName } from "../lib/importFormat";
 import { openImport } from "../lib/importNav";
+import { accountsInTreeOrder } from "../lib/tree";
 import { confirmDeleteAccount } from "../lib/menus";
 import { ui } from "../lib/ui";
 import { useOpenTransactions } from "../lib/useOpenTransactions";
@@ -98,7 +99,7 @@ function Versions() {
 // ---------- Accounts ----------
 
 function AccountsTab() {
-    const accounts = useAccounts().data ?? [];
+    const accounts = accountsInTreeOrder(useGroups().data ?? [], useAccounts().data ?? []);
     const offline = accounts.filter((a) => a.kind === "offline");
     const open = useOpenTransactions();
     const action = useAction();

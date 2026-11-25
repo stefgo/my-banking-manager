@@ -4,7 +4,8 @@ import { groupCardNumber, routes, type BankConnection, type BankLogin, type Offe
 import { call, errorText } from "../lib/api";
 import { isActive, refreshBank, startSync, useBankDirectory, useConnections, useConnectorStatus, useOfferedAccounts, useSyncRuns } from "../lib/bank";
 import { useBankOperation } from "../lib/bankOperation";
-import { useAccounts, useAction } from "../lib/queries";
+import { useAccounts, useAction, useGroups } from "../lib/queries";
+import { accountsInTreeOrder } from "../lib/tree";
 import { ui } from "../lib/ui";
 import { dateText, dateTime as formatDateTime, plural } from "../lib/format";
 import { useOpenTransactions } from "../lib/useOpenTransactions";
@@ -111,7 +112,7 @@ export function BankAccessCards() {
 }
 
 function BankCard({ c }: { c: BankConnection }) {
-    const accounts = (useAccounts().data ?? []).filter((a) => a.connectionId === c.id);
+    const accounts = accountsInTreeOrder(useGroups().data ?? [], useAccounts().data ?? []).filter((a) => a.connectionId === c.id);
     const runs = useSyncRuns().data ?? [];
     const active = runs.filter((r) => r.connectionId === c.id && isActive(r));
     const open = useOpenTransactions();

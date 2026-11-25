@@ -23,6 +23,12 @@ Nothing inside an HTML comment is published.
   Server eine neue Version der Oberfläche ausliefert, und bietet **Neu laden** an. Vor der Anmeldung
   lädt es von selbst neu.
 
+### Behoben
+
+- **Reihenfolge der Konten in den Einstellungen:** Unter „Einstellungen → Konten“ stehen die Konten
+  eines Bankzugangs und die Offline-Konten jetzt in der Reihenfolge der Seitenleiste. Bisher waren
+  Konten aus verschiedenen Gruppen durcheinander, sobald sie in mehreren Gruppen lagen.
+
 ### Lizenz
 
 - **FinTS-Produkt-ID ausgenommen:** Die neue Datei `NOTICE` stellt klar, dass die Produkt-ID in den

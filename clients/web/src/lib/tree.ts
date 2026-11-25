@@ -15,6 +15,16 @@ export function accountTree(groups: AccountGroup[], accounts: Account[], parentI
     return nodes.sort((a, b) => a.position - b.position || a.order - b.order).map(({ position: _p, order: _o, ...n }) => n as TreeNode);
 }
 
+/** All accounts in the order the sidebar shows them: the tree walked top to bottom. Accounts the tree
+ *  does not reach (groups not loaded yet) follow at the end. */
+export function accountsInTreeOrder(groups: AccountGroup[], accounts: Account[]): Account[] {
+    const out: Account[] = [];
+    const walk = (nodes: TreeNode[]) => nodes.forEach((n) => (n.kind === "group" ? walk(n.children) : out.push(n.account)));
+    walk(accountTree(groups, accounts));
+    const seen = new Set(out.map((a) => a.id));
+    return [...out, ...accounts.filter((a) => !seen.has(a.id))];
+}
+
 /** Ids of a group and all groups below it. */
 export function groupSubtree(groups: AccountGroup[], id: number): number[] {
     const out = [id];
