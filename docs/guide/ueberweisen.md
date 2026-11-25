@@ -6,7 +6,7 @@ eigene Bank-Anmeldung das erlaubt.
 
 ![Die Seite Überweisen mit dem Verlauf](../assets/screenshots/ueberweisen-dark.png)
 
-*Der Verlauf zeigt die Überweisungen aller Benutzer mit Status, Konto und wer sie gestartet hat.*
+*Der Verlauf zeigt die Überweisungen aller Benutzer mit Status, Konto und wer sie gestartet hat. Auch angelegte, geänderte und gelöschte Aufträge stehen hier, mit ihrer Art.*
 
 ## Eine Überweisung in drei Schritten
 
@@ -18,6 +18,9 @@ eigene Bank-Anmeldung das erlaubt.
    antippen, Betrag und Verwendungszweck. MBM prüft die IBAN sofort und nennt die Bank dazu.
    **Echtzeitüberweisung** schaltest du ein, wenn das Geld in Sekunden ankommen soll und die Bank
    das anbietet.
+   Unter **Ausführung** wählst du **Sofort**, **Am Datum** (Terminüberweisung) oder
+   **Regelmäßig** (Dauerauftrag), soweit deine Bank es für das Konto anbietet; mehr dazu unter
+   [Aufträge](auftraege.md).
 2. **Prüfen:** Die Bank gleicht den Namen des Empfängers mit dem Konto ab
    (**Empfängerüberprüfung**). Passt er, geht es weiter. Weicht er ab, zeigt MBM den Namen, den
    die Bank kennt, und du entscheidest, ob du trotzdem überweist.

@@ -24,8 +24,8 @@ nichts von fremden Servern.
 - **Kategorien und Regeln:** Regeln ordnen neue Umsätze automatisch zu.
 - **CSV-Import in jedes Konto**, mit Vorschau, Erkennung von Doppelten und Rückgängig.
 - **Überweisen** mit Empfängerüberprüfung, Echtzeitüberweisung, Empfängerliste und Verlauf.
-- **Aufträge:** Dauer- und Terminaufträge ansehen, mit den nächsten Terminen und einer Vorschau im
-  Saldoverlauf.
+- **Aufträge:** Dauer- und Terminaufträge ansehen, anlegen, ändern und löschen, mit den nächsten
+  Terminen und einer Vorschau im Saldoverlauf.
 - **Übersicht** aus Karten, die jeder Benutzer selbst zusammenstellt.
 - **Mehrere Benutzer**, jeder mit eigener Anmeldung bei MBM und bei der Bank.
 - **Sicher von Anfang an:** vollständig verschlüsselte Datenbank, Anmeldung mit Passwort und
