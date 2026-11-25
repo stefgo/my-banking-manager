@@ -1,3 +1,41 @@
+## [0.6.0](https://github.com/stefgo/my-banking-manager/compare/v0.5.0...v0.6.0) (2026-11-25)
+
+### Neu
+
+- Die Suche und Regeln finden die Umsatzart der Bank mit `umsatzart:` (kurz `art:`, englisch `type:`), etwa `umsatzart:lastschrift`. Ein Wort ohne Feld sucht weiterhin nicht in der Umsatzart, bestehende Regeln treffen also dieselben Umsätze wie bisher.
+- Die Details eines Umsatzes zeigen neben der Referenz (End-to-End) auch die **Kundenreferenz** (KREF) und die **Bankreferenz**, soweit die Bank sie beim Abruf liefert. Die Kundenreferenz kommt aus `KREF+` im Verwendungszweck oder bei camt aus der Referenz des Auftrags (`PmtInfId`). Bereits gespeicherte Umsätze bekommen die Bankreferenz beim Update; die Kundenreferenz nur, wenn ein Abruf sie noch einmal holt, also ab zwei Wochen vor dem letzten Abruf.
+- Importformate ordnen unter **Zahlungsdetails** neben der End-to-End-Referenz auch die **Kundenreferenz** und die **Bankreferenz** je einer eigenen Spalte zu. Für jede Referenz stellst du ein, in welchen Referenzen eines vorhandenen Umsatzes MBM nachsieht, ob ihr Wert schon da ist. Mischt eine Datei die Arten in einer Spalte (etwa `Referenz:` bei MoneyMoney), steht ein Wert, den ein Umsatz schon als Kunden- oder Bankreferenz hat, nicht mehr zusätzlich als End-to-End-Referenz da. Das gilt anfangs für alle Formate, auch die gespeicherten; das bisherige Feld „Referenz“ heißt jetzt „End-to-End-Referenz“.
+
+### Verbessert
+
+- Konten mit seltenen Buchungen verlangen beim Abruf nicht mehr jedes Mal eine Freigabe in der App: Ein Abruf beginnt jetzt zwei Wochen vor dem letzten Abruf des Kontos statt zwei Wochen vor seiner neuesten Buchung, die Monate zurückliegen kann. Nach dem Update gilt für jedes Konto beim ersten Abruf noch die alte Regel.
+- Das Fenster „Abruf“, das sich für eine Freigabe öffnet, schließt sich nach einem erfolgreichen Abruf von selbst; das Ergebnis meldet wie gewohnt eine Nachricht. Offen bleibt es nur, wenn es etwas zu lesen gibt, etwa neue oder fehlende Konten bei der Bank. Statt „Alle abrufen“ bietet es bei einem fehlgeschlagenen Abruf „Erneut abrufen“ für diesen Bankzugang an.
+- Über der Umsatzliste steht nicht mehr die Zeile mit Anzahl und Summe der Umsätze. Die Summe einer Kategorie zeigt weiterhin ihr Kopf.
+- In den Details eines Umsatzes steht sein Name rechts neben dem Symbol der Kategorie statt darunter.
+- Suchfeld und Filter der Umsatzliste bleiben beim Scrollen am oberen Rand stehen, auch am Handy unter der oberen Leiste.
+
+### Behoben
+
+- Das X zum Leeren der Suche in der Umsatzliste sitzt mittig in seinem Kreis.
+- Wählst du in der Umsatzliste über das Symbol eines Umsatzes eine Kategorie, öffnen sich nicht mehr zusätzlich die Details des Umsatzes.
+- In den Details eines Umsatzes bricht eine Kategorie mit langem Namen oder Pfad sauber um: bevorzugt zwischen den Ebenen, das Feld wächst mit, und die Auswahlliste ist mindestens so breit wie das Feld.
+
+### Features
+
+* **abruf:** ab dem letzten Abruf des Kontos statt ab der neuesten Buchung ([90da434](https://github.com/stefgo/my-banking-manager/commit/90da434f2b80b87b2d567b529cd90afc8e8b151d))
+* **import:** Kunden- und Bankreferenz zuordnen und vorhandene Referenzen prüfen ([517acea](https://github.com/stefgo/my-banking-manager/commit/517acea18167663307dcaadbe5e81e5583410bf8))
+* **umsätze:** Kundenreferenz und Bankreferenz speichern und anzeigen ([de8b440](https://github.com/stefgo/my-banking-manager/commit/de8b440d477d336750e1086c9ded21b074e498f1))
+* **umsätze:** nach Umsatzart suchen ([95e53e4](https://github.com/stefgo/my-banking-manager/commit/95e53e40a210d9d44dc11e2a9f68286ece1c4fe7))
+* **umsätze:** Name neben dem Symbol und voller Kategoriepfad in den Details ([dd4b8aa](https://github.com/stefgo/my-banking-manager/commit/dd4b8aaf8c0000f793b25017d6ee1a763e76867e))
+* **umsätze:** Suche und Filter bleiben beim Scrollen oben stehen ([8fac2ca](https://github.com/stefgo/my-banking-manager/commit/8fac2ca48adda715b3340f4216f5cd92ba051c1c))
+* **umsätze:** Zeile mit Anzahl und Summe über der Umsatzliste entfernen ([fd3542a](https://github.com/stefgo/my-banking-manager/commit/fd3542a2c034a7bdc6de3f7514fae3ef824a5a6c))
+
+### Bug Fixes
+
+* **abruf:** Fenster „Abruf“ nach erfolgreichem Abruf schließen ([114b63f](https://github.com/stefgo/my-banking-manager/commit/114b63f6eb6bfaf98f508520f0a22930c79acce0))
+* **umsätze:** Kategorieauswahl öffnet nicht mehr die Details des Umsatzes ([3704082](https://github.com/stefgo/my-banking-manager/commit/3704082fbf72b0874393a25413640b597b9d47e3))
+* **umsätze:** X zum Leeren der Suche mittig im Kreis ([afa7e83](https://github.com/stefgo/my-banking-manager/commit/afa7e8352fb78d7074c4d6a64e5d7346a78f893d))
+
 ## [0.5.0](https://github.com/stefgo/my-banking-manager/compare/v0.4.0...v0.5.0) (2026-11-24)
 
 ### Regeln können jetzt mehr
