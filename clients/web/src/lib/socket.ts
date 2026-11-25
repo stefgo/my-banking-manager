@@ -43,8 +43,12 @@ export function useServerEvents(enabled: boolean): void {
             current = ws;
             ws.onopen = () => {
                 delay = 1000;
-                // A run may have ended while the connection was gone; its "sync" event is lost
-                if (wasOpen) void queryClient.invalidateQueries({ queryKey: ["sync"] });
+                // A run may have ended while the connection was gone; its "sync" event is lost. The
+                // server may also have restarted with a new web client (see Gate).
+                if (wasOpen) {
+                    void queryClient.invalidateQueries({ queryKey: ["sync"] });
+                    void queryClient.invalidateQueries({ queryKey: ["status"] });
+                }
                 wasOpen = true;
             };
             ws.onmessage = (e) => {

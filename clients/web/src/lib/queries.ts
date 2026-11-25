@@ -59,7 +59,8 @@ export function invalidate(...topics: Topic[]): void {
 
 // ---------- Reads ----------
 
-export const useStatus = () => useQuery({ queryKey: ["status"], queryFn: () => call(routes.status), staleTime: 0, retry: 1 });
+/** Asked again on every return to the window: a new web client may wait on the server (see Gate). */
+export const useStatus = () => useQuery({ queryKey: ["status"], queryFn: () => call(routes.status), staleTime: 0, retry: 1, refetchOnWindowFocus: true });
 
 export const useMe = (enabled: boolean) =>
     useQuery({ queryKey: ["me"], queryFn: () => call(routes.me), enabled, retry: false, staleTime: Infinity });

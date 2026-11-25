@@ -13,7 +13,6 @@ import { ui, useUi } from "../lib/ui";
 import { Ic, Mark } from "../components/icons";
 import { applyTheme } from "../lib/theme";
 import { INSPECTOR_QUERY, useMedia } from "../lib/media";
-import { Toasts } from "../components/common";
 import { Sidebar } from "./Sidebar";
 import { DialogHost } from "./DialogHost";
 import { KeepRowInPlace } from "./KeepRowInPlace";
@@ -101,7 +100,6 @@ export function Shell({ me }: { me: Me }) {
             <OrderDrawer />
             <TransferDrawer />
             <DialogHost />
-            <Toasts />
         </>
     );
 }

@@ -13,6 +13,8 @@ export type ServerState = z.infer<typeof ServerState>;
 export const StatusResponse = z.object({
     state: ServerState,
     version: z.string(),
+    /** Build of the web client the server delivers (null without one); a window with another reloads. */
+    webBuild: z.string().nullable(),
     /** Appearance of the web client before sign-in (start value from the server's configuration). */
     webTheme: Theme,
 });

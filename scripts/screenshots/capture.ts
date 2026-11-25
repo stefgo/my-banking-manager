@@ -164,7 +164,7 @@ type Answer = (r: Request, ctx: { theme: Theme; state: ServerState }) => unknown
 const OK = { ok: true };
 
 const ANSWERS: Partial<Record<keyof typeof routes, Answer>> = {
-    status: (_, ctx) => ({ state: ctx.state, version: VERSION, webTheme: ctx.theme }),
+    status: (_, ctx) => ({ state: ctx.state, version: VERSION, webBuild: null, webTheme: ctx.theme }),
     me: () => fx.me,
     profile: (_, ctx) => fx.profile(ctx.theme),
     clientSettings: (_, ctx) => fx.profile(ctx.theme).settings,

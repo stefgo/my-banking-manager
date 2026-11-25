@@ -608,6 +608,10 @@ paths:
                       - ready
                   version:
                     type: string
+                  webBuild:
+                    type:
+                      - string
+                      - "null"
                   webTheme:
                     type: string
                     enum:
@@ -617,6 +621,7 @@ paths:
                 required:
                   - state
                   - version
+                  - webBuild
                   - webTheme
                 additionalProperties: false
         default:

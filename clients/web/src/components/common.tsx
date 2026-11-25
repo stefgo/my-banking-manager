@@ -79,11 +79,26 @@ export function Modal({
     );
 }
 
-/** Messages: they pause while pointer or focus is on them; errors stay until closed. */
-export function Toasts() {
+/**
+ * Messages: they pause while pointer or focus is on them; errors stay until closed. `update`: the
+ * server delivers a new web client; a notice above the messages offers to reload.
+ */
+export function Toasts({ update }: { update?: { onClose: () => void } }) {
     const toasts = useUi((s) => s.toasts);
     return (
         <div className="toasts" aria-live="polite">
+            {update && (
+                <div className="toast update-notice" role="status">
+                    <Ic icon={Info} size={16} />
+                    <span>Eine neue Version von MBM ist da.</span>
+                    <button type="button" className="btn btn-sm btn-primary" onClick={() => location.reload()}>
+                        Neu laden
+                    </button>
+                    <button type="button" className="toast-x" aria-label="Hinweis schließen" onClick={update.onClose}>
+                        <Ic icon={X} size={14} />
+                    </button>
+                </div>
+            )}
             {toasts.map((t) => (
                 <div
                     key={t.id}

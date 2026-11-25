@@ -1,9 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { onAuthProblem } from "../lib/api";
 import { queryClient, useMe, useStatus } from "../lib/queries";
 import { LoginScreen, SetupScreen } from "../screens/Access";
 import { markSessionLocked } from "../lib/socket";
 import { Mark } from "../components/icons";
+import { Toasts } from "../components/common";
+import { isOutdated, nothingTyped, OWN_BUILD } from "../lib/build";
 import { applyTheme } from "../lib/theme";
 import { Shell } from "./Shell";
 
@@ -44,6 +46,27 @@ export function Gate() {
         }
     }, [ready, me.data, sessionLocked]);
 
+    // A new web client on the server: before sign-in a reload loses nothing; in the app (and in a
+    // locked session, which keeps its user only in memory) a notice offers it
+    const webBuild = status.data?.webBuild;
+    const outdated = isOutdated(OWN_BUILD, webBuild);
+    const state = status.data?.state;
+    const nobody = state === "setup" || (state === "locked" && !me.data) || (state === "ready" && me.data === null);
+    useEffect(() => {
+        if (outdated && nobody && nothingTyped()) location.reload();
+    }, [outdated, nobody]);
+    const [closedFor, setClosedFor] = useState<string | null>(null);
+    const update = outdated && webBuild !== closedFor ? { onClose: () => setClosedFor(webBuild ?? null) } : undefined;
+
+    return (
+        <>
+            <Screen status={status} me={me} />
+            <Toasts update={update} />
+        </>
+    );
+}
+
+function Screen({ status, me }: { status: ReturnType<typeof useStatus>; me: ReturnType<typeof useMe> }) {
     if (status.isPending) return <Loading />;
     if (status.isError || !status.data) {
         return (

@@ -15,6 +15,7 @@ import type { Vault } from "../vault.js";
 import type { EventHub } from "./events.js";
 import { HttpError } from "./errors.js";
 import type { Reauth } from "./reauth.js";
+import type { WebClient } from "./webclient.js";
 
 export const SESSION_COOKIE = "mbm_session";
 
@@ -29,6 +30,8 @@ export interface AppContext {
     bankDirectory: BankDirectory;
     /** Confirmation of sensitive steps with code or password; counts wrong ones per session. */
     reauth: Reauth;
+    /** The built web client, if this server delivers one. */
+    webClient: WebClient | null;
 }
 
 type Parsed<T> = T extends z.ZodType ? z.output<T> : undefined;

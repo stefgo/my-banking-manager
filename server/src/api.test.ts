@@ -1,9 +1,11 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Account, AccountGroup, ActivityEntry, Card, Category, CategoryList, ImportPreview, ImportRecord, Rule, RulePreview, Transaction, TransactionList } from "@mbm/shared";
 import { ROTATING_COLORS } from "@mbm/shared";
 import { loadConfig } from "./config.js";
+import { loadWebClient } from "./http/webclient.js";
 import { requireUser } from "./services/users.js";
 import { confirmCode, createTestApp, nextCode, setUpSignedIn, type TestApp } from "./testing/testApp.js";
 
@@ -1258,5 +1260,37 @@ describe("races, limits and headers", () => {
         const res = await t.app.inject({ url: "/api/accounts", headers: { cookie: session } });
         expect(res.headers["cache-control"]).toBe("no-store");
         expect((await t.app.inject({ url: "/api/status" })).headers["cache-control"]).toBe("no-store");
+    });
+});
+
+describe("web client", () => {
+    it("names its build in index.html and in the status, so that an open window notices a new one", async () => {
+        const webRoot = mkdtempSync(path.join(tmpdir(), "mbm-web-"));
+        mkdirSync(path.join(webRoot, "assets"));
+        const html = (js: string) => `<!doctype html><html><head><script type="module" src="/assets/${js}"></script></head><body></body></html>`;
+        writeFileSync(path.join(webRoot, "index.html"), html("index-a.js"));
+        writeFileSync(path.join(webRoot, "assets", "index-a.js"), "console.log(1)");
+        await t.close();
+        t = await createTestApp({ webRoot });
+
+        const build = ((await t.app.inject({ url: "/api/status" })).json() as { webBuild: string }).webBuild;
+        expect(build).toMatch(/^[0-9a-f]{16}$/);
+        for (const url of ["/", "/index.html", "/transactions"]) {
+            const page = await t.app.inject({ url });
+            expect(page.statusCode).toBe(200);
+            expect(page.headers["cache-control"]).toBe("no-cache");
+            expect(page.body).toContain(`<meta name="mbm-build" content="${build}" />`);
+        }
+        expect((await t.app.inject({ url: "/assets/index-a.js" })).body).toBe("console.log(1)");
+
+        // Another client after an update: another build
+        writeFileSync(path.join(webRoot, "index.html"), html("index-b.js"));
+        expect(loadWebClient(webRoot)?.build).not.toBe(build);
+        expect(loadWebClient(path.join(webRoot, "none"))).toBeNull();
+        rmSync(webRoot, { recursive: true, force: true });
+    });
+
+    it("reports no build without a web client", async () => {
+        expect((await t.app.inject({ url: "/api/status" })).json()).toMatchObject({ webBuild: null });
     });
 });

@@ -131,6 +131,7 @@ export function registerSystemRoutes(app: FastifyInstance, ctx: AppContext): voi
     handle(app, ctx, routes.status, () => ({
         state: vault.state(),
         version: serverVersion(),
+        webBuild: ctx.webClient?.build ?? null,
         webTheme: config.profileDefaults.web.theme,
     }));
 

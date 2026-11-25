@@ -1,5 +1,3 @@
-import { existsSync } from "node:fs";
-import path from "node:path";
 import Fastify, { LogController, type FastifyInstance } from "fastify";
 import cookie from "@fastify/cookie";
 import fastifyStatic from "@fastify/static";
@@ -15,6 +13,7 @@ import { CLOSE_LOCKED, CLOSE_SESSION_LOCKED, CLOSE_SIGNED_OUT, EventHub } from "
 import { HttpError } from "./http/errors.js";
 import { registerOriginCheck } from "./http/origin.js";
 import { Reauth } from "./http/reauth.js";
+import { loadWebClient } from "./http/webclient.js";
 import { SESSION_COOKIE, sessionOf, type AppContext } from "./http/route.js";
 import { registerBankRoutes } from "./routes/bank.js";
 import { registerDataRoutes } from "./routes/data.js";
@@ -40,7 +39,13 @@ export async function buildApp(config: Config, vault: Vault, logger: Logger, opt
         logController: new LogController({ disableRequestLogging: true }),
     });
     const events = new EventHub();
-    const ctx = { config, vault, events, connectors: new ConnectorRegistry(config, opts.loadEmbeddedConnector ? { loadEmbedded: opts.loadEmbeddedConnector } : {}) } as AppContext;
+    const ctx = {
+        config,
+        vault,
+        events,
+        connectors: new ConnectorRegistry(config, opts.loadEmbeddedConnector ? { loadEmbedded: opts.loadEmbeddedConnector } : {}),
+        webClient: loadWebClient(config.webRoot),
+    } as AppContext;
     await ctx.connectors.start(logger);
     ctx.sync = new SyncManager(ctx, config.bankPollMs);
     ctx.transfers = new TransferManager(ctx, { pollMs: config.bankPollMs });
@@ -122,12 +127,13 @@ export async function buildApp(config: Config, vault: Vault, logger: Logger, opt
 
     app.all("/api/*", async (_request, reply) => reply.status(404).send({ error: "not_found", message: "Diese Schnittstelle gibt es nicht." }));
 
-    if (config.webRoot && existsSync(path.join(config.webRoot, "index.html"))) {
-        await app.register(fastifyStatic, { root: config.webRoot, wildcard: false, index: ["index.html"] });
-        // Every other path is a route of the web client
+    const web = ctx.webClient;
+    if (web) {
+        // index.html only with the build in it: "/" and every other path is a route of the web client
+        await app.register(fastifyStatic, { root: config.webRoot, wildcard: false, index: false, globIgnore: ["index.html"] });
         app.setNotFoundHandler((request, reply) => {
-            if (request.method !== "GET") return reply.status(404).send({ error: "not_found", message: "Nicht gefunden." });
-            return reply.header("Cache-Control", "no-cache").sendFile("index.html");
+            if (request.method !== "GET" && request.method !== "HEAD") return reply.status(404).send({ error: "not_found", message: "Nicht gefunden." });
+            return reply.header("Cache-Control", "no-cache").type("text/html; charset=utf-8").send(web.html);
         });
     }
 

@@ -876,6 +876,7 @@ a.mini { text-decoration: none; }
 .toast-x { width: 24px; height: 24px; flex: none; display: grid; place-items: center; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--faint); }
 .toast-x .ic, .toast.error .toast-x .ic { color: inherit; }
 .toast-x:hover { background: var(--surface-2); color: var(--fg); }
+.update-notice .btn { flex: none; }
 .bank-item { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 6px; border-radius: 11px; border: 0; background: transparent; text-align: left; width: 100%; color: inherit; }
 .bank-item:hover, .bank-item.on { background: var(--surface-2); }
 .bank-item b { display: block; font-weight: 500; }

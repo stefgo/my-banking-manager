@@ -15,6 +15,9 @@
 
 4. **Anmelden:** Nach dem Neustart ist MBM gesperrt; dein Passwort entsperrt es. Ändert eine
    Version die Datenbank, passt der Server sie beim ersten Entsperren selbst an.
+5. **Offene Fenster:** Ein Browserfenster, das noch die alte Oberfläche zeigt, merkt das Update
+   und blendet oben **Eine neue Version von MBM ist da.** ein. **Neu laden** holt die neue
+   Oberfläche. Vor der Anmeldung lädt das Fenster von selbst neu, solange du nichts eingetippt hast.
 
 Mit `:latest` bekommst du immer die neueste Version. Eine feste Version wie `:1.2.0` in
 `MBM_IMAGE_SERVER_FULL` aktualisiert nur, wenn du die Nummer änderst. Die Images `:main` und
