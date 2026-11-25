@@ -96,6 +96,10 @@ lädt die betroffenen Abfragen neu (`clients/web/src/lib/socket.ts`).
   (`server/src/crypto/keystore.ts`). Wer Benutzer anlegt, löscht oder ein Passwort
   setzt, pflegt dort den Eintrag über `Vault`.
 - Beträge sind ganze Cent, Buchungstage `JJJJ-MM-TT`.
+- **Indizes:** Jede Fremdschlüssel-Spalte bekommt einen Index, sonst durchsucht SQLite beim Löschen
+  jeder übergeordneten Zeile die ganze Tabelle (Import rückgängig, Konto löschen). Ausnahmen (kleine
+  Tabellen, seltenes Löschen) stehen mit Begründung in `WITHOUT_INDEX` in
+  `server/src/db/migrations/migrations.test.ts`; der Test dort meldet jede neue Spalte ohne Index.
 - Kategorien hängen über `transaction_categories` an Buchungen (eine Zeile je Anteil), damit
   Splitbuchungen später ohne Umbau möglich sind.
 - Saldo eines Offline-Kontos: Anfangssaldo + alle Buchungen. Der Anfangssaldo ist der Kontostand vor

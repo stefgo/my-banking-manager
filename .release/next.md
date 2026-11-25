@@ -28,6 +28,9 @@ Nothing inside an HTML comment is published.
 - **Reihenfolge der Konten in den Einstellungen:** Unter „Einstellungen → Konten“ stehen die Konten
   eines Bankzugangs und die Offline-Konten jetzt in der Reihenfolge der Seitenleiste. Bisher waren
   Konten aus verschiedenen Gruppen durcheinander, sobald sie in mehreren Gruppen lagen.
+- **Löschen ohne Wartezeit:** „Import rückgängig“, das Löschen eines Kontos und ein Abruf mit vielen
+  vorgemerkten Umsätzen hielten den Server bei vielen Buchungen sekundenlang an. Jetzt geht das
+  sofort.
 
 ### Lizenz
 

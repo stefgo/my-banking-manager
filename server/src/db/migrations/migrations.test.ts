@@ -10,7 +10,8 @@ import { ruleActions } from "./0007-rule-actions.js";
 import { bookingReferences } from "./0008-booking-references.js";
 import { transactionsFetchedAt } from "./0009-transactions-fetched-at.js";
 import { orderWrites } from "./0010-order-writes.js";
-import { applyMigration } from "./index.js";
+import { foreignKeyIndexes } from "./0011-foreign-key-indexes.js";
+import { applyMigration, migrations, type Migration } from "./index.js";
 
 const columns = (db: Database.Database, table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
 
@@ -306,6 +307,66 @@ describe("0010-order-writes", () => {
         expect(() => db.exec("UPDATE transfers SET unit = 'day'")).toThrow();
         expect(columns(db, "standing_orders")).toContain("end_to_end_id");
         expect(columns(db, "scheduled_transfers")).toContain("end_to_end_id");
+        db.close();
+    });
+});
+
+/** A database with every migration before `m`. */
+function before(m: Migration): Database.Database {
+    const db = new Database(":memory:");
+    db.pragma("foreign_keys = ON");
+    for (const x of migrations.slice(0, migrations.indexOf(m))) applyMigration(db, x);
+    return db;
+}
+
+const T0 = "2026-01-01T00:00:00Z";
+
+describe("0011-foreign-key-indexes", () => {
+    // Foreign key columns that stay without an index: small tables, or rows that go one at a time
+    // (a user, a device, a rule), where one pass through the child table costs nothing.
+    const WITHOUT_INDEX = new Set([
+        "accounts.group_id", // a few dozen accounts
+        "accounts.reference_account_id",
+        "account_groups.parent_id",
+        "categories.parent_id",
+        "uncategorized_slot.parent_id",
+        "rules.category_id",
+        "bank_logins.user_id", // one row per user and bank access
+        "devices.user_id",
+        "dashboard_cards.user_id",
+        "imports.user_id", // the user ids: a user is removed once
+        "transactions.created_by",
+        "transfers.created_by",
+        "transfers.login_id", // a bank login goes once
+        "sync_runs.user_id",
+        "activity_log.user_id",
+    ]);
+
+    it("gives every foreign key column an index, apart from the list above", () => {
+        const db = new Database(":memory:");
+        db.pragma("foreign_keys = ON");
+        for (const m of migrations) applyMigration(db, m);
+        const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[]).map((r) => r.name);
+        const missing: string[] = [];
+        for (const table of tables) {
+            const info = db.pragma(`table_info(${table})`) as { name: string; type: string; pk: number }[];
+            const pk = info.filter((c) => c.pk > 0);
+            const leading = new Set((db.pragma(`index_list(${table})`) as { name: string }[]).map((i) => (db.pragma(`index_info(${i.name})`) as { seqno: number; name: string }[]).find((c) => c.seqno === 0)?.name));
+            for (const fk of db.pragma(`foreign_key_list(${table})`) as { from: string }[]) {
+                const rowid = pk.length === 1 && pk[0]!.name === fk.from && pk[0]!.type.toUpperCase() === "INTEGER";
+                if (!rowid && !leading.has(fk.from) && !WITHOUT_INDEX.has(`${table}.${fk.from}`)) missing.push(`${table}.${fk.from}`);
+            }
+        }
+        expect(missing).toEqual([]);
+        db.close();
+    });
+
+    it("lets a booking with a counter booking and a transfer go without a scan", () => {
+        const db = before(foreignKeyIndexes);
+        applyMigration(db, foreignKeyIndexes);
+        const plan = (sql: string) => (db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all() as { detail: string }[]).map((r) => r.detail).join(" ");
+        expect(plan("SELECT id FROM transactions WHERE counter_transaction_id = 1")).toContain("transactions_counter");
+        expect(plan("SELECT id FROM transfers WHERE transaction_id = 1")).toContain("transfers_transaction");
         db.close();
     });
 });
