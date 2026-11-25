@@ -466,7 +466,7 @@ button.av:hover { box-shadow: inset 0 0 0 1px var(--c); }
 .search-help:hover, .search-help[data-state="open"] { background: var(--surface-2); color: var(--fg); }
 /* Own clear button in every browser instead of the one of WebKit */
 .search input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
-.search-clear { width: 24px; height: 24px; flex: none; display: grid; place-items: center; border: 0; border-radius: 999px; background: var(--iris-soft); color: var(--iris); }
+.search-clear { width: 24px; height: 24px; flex: none; display: grid; place-items: center; padding: 0; border: 0; border-radius: 999px; background: var(--iris-soft); color: var(--iris); }
 .search-clear:hover { background: var(--iris); color: var(--on-iris); }
 .pop.qhelp { display: block; width: 420px; padding: 4px 16px 14px; overflow-y: auto; }
 .qhelp section { padding-top: 10px; }

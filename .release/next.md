@@ -26,5 +26,6 @@ Nothing inside an HTML comment is published.
 
 ### Behoben
 
+- Das X zum Leeren der Suche in der Umsatzliste sitzt mittig in seinem Kreis.
 - Wählst du in der Umsatzliste über das Symbol eines Umsatzes eine Kategorie, öffnen sich nicht mehr zusätzlich die Details des Umsatzes.
 - In den Details eines Umsatzes bricht eine Kategorie mit langem Namen oder Pfad sauber um: bevorzugt zwischen den Ebenen, das Feld wächst mit, und die Auswahlliste ist mindestens so breit wie das Feld.
