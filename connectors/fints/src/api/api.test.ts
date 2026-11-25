@@ -8,12 +8,12 @@ import path from "node:path";
 import { request } from "node:http";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { ConnectorError, connectorRoutes } from "@mbm/shared";
+import { ConnectorError, addDaysIso, connectorRoutes, firstRunFrom, todayIso } from "@mbm/shared";
 import { buildApi } from "./server.js";
 import { OperationStore } from "../operations/store.js";
 import { httpTransport } from "../transport/http.js";
 import { SIM_BLZ } from "../testing/bank-sim.js";
-import { SIM_BANK_PAYEE_NAME, SIM_CARD, SIM_GIRO_IBAN, SIM_PAYEE_IBAN, SIM_PIN, SIM_TAN, SIM_USER, SIM_VOP_ID, startPersonalBank, type PaymentScript, type PersonalBank, type PersonalBankOptions } from "../testing/personal-bank.js";
+import { PAIN_SAVINGS, SIM_BANK_PAYEE_NAME, SIM_CARD, SIM_GIRO_IBAN, SIM_PAYEE_IBAN, SIM_PIN, SIM_TAN, SIM_USER, SIM_VOP_ID, startPersonalBank, type PaymentScript, type PersonalBank, type PersonalBankOptions } from "../testing/personal-bank.js";
 import { text } from "../syntax/formats.js";
 
 let bank: PersonalBank | undefined;
@@ -467,5 +467,160 @@ describe("transfers", () => {
         const res = await callRoute("accounts", { bank: bankRef, login: login({ state, tanMethod: "946", tanMedium: "Mein Telefon" }) });
         expect(res.json.data.accounts[0].capabilities).toMatchObject({ transfer: true, instantTransfer: true, payeeVerification: true });
         expect((await callRoute("info")).json.capabilities).toContain("transfers");
+    });
+});
+
+describe("writing orders", () => {
+    const account = { accountNumber: "1234567", subAccount: "", iban: SIM_GIRO_IBAN, bic: "SIMUDEM1XXX" };
+    const payment = { payeeName: "Erika Mustermann", payeeIban: SIM_PAYEE_IBAN, payeeBic: null, amount: 100, remittance: "Test MBM", endToEndId: "MBM-0123456789abcdefghijklmnopqrstu" };
+    const today = todayIso();
+    const rent = { bankOrderId: "DA-1", payeeName: "Hausverwaltung Muster", payeeIban: "DE89370400440532013000", amount: 85000, remittance: "Miete Musterweg 1", firstDate: "2024-01-01", unit: "month", every: 1, executionDay: 1, lastDate: null };
+    const savings = { bankOrderId: "DA-2", payeeName: "Erika Mustermann", payeeIban: "DE44500105175407324931", amount: 10050, remittance: "Sparen", firstDate: "2025-02-28", unit: "month", every: 3, executionDay: 99, lastDate: "2027-12-31" };
+    const handwerker = { bankOrderId: "TU-1", payeeName: "Handwerker Beispiel", payeeIban: "DE75512108001245126199", amount: 43120, remittance: "Rechnung 4711", executionDate: "2026-12-03" };
+
+    async function begin(script: PaymentScript = { vop: "match" }) {
+        await start({ sca: "none", jobSca: "decoupled", payments: script, orderWrites: true });
+        const state = await setupLogin();
+        return login({ state, tanMethod: "946", tanMedium: "Mein Telefon" });
+    }
+    const approve = async (id: string) => {
+        now += 1500;
+        return callRoute("operation", undefined, id);
+    };
+    const sentWith = (id: string) => bank!.received.filter((m) => m.find(id));
+    const jobsOf = (m: { segments: { id: string }[] }) => m.segments.map((x) => x.id).filter((id) => /^HK/.test(id));
+
+    it("reports what the account may do with orders and the bank's rules", async () => {
+        const l = await begin();
+        const res = await callRoute("accounts", { bank: bankRef, login: l });
+        expect(res.json.data.accounts[0].capabilities).toMatchObject({
+            createScheduledTransfer: true, changeScheduledTransfer: true, deleteScheduledTransfer: true, createStandingOrder: true, changeStandingOrder: true, deleteStandingOrder: true,
+            orderRules: { scheduled: { minDays: 1, maxDays: 360 }, standing: { months: [1, 2, 3, 6, 12], weeks: [] }, standingChange: { changeable: { unit: false, amount: true } } },
+        });
+        expect(res.json.data.accounts[1].capabilities).toMatchObject({ createStandingOrder: false, orderRules: null });
+        expect((await callRoute("info")).json.capabilities).toContain("order-writes");
+    });
+
+    it("submits a scheduled transfer with the verification of payee; the bank holds it afterwards", async () => {
+        const l = await begin();
+        const date = addDaysIso(today, 10);
+        const first = await callRoute("createScheduledTransfer", { bank: bankRef, login: l, account, order: { ...payment, executionDate: date } });
+        expect(first.json).toMatchObject({ status: "approval", vop: { result: "match" } });
+        const [m] = sentWith("HKCSE");
+        expect(jobsOf(m!)).toEqual(["HKVPP", "HKCSE", "HKTAN"]);
+        expect(text(m!.find("HKTAN")!.elements[1])).toBe("HKCSE");
+        expect(Buffer.from(m!.find("HKCSE")!.elements[2]![0] as Uint8Array).toString("utf8")).toContain(`<ReqdExctnDt><Dt>${date}</Dt></ReqdExctnDt>`);
+        const done = await approve(first.json.operationId);
+        expect(done.json).toMatchObject({ status: "done", data: { bankOrderId: "TU-10", vop: { result: "match" } } });
+        expect(bank!.orders.scheduled.map((t) => t.id)).toEqual(["TU-1", "TU-10"]);
+    });
+
+    it("refuses a date the bank does not allow before sending anything", async () => {
+        const l = await begin();
+        const res = await callRoute("createScheduledTransfer", { bank: bankRef, login: l, account, order: { ...payment, executionDate: today } });
+        expect(res).toMatchObject({ status: 422, json: { error: "not_supported" } });
+        expect(res.json.message).toMatch(/^Ausführung: frühestens am /);
+        expect(sentWith("HKCSE")).toHaveLength(0);
+        const weekly = await callRoute("createStandingOrder", { bank: bankRef, login: l, account, order: { ...payment, recurrence: { firstDate: firstRunFrom({ unit: "week", executionDay: 1 }, addDaysIso(today, 1)), unit: "week", every: 1, executionDay: 1, lastDate: null } } });
+        expect(weekly.json.message).toBe("Wöchentliche Daueraufträge bietet die Bank nicht an.");
+    });
+
+    it("sets up a standing order with its rhythm in the Dauerauftragdetails", async () => {
+        const l = await begin();
+        const firstDate = firstRunFrom({ unit: "month", executionDay: 99 }, addDaysIso(today, 1));
+        const first = await callRoute("createStandingOrder", { bank: bankRef, login: l, account, order: { ...payment, recurrence: { firstDate, unit: "month", every: 3, executionDay: 99, lastDate: null } } });
+        expect(first.json.status).toBe("approval");
+        const seg = sentWith("HKCDE")[0]!.find("HKCDE")!;
+        expect(seg.elements[3]).toEqual([firstDate.replaceAll("-", ""), "M", "3", "99"]);
+        expect(Buffer.from(seg.elements[2]![0] as Uint8Array).toString("utf8")).toContain("<ReqdExctnDt><Dt>1999-01-01</Dt></ReqdExctnDt>");
+        const done = await approve(first.json.operationId);
+        expect(done.json.data).toMatchObject({ bankOrderId: "DA-10", bankMessage: "Auftrag zur Ausführung vorgemerkt." });
+        expect(bank!.orders.standing.at(-1)).toMatchObject({ id: "DA-10", details: [firstDate.replaceAll("-", ""), "M", "3", "99"] });
+    });
+
+    it("changes a standing order: lists it first in the same dialog, then sends the complete new order", async () => {
+        const l = await begin();
+        const first = await callRoute("changeStandingOrder", { bank: bankRef, login: l, account, expected: rent, order: { ...payment, payeeName: rent.payeeName, payeeIban: rent.payeeIban, remittance: rent.remittance, amount: 90000, recurrence: { firstDate: rent.firstDate, unit: "month", every: 1, executionDay: 1, lastDate: null } } });
+        expect(first.json.status).toBe("approval");
+        const dialog = bank!.received.filter((m) => m.find("HKCDB") || m.find("HKCDN"));
+        expect(dialog.map(jobsOf)).toEqual([["HKCDB"], ["HKCDB"], ["HKVPP", "HKCDN", "HKTAN"]]);
+        expect(new Set(dialog.map((m) => m.dialogId)).size).toBe(1);
+        const seg = dialog[2]!.find("HKCDN")!;
+        expect(text(seg.elements[4])).toBe("DA-1");
+        expect(seg.elements[5]).toEqual(["20240101", "M", "1", "1"]);
+        expect(text(seg.elements[1])).toBe("urn:iso:std:iso:20022:tech:xsd:pain.001.001.09");
+        const done = await approve(first.json.operationId);
+        expect(done.json.data).toMatchObject({ bankOrderId: "DA-1", bankMessage: "SEPA-Dauerauftrag geändert." });
+        expect(bank!.orders.standing[0]!.pain).toContain("<InstdAmt Ccy=\"EUR\">900.00</InstdAmt>");
+    });
+
+    it("sends nothing when the order is no longer what the user saw, or the change touches what the bank keeps", async () => {
+        const l = await begin();
+        const changed = await callRoute("changeStandingOrder", { bank: bankRef, login: l, account, expected: { ...rent, amount: 80000 }, order: { ...payment, recurrence: { firstDate: rent.firstDate, unit: "month", every: 1, executionDay: 1, lastDate: null } } });
+        expect(changed).toMatchObject({ status: 409, json: { error: "order_changed" } });
+        const gone = await callRoute("deleteScheduledTransfer", { bank: bankRef, login: l, account, expected: { ...handwerker, bankOrderId: "TU-99" } });
+        expect(gone.json.error).toBe("order_changed");
+        const unit = await callRoute("changeStandingOrder", { bank: bankRef, login: l, account, expected: rent, order: { ...payment, payeeName: rent.payeeName, payeeIban: rent.payeeIban, amount: rent.amount, remittance: rent.remittance, recurrence: { firstDate: rent.firstDate, unit: "week", every: 1, executionDay: 1, lastDate: null } } });
+        expect(unit.json).toMatchObject({ error: "not_supported", message: "Die Bank erlaubt nicht, Zeiteinheit zu ändern." });
+        expect(sentWith("HKCDN")).toHaveLength(0);
+        expect(sentWith("HKCSL")).toHaveLength(0);
+        expect(bank!.executed).toBe(0);
+    });
+
+    it("deletes a standing order with the data and details exactly as the bank listed them, without verification of payee", async () => {
+        const l = await begin();
+        const first = await callRoute("deleteStandingOrder", { bank: bankRef, login: l, account, expected: savings });
+        expect(first.json).toMatchObject({ status: "approval" });
+        const m = sentWith("HKCDL")[0]!;
+        expect(jobsOf(m)).toEqual(["HKCDL", "HKTAN"]);
+        const seg = m.find("HKCDL")!;
+        expect(text(seg.elements[4])).toBe("DA-2");
+        expect(seg.elements[5]).toEqual(["20250230", "M", "3", "31", "20271231"]);
+        expect(Buffer.from(seg.elements[2]![0] as Uint8Array).toString("utf8")).toBe(PAIN_SAVINGS);
+        const done = await approve(first.json.operationId);
+        expect(done.json).toMatchObject({ status: "done", data: { bankMessage: "SEPA-Dauerauftrag gelöscht.", bankOrderId: null, vop: { result: "none" } } });
+        expect(bank!.orders.standing.map((d) => d.id)).toEqual(["DA-1", "DA-3"]);
+    });
+
+    it("changes and deletes a scheduled transfer", async () => {
+        const l = await begin();
+        const date = addDaysIso(today, 20);
+        const change = await callRoute("changeScheduledTransfer", { bank: bankRef, login: l, account, expected: handwerker, order: { ...payment, payeeName: handwerker.payeeName, payeeIban: handwerker.payeeIban, amount: 50000, remittance: handwerker.remittance, executionDate: date } });
+        expect(change.json.status).toBe("approval");
+        expect(jobsOf(sentWith("HKCSA")[0]!)).toEqual(["HKVPP", "HKCSA", "HKTAN"]);
+        expect((await approve(change.json.operationId)).json.data).toMatchObject({ bankOrderId: "TU-1" });
+        expect(bank!.orders.scheduled[0]!.pain).toContain(`<Dt>${date}</Dt>`);
+
+        const del = await callRoute("deleteScheduledTransfer", { bank: bankRef, login: l, account, expected: { ...handwerker, amount: 50000, executionDate: date } });
+        const seg = sentWith("HKCSL")[0]!.find("HKCSL")!;
+        expect(text(seg.elements[3])).toBe("TU-1");
+        expect(seg.elements[2]?.[0]).toBeInstanceOf(Uint8Array);
+        expect((await approve(del.json.operationId)).json.data.bankMessage).toBe("Auftrag gelöscht.");
+        expect(bank!.orders.scheduled).toEqual([]);
+    });
+
+    it("waits for the user on a close match, like a transfer", async () => {
+        const l = await begin({ vop: "close" });
+        const first = await callRoute("createScheduledTransfer", { bank: bankRef, login: l, account, order: { ...payment, executionDate: addDaysIso(today, 5) } });
+        expect(first.json).toMatchObject({ status: "confirm", vop: { result: "close_match" } });
+        const approval = await callRoute("confirmOperation", undefined, first.json.operationId);
+        expect(jobsOf(sentWith("HKVPA")[0]!)).toEqual(["HKVPA", "HKCSE", "HKTAN"]);
+        expect((await approve(approval.json.operationId)).json.status).toBe("done");
+    });
+
+    it("reports outcome unknown when the answer is lost after sending, and passes a refusal on", async () => {
+        const l = await begin({ vop: "match", dropOnExecute: true });
+        const first = await callRoute("deleteStandingOrder", { bank: bankRef, login: l, account, expected: rent });
+        const res = await approve(first.json.operationId);
+        expect(res).toMatchObject({ status: 502, json: { error: "outcome_unknown" } });
+        // The bank did delete it
+        expect(bank!.orders.standing.map((d) => d.id)).toEqual(["DA-2", "DA-3"]);
+        expect(sentWith("HKCDL")).toHaveLength(1);
+
+        await app!.close();
+        await bank!.close();
+        const l2 = await begin({ vop: "match", reject: ["9210", "Mindestzeitraum bis zum Ausführungstermin überschritten."] });
+        const refused = await callRoute("createScheduledTransfer", { bank: bankRef, login: l2, account, order: { ...payment, executionDate: addDaysIso(today, 2) } });
+        expect((await approve(refused.json.operationId))).toMatchObject({ status: 422, json: { error: "bank_error", bankCodes: [{ code: "9210" }] } });
     });
 });

@@ -2,7 +2,8 @@
 // TAN media, fetch jobs). Data is made up; nothing comes from a real bank.
 
 import type { BankMessage } from "../message/read.js";
-import { text } from "../syntax/formats.js";
+import { bytes, text } from "../syntax/formats.js";
+import type { Segment } from "../syntax/types.js";
 import { ok, simBpd, startBankSim, SIM_BLZ, type BankSegment, type BankSim, type SimContext } from "./bank-sim.js";
 
 export const SIM_USER = "testuser";
@@ -98,7 +99,19 @@ export interface PersonalBankOptions {
     without0030?: boolean;
     /** The bank offers transfers (HKCCS, HKIPZ) and answers them by this script. */
     payments?: PaymentScript;
+    /**
+     * The bank offers writing orders (HKCSE/HKCSA/HKCSL, HKCDE/HKCDN/HKCDL) with parameters like a
+     * Sparkasse: lead time 1–360 days, monthly rhythms only. Payments follow `payments` (default: match).
+     */
+    orderWrites?: boolean;
 }
+
+/** Segments that carry a payment, with the verification of payee where the bank wants it. */
+const PAYMENT_IDS = ["HKCCS", "HKIPZ", "HKCSE", "HKCSA", "HKCDE", "HKCDN"];
+/** Segments that write orders. */
+const ORDER_WRITE_IDS = ["HKCSE", "HKCSA", "HKCSL", "HKCDE", "HKCDN", "HKCDL"];
+const findAny = (m: BankMessage, ids: string[]) => ids.map((id) => m.find(id)).find((x) => x !== undefined);
+const MONTH_DAYS = Array.from({ length: 30 }, (_, i) => String(i + 1).padStart(2, "0")).join("") + "99";
 
 /**
  * How the bank answers a payment. `vop`: the verification of payee – match (with 3091), match
@@ -121,11 +134,26 @@ export const SIM_PAYEE_IBAN = "DE89370400440532013000";
 export const SIM_BANK_PAYEE_NAME = "Erika Musterfrau";
 const PAIN002_V10 = "urn:iso:std:iso:20022:tech:xsd:pain.002.001.10";
 
+export interface SimStandingOrder {
+    id: string;
+    pain: string;
+    /** Dauerauftragdetails as sent in HICDB. */
+    details: (string | number)[];
+    /** Aussetzung, changeable, suspendable, deletable. */
+    flags: string[];
+}
+export interface SimScheduledTransfer {
+    id: string;
+    pain: string;
+}
+
 export interface PersonalBank extends BankSim {
     /** HNSHA "Benutzerdefinierte Signatur" of every received message: [pin, tan?]. */
     signatures: string[][];
     /** Payments the bank executed (counted even when the answer is lost). */
     executed: number;
+    /** The orders the bank holds; writes change them. */
+    orders: { standing: SimStandingOrder[]; scheduled: SimScheduledTransfer[] };
 }
 
 export async function startPersonalBank(o: PersonalBankOptions = {}): Promise<PersonalBank> {
@@ -134,13 +162,25 @@ export async function startPersonalBank(o: PersonalBankOptions = {}): Promise<Pe
     let pending: { ref: string; message: BankMessage; ctx: SimContext } | null = null;
     let jobErrorSent = false;
     const stats = { executed: 0 };
-    const pay = o.payments;
+    const pay = o.payments ?? (o.orderWrites ? {} : undefined);
+    const writes = o.orderWrites === true;
+    const orders: PersonalBank["orders"] = {
+        standing: [
+            // Monthly on the 1st, changeable and deletable; quarterly at the end of the month until a last date
+            { id: "DA-1", pain: PAIN_RENT, details: ["20240101", "M", 1, 1], flags: ["", "J", "N", "J"] },
+            { id: "DA-2", pain: PAIN_SAVINGS, details: ["20250230", "M", 3, 31, "20271231"], flags: ["", "N", "N", "N"] },
+            // Every two weeks on Fridays; the bank says nothing about changing it
+            { id: "DA-3", pain: PAIN_CLUB, details: ["20261106", "W", 2, 5], flags: [] },
+        ],
+        scheduled: [{ id: "TU-1", pain: PAIN_SCHEDULED }],
+    };
+    let nextOrder = 10;
     const vopMode = pay?.vop ?? "match";
 
     const bpd = (ref?: number): BankSegment[] => [
         ...simBpd(9, ref).map((s) =>
             s.id === "HIPINS"
-                ? { ...s, elements: [1, 1, 0, [5, 20, 6, "Anmeldename", "Kunden-ID", "HKSAL", "N", "HKKAZ", "J", "HKCAZ", "J", "HKKKU", "J", "HKSPA", "N", "HKTAN", "N", "HKTAB", "N", "HKCDB", o.ordersTan ? "J" : "N", "HKCSB", o.ordersTan ? "J" : "N", ...(pay ? ["HKCCS", "J", "HKIPZ", "J", "HKVPP", "N", "HKVPA", "N"] : [])]] }
+                ? { ...s, elements: [1, 1, 0, [5, 20, 6, "Anmeldename", "Kunden-ID", "HKSAL", "N", "HKKAZ", "J", "HKCAZ", "J", "HKKKU", "J", "HKSPA", "N", "HKTAN", "N", "HKTAB", "N", "HKCDB", o.ordersTan ? "J" : "N", "HKCSB", o.ordersTan ? "J" : "N", ...(pay ? ["HKCCS", "J", "HKIPZ", "J", "HKVPP", "N", "HKVPA", "N"] : []), ...(writes ? ORDER_WRITE_IDS.flatMap((id) => [id, "J"]) : [])]] }
                 : s,
         ),
         ...(pay
@@ -150,9 +190,19 @@ export async function startPersonalBank(o: PersonalBankOptions = {}): Promise<Pe
                   ...(vopMode === "off"
                       ? []
                       : [
-                            { id: "HIVPPS", version: 1, ref, elements: [1, 1, 0, [1, "J", "V", "N", "N", PAIN002_V10, "HKCCS", "HKIPZ"]] },
+                            { id: "HIVPPS", version: 1, ref, elements: [1, 1, 0, [1, "J", "V", "N", "N", PAIN002_V10, "HKCCS", "HKIPZ", ...(writes ? ["HKCSE", "HKCSA", "HKCDE", "HKCDN"] : [])]] },
                             { id: "HIVPAS", version: 1, ref, elements: [1, 1, 0] },
                         ]),
+              ]
+            : []),
+        ...(writes
+            ? [
+                  { id: "HICSES", version: 1, ref, elements: [1, 1, 0, [1, 360]] },
+                  { id: "HICSAS", version: 1, ref, elements: [1, 1, 0, [1, 360]] },
+                  { id: "HICSLS", version: 1, ref, elements: [1, 1, 0, ["J"]] },
+                  { id: "HICDES", version: 1, ref, elements: [1, 1, 0, [4, 0, 9999, "0102030612", MONTH_DAYS]] },
+                  { id: "HICDNS", version: 1, ref, elements: [1, 1, 0, [0, 0, 9999, "J", "J", "J", "J", "J", "N", "J", "J", "J", "0102030612", MONTH_DAYS]] },
+                  { id: "HICDLS", version: 1, ref, elements: [1, 1, 0, [0, 9999, "J", "J"]] },
               ]
             : []),
         simHitans(ref),
@@ -171,10 +221,57 @@ export async function startPersonalBank(o: PersonalBankOptions = {}): Promise<Pe
 
     const upd = (): BankSegment[] => [
         { id: "HIUPA", version: 4, elements: [SIM_USER, 5, 0, "Erika Mustermann"] },
-        { id: "HIUPD", version: 6, elements: [["1234567", "", "280", SIM_BLZ], SIM_GIRO_IBAN, SIM_USER, 1, "EUR", "Erika Mustermann", "", "Girokonto", "", ["HKSAL", 1], ["HKKAZ", 1], ["HKCAZ", 1], ["HKSPA", 1], ["HKCCS", 1], ["HKIPZ", 1], ["HKCDB", 1], ["HKCSB", 1]] },
+        { id: "HIUPD", version: 6, elements: [["1234567", "", "280", SIM_BLZ], SIM_GIRO_IBAN, SIM_USER, 1, "EUR", "Erika Mustermann", "", "Girokonto", "", ["HKSAL", 1], ["HKKAZ", 1], ["HKCAZ", 1], ["HKSPA", 1], ["HKCCS", 1], ["HKIPZ", 1], ["HKCDB", 1], ["HKCSB", 1], ...(writes ? ORDER_WRITE_IDS.map((id) => [id, 1]) : [])] },
         { id: "HIUPD", version: 6, elements: [[SIM_CARD, "", "280", SIM_BLZ], "", SIM_USER, 50, "EUR", "Erika Mustermann", "", "Visa Card", "", ["HKKKU", 1], ["HKSAL", 1]] },
         { id: "HIUPD", version: 6, elements: ["", "", SIM_USER, "", "", "", "", "Online-Banking"] },
     ];
+
+    /** Carries out an order write on the bank's orders (after any approval). */
+    const writeOrder = (seg: Segment): BankSegment[] => {
+        const e = seg.elements;
+        const painOf = (i: number) => Buffer.from(bytes(e[i]) ?? new Uint8Array()).toString("utf8");
+        const done = (textOk: string, answer?: BankSegment) => [{ id: "HIRMS", version: 2, ref: seg.number, elements: [["0020", "", textOk]] }, ...(answer ? [answer] : [])];
+        const unknown = (): BankSegment[] => [{ id: "HIRMS", version: 2, ref: seg.number, elements: [["9210", "", "Auftrag existiert nicht, Auftragsidentifikation unbekannt."]] }];
+        if (pay?.reject) return [{ id: "HIRMS", version: 2, ref: seg.number, elements: [[pay.reject[0], "", pay.reject[1]]] }];
+        stats.executed++;
+        switch (seg.id) {
+            case "HKCSE": {
+                const id = `TU-${nextOrder++}`;
+                orders.scheduled.push({ id, pain: painOf(2) });
+                return done("Auftrag zur Ausführung vorgemerkt.", { id: "HICSE", version: 1, ref: seg.number, elements: [id] });
+            }
+            case "HKCSA": {
+                const t = orders.scheduled.find((x) => x.id === text(e[3]));
+                if (!t) return unknown();
+                t.pain = painOf(2);
+                return done("Auftrag geändert.", { id: "HICSA", version: 1, ref: seg.number, elements: [t.id, ""] });
+            }
+            case "HKCSL": {
+                const i = orders.scheduled.findIndex((x) => x.id === text(e[3]));
+                if (i < 0) return unknown();
+                orders.scheduled.splice(i, 1);
+                return done("Auftrag gelöscht.");
+            }
+            case "HKCDE": {
+                const id = `DA-${nextOrder++}`;
+                orders.standing.push({ id, pain: painOf(2), details: (e[3] ?? []).map((c) => text([c])), flags: ["", "J", "N", "J"] });
+                return done("Auftrag zur Ausführung vorgemerkt.", { id: "HICDE", version: 1, ref: seg.number, elements: [id] });
+            }
+            case "HKCDN": {
+                const d = orders.standing.find((x) => x.id === text(e[4]));
+                if (!d) return unknown();
+                d.pain = painOf(2);
+                d.details = (e[5] ?? []).map((c) => text([c]));
+                return done("SEPA-Dauerauftrag geändert.", { id: "HICDN", version: 1, ref: seg.number, elements: [d.id, ""] });
+            }
+            default: {
+                const i = orders.standing.findIndex((x) => x.id === text(e[4]));
+                if (i < 0) return unknown();
+                orders.standing.splice(i, 1);
+                return done("SEPA-Dauerauftrag gelöscht.");
+            }
+        }
+    };
 
     /** Answers to the jobs in `m` (a customer message), possibly after an approval. */
     const jobs = (m: BankMessage, ctx: SimContext): BankSegment[] => {
@@ -212,18 +309,18 @@ export async function startPersonalBank(o: PersonalBankOptions = {}): Promise<Pe
         const giro = [SIM_GIRO_IBAN, "SIMUDEM1XXX", "1234567", "", "280", SIM_BLZ];
         const cdb = m.find("HKCDB");
         if (cdb) {
-            const order = (pain: string, id: string, details: (string | number)[], flags: string[] = []) => ({ id: "HICDB", version: 1, ref: cdb.number, elements: [giro, PAIN_V9, Buffer.from(pain), id, details, "", ...flags] });
-            if (!text(cdb.elements[4])) {
-                out.push({ id: "HIRMS", version: 2, ref: cdb.number, elements: [["3040", "", "Es liegen weitere Informationen vor.", "ORDERS2"]] });
-                // Monthly on the 1st, changeable and deletable; quarterly at the end of the month until a last date
-                out.push(order(PAIN_RENT, "DA-1", ["20240101", "M", 1, 1], ["J", "N", "J"]), order(PAIN_SAVINGS, "DA-2", ["20250230", "M", 3, 31, "20271231"], ["N", "N", "N"]));
-            } else {
-                // Every two weeks on Fridays; the bank says nothing about changing it
-                out.push(ok(cdb.number), order(PAIN_CLUB, "DA-3", ["20261106", "W", 2, 5]));
-            }
+            const hicdb = (d: SimStandingOrder) => ({ id: "HICDB", version: 1, ref: cdb.number, elements: [giro, PAIN_V9, Buffer.from(d.pain), d.id, d.details, ...d.flags] });
+            // Two orders per page
+            const page = text(cdb.elements[4]) === "ORDERS2" ? 1 : 0;
+            const shown = orders.standing.slice(page * 2, page * 2 + 2);
+            if (page === 0 && orders.standing.length > 2) out.push({ id: "HIRMS", version: 2, ref: cdb.number, elements: [["3040", "", "Es liegen weitere Informationen vor.", "ORDERS2"]] });
+            else out.push(ok(cdb.number));
+            out.push(...shown.map(hicdb));
         }
         const csb = m.find("HKCSB");
-        if (csb) out.push(ok(csb.number), { id: "HICSB", version: 2, ref: csb.number, elements: [giro, PAIN_V9, Buffer.from(PAIN_SCHEDULED), "TU-1", "", "N", "1"] });
+        if (csb) out.push(ok(csb.number), ...orders.scheduled.map((t) => ({ id: "HICSB", version: 2, ref: csb.number, elements: [giro, PAIN_V9, Buffer.from(t.pain), t.id, "", "N", "1"] })));
+        const write = writes ? findAny(m, ORDER_WRITE_IDS) : undefined;
+        if (write && pay) out.push(...writeOrder(write));
         const payment = m.find("HKCCS") ?? m.find("HKIPZ");
         if (payment && pay) {
             if (pay.reject) out.push({ id: "HIRMS", version: 2, ref: payment.number, elements: [[pay.reject[0], "", pay.reject[1]]] });
@@ -299,7 +396,7 @@ export async function startPersonalBank(o: PersonalBankOptions = {}): Promise<Pe
         // Payments with verification of payee (Messages – VoP, E.8.1.1)
         const vpp = m.find("HKVPP");
         const vpa = m.find("HKVPA");
-        const payment = m.find("HKCCS") ?? m.find("HKIPZ");
+        const payment = findAny(m, PAYMENT_IDS);
         if (pay && vpp) {
             const single = (code: string, name = "") => [SIM_PAYEE_IBAN, "", name, "", code, code === "RVNA" ? "Keine Antwort der Empfängerbank" : ""];
             const hivpp = (o2: { id?: boolean; polling?: boolean; single?: (string | number)[]; report?: string }) => ({
@@ -355,13 +452,15 @@ export async function startPersonalBank(o: PersonalBankOptions = {}): Promise<Pe
             }
             if (process === "2" && sig[1] !== SIM_TAN) return [{ id: "HIRMG", version: 2, elements: [["9941", "", "TAN ungültig."]] }];
             const p = pending;
-            const paid = p.message.find("HKCCS") ?? p.message.find("HKIPZ");
+            const paid = findAny(p.message, [...PAYMENT_IDS, ...ORDER_WRITE_IDS]);
             if (pay && paid && vopMode === "match_vpa" && p.message.find("HKVPP") && text(m.find("HKVPA")?.elements[0]) !== SIM_VOP_ID) {
                 return [{ id: "HIRMG", version: 2, elements: [["9010", "", "VOP-Ausführungsauftrag fehlt."]] }];
             }
             pending = null;
             if (pay && paid && pay.dropOnExecute && !pay.reject) {
-                stats.executed++;
+                // Executed, but the answer is lost
+                if (ORDER_WRITE_IDS.includes(paid.id)) writeOrder(paid);
+                else stats.executed++;
                 return "close";
             }
             out.push(ok(t, "0020", "Sicherheitsfreigabe gültig."), { id: "HITAN", version: 7, ref: t, elements: [process, "", "noref"] });
@@ -372,5 +471,5 @@ export async function startPersonalBank(o: PersonalBankOptions = {}): Promise<Pe
 
     const sim = await startBankSim(handle);
     // A getter, so tests read the current count (Object.assign would copy the value once)
-    return Object.defineProperty(Object.assign(sim, { signatures }), "executed", { get: () => stats.executed }) as PersonalBank;
+    return Object.defineProperty(Object.assign(sim, { signatures, orders }), "executed", { get: () => stats.executed }) as PersonalBank;
 }

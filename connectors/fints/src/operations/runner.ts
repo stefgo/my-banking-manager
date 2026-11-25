@@ -11,7 +11,8 @@ import type { ConnectorVop } from "@mbm/shared";
 import type { BankMessage } from "../message/read.js";
 import type { Challenge, Dialog, DialogOptions, ScaResult } from "../dialog/dialog.js";
 import { openDialog } from "../dialog/session.js";
-import { FintsBankError, FintsOutcomeUnknownError, FintsSetupError } from "../dialog/errors.js";
+import { FintsBankError, FintsOrderChangedError, FintsOutcomeUnknownError, FintsSetupError } from "../dialog/errors.js";
+import { FintsNotSupportedError } from "../jobs/jobs.js";
 import type { SegmentInput } from "../syntax/types.js";
 import type { Operation, OperationStore } from "./store.js";
 import { serializeState } from "../state.js";
@@ -177,8 +178,10 @@ export class JobRunner {
             if (e instanceof FintsSetupError && e.reason === "nothing_to_confirm") throw e;
             this.runs.delete(op.id);
             await this.store.remove(op.id, e);
-            // A payment is with the bank: whatever is not the bank's own answer leaves the outcome open
-            throw op.payment && !(e instanceof FintsBankError || e instanceof FintsOutcomeUnknownError) ? new FintsOutcomeUnknownError() : e;
+            // A payment is with the bank: whatever is not the bank's own answer leaves the outcome open.
+            // Checks before anything was sent (an order listed first, then compared) stay what they are.
+            const known = e instanceof FintsBankError || e instanceof FintsOutcomeUnknownError || e instanceof FintsOrderChangedError || e instanceof FintsNotSupportedError;
+            throw op.payment && !known ? new FintsOutcomeUnknownError() : e;
         } finally {
             op.busy--;
         }

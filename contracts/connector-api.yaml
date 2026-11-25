@@ -23,6 +23,7 @@ components:
             - operation_unknown
             - product_id_missing
             - outcome_unknown
+            - order_changed
             - internal
         message:
           type: string
@@ -75,6 +76,7 @@ paths:
                         - standing-orders
                         - scheduled-transfers
                         - transfers
+                        - order-writes
                 required:
                   - name
                   - version
@@ -607,6 +609,193 @@ paths:
                                     payeeVerification:
                                       default: false
                                       type: boolean
+                                    createScheduledTransfer:
+                                      default: false
+                                      type: boolean
+                                    changeScheduledTransfer:
+                                      default: false
+                                      type: boolean
+                                    deleteScheduledTransfer:
+                                      default: false
+                                      type: boolean
+                                    createStandingOrder:
+                                      default: false
+                                      type: boolean
+                                    changeStandingOrder:
+                                      default: false
+                                      type: boolean
+                                    deleteStandingOrder:
+                                      default: false
+                                      type: boolean
+                                    orderRules:
+                                      default: null
+                                      anyOf:
+                                        - type: object
+                                          properties:
+                                            scheduled:
+                                              anyOf:
+                                                - type: object
+                                                  properties:
+                                                    minDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                    maxDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                  required:
+                                                    - minDays
+                                                    - maxDays
+                                                  additionalProperties: false
+                                                - type: "null"
+                                            scheduledChange:
+                                              anyOf:
+                                                - type: object
+                                                  properties:
+                                                    minDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                    maxDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                  required:
+                                                    - minDays
+                                                    - maxDays
+                                                  additionalProperties: false
+                                                - type: "null"
+                                            standing:
+                                              anyOf:
+                                                - type: object
+                                                  properties:
+                                                    minDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                    maxDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                    months:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                    monthDays:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                    weeks:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                    weekDays:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                  required:
+                                                    - minDays
+                                                    - maxDays
+                                                    - months
+                                                    - monthDays
+                                                    - weeks
+                                                    - weekDays
+                                                  additionalProperties: false
+                                                - type: "null"
+                                            standingChange:
+                                              anyOf:
+                                                - type: object
+                                                  properties:
+                                                    minDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                    maxDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                    months:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                    monthDays:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                    weeks:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                    weekDays:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                    changeable:
+                                                      type: object
+                                                      properties:
+                                                        payeeAccount:
+                                                          type: boolean
+                                                        payeeName:
+                                                          type: boolean
+                                                        amount:
+                                                          type: boolean
+                                                        remittance:
+                                                          type: boolean
+                                                        firstDate:
+                                                          type: boolean
+                                                        unit:
+                                                          type: boolean
+                                                        every:
+                                                          type: boolean
+                                                        executionDay:
+                                                          type: boolean
+                                                        lastDate:
+                                                          type: boolean
+                                                      required:
+                                                        - payeeAccount
+                                                        - payeeName
+                                                        - amount
+                                                        - remittance
+                                                        - firstDate
+                                                        - unit
+                                                        - every
+                                                        - executionDay
+                                                        - lastDate
+                                                      additionalProperties: false
+                                                  required:
+                                                    - minDays
+                                                    - maxDays
+                                                    - months
+                                                    - monthDays
+                                                    - weeks
+                                                    - weekDays
+                                                    - changeable
+                                                  additionalProperties: false
+                                                - type: "null"
+                                          required:
+                                            - scheduled
+                                            - scheduledChange
+                                            - standing
+                                            - standingChange
+                                          additionalProperties: false
+                                        - type: "null"
                                   required:
                                     - balance
                                     - transactions
@@ -618,6 +807,13 @@ paths:
                                     - standingOrdersTan
                                     - scheduledTransfersTan
                                     - payeeVerification
+                                    - createScheduledTransfer
+                                    - changeScheduledTransfer
+                                    - deleteScheduledTransfer
+                                    - createStandingOrder
+                                    - changeStandingOrder
+                                    - deleteStandingOrder
+                                    - orderRules
                                   additionalProperties: false
                               required:
                                 - accountNumber
@@ -2323,6 +2519,1822 @@ paths:
                       - status
                       - operationId
                       - vop
+                    additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectorError"
+  /v1/scheduled-transfers/create:
+    post:
+      operationId: createScheduledTransfer
+      summary: Submit a scheduled transfer (HKCSE) with verification of payee; never repeated on its own
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bank:
+                  type: object
+                  properties:
+                    blz:
+                      type: string
+                      pattern: ^\d{8}$
+                    url:
+                      type: string
+                      format: starts_with
+                      pattern: ^https:\/\/.*
+                  required:
+                    - blz
+                    - url
+                login:
+                  type: object
+                  properties:
+                    userId:
+                      type: string
+                      minLength: 1
+                      maxLength: 30
+                    customerId:
+                      type: string
+                      maxLength: 30
+                    pin:
+                      type: string
+                      minLength: 1
+                      maxLength: 64
+                    state:
+                      type: string
+                      maxLength: 2000000
+                    tanMethod:
+                      type: string
+                      pattern: ^9\d\d$
+                    tanMedium:
+                      type: string
+                      maxLength: 32
+                  required:
+                    - userId
+                    - pin
+                account:
+                  type: object
+                  properties:
+                    accountNumber:
+                      type: string
+                      minLength: 1
+                      maxLength: 35
+                    subAccount:
+                      default: ""
+                      type: string
+                      maxLength: 30
+                    iban:
+                      default: null
+                      anyOf:
+                        - type: string
+                          maxLength: 34
+                        - type: "null"
+                    bic:
+                      default: null
+                      anyOf:
+                        - type: string
+                          maxLength: 11
+                        - type: "null"
+                  required:
+                    - accountNumber
+                order:
+                  type: object
+                  properties:
+                    payeeName:
+                      type: string
+                      minLength: 1
+                      maxLength: 70
+                    payeeIban:
+                      type: string
+                      pattern: ^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$
+                    payeeBic:
+                      anyOf:
+                        - type: string
+                          pattern: ^[A-Z0-9]{8}([A-Z0-9]{3})?$
+                        - type: "null"
+                    amount:
+                      type: integer
+                      minimum: -9007199254740991
+                      maximum: 9007199254740991
+                    remittance:
+                      type: string
+                      maxLength: 140
+                    endToEndId:
+                      type: string
+                      pattern: ^[A-Za-z0-9/?:().,'+\- ]{1,35}$
+                    executionDate:
+                      type: string
+                  required:
+                    - payeeName
+                    - payeeIban
+                    - payeeBic
+                    - amount
+                    - remittance
+                    - endToEndId
+                    - executionDate
+              required:
+                - bank
+                - login
+                - account
+                - order
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        const: done
+                      data:
+                        type: object
+                        properties:
+                          bankMessage:
+                            type: string
+                          reference:
+                            type:
+                              - string
+                              - "null"
+                          bankOrderId:
+                            type:
+                              - string
+                              - "null"
+                          vop:
+                            type: object
+                            properties:
+                              result:
+                                type: string
+                                enum:
+                                  - match
+                                  - close_match
+                                  - no_match
+                                  - not_applicable
+                                  - pending
+                                  - none
+                              payeeName:
+                                type:
+                                  - string
+                                  - "null"
+                              reason:
+                                type:
+                                  - string
+                                  - "null"
+                              explanation:
+                                type: string
+                              structured:
+                                type: boolean
+                            required:
+                              - result
+                              - payeeName
+                              - reason
+                              - explanation
+                              - structured
+                            additionalProperties: false
+                        required:
+                          - bankMessage
+                          - reference
+                          - bankOrderId
+                          - vop
+                        additionalProperties: false
+                      state:
+                        type: string
+                    required:
+                      - status
+                      - data
+                      - state
+                    additionalProperties: false
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        const: approval
+                      operationId:
+                        type: string
+                      challenge:
+                        type: object
+                        properties:
+                          decoupled:
+                            type: boolean
+                          text:
+                            type: string
+                          medium:
+                            type: string
+                          validUntil:
+                            type: string
+                          methodName:
+                            type: string
+                        required:
+                          - decoupled
+                          - text
+                          - medium
+                          - validUntil
+                          - methodName
+                        additionalProperties: false
+                      vop:
+                        type: object
+                        properties:
+                          result:
+                            type: string
+                            enum:
+                              - match
+                              - close_match
+                              - no_match
+                              - not_applicable
+                              - pending
+                              - none
+                          payeeName:
+                            type:
+                              - string
+                              - "null"
+                          reason:
+                            type:
+                              - string
+                              - "null"
+                          explanation:
+                            type: string
+                          structured:
+                            type: boolean
+                        required:
+                          - result
+                          - payeeName
+                          - reason
+                          - explanation
+                          - structured
+                        additionalProperties: false
+                    required:
+                      - status
+                      - operationId
+                      - challenge
+                    additionalProperties: false
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        const: confirm
+                      operationId:
+                        type: string
+                      vop:
+                        type: object
+                        properties:
+                          result:
+                            type: string
+                            enum:
+                              - match
+                              - close_match
+                              - no_match
+                              - not_applicable
+                              - pending
+                              - none
+                          payeeName:
+                            type:
+                              - string
+                              - "null"
+                          reason:
+                            type:
+                              - string
+                              - "null"
+                          explanation:
+                            type: string
+                          structured:
+                            type: boolean
+                        required:
+                          - result
+                          - payeeName
+                          - reason
+                          - explanation
+                          - structured
+                        additionalProperties: false
+                    required:
+                      - status
+                      - operationId
+                      - vop
+                    additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectorError"
+  /v1/scheduled-transfers/change:
+    post:
+      operationId: changeScheduledTransfer
+      summary: Change a scheduled transfer (HKCSA) after checking it against the bank's current list
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bank:
+                  type: object
+                  properties:
+                    blz:
+                      type: string
+                      pattern: ^\d{8}$
+                    url:
+                      type: string
+                      format: starts_with
+                      pattern: ^https:\/\/.*
+                  required:
+                    - blz
+                    - url
+                login:
+                  type: object
+                  properties:
+                    userId:
+                      type: string
+                      minLength: 1
+                      maxLength: 30
+                    customerId:
+                      type: string
+                      maxLength: 30
+                    pin:
+                      type: string
+                      minLength: 1
+                      maxLength: 64
+                    state:
+                      type: string
+                      maxLength: 2000000
+                    tanMethod:
+                      type: string
+                      pattern: ^9\d\d$
+                    tanMedium:
+                      type: string
+                      maxLength: 32
+                  required:
+                    - userId
+                    - pin
+                account:
+                  type: object
+                  properties:
+                    accountNumber:
+                      type: string
+                      minLength: 1
+                      maxLength: 35
+                    subAccount:
+                      default: ""
+                      type: string
+                      maxLength: 30
+                    iban:
+                      default: null
+                      anyOf:
+                        - type: string
+                          maxLength: 34
+                        - type: "null"
+                    bic:
+                      default: null
+                      anyOf:
+                        - type: string
+                          maxLength: 11
+                        - type: "null"
+                  required:
+                    - accountNumber
+                expected:
+                  type: object
+                  properties:
+                    bankOrderId:
+                      type: string
+                      minLength: 1
+                    payeeName:
+                      type: string
+                    payeeIban:
+                      type: string
+                    amount:
+                      type: integer
+                      minimum: -9007199254740991
+                      maximum: 9007199254740991
+                    remittance:
+                      type: string
+                    executionDate:
+                      type: string
+                  required:
+                    - bankOrderId
+                    - payeeName
+                    - payeeIban
+                    - amount
+                    - remittance
+                    - executionDate
+                order:
+                  type: object
+                  properties:
+                    payeeName:
+                      type: string
+                      minLength: 1
+                      maxLength: 70
+                    payeeIban:
+                      type: string
+                      pattern: ^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$
+                    payeeBic:
+                      anyOf:
+                        - type: string
+                          pattern: ^[A-Z0-9]{8}([A-Z0-9]{3})?$
+                        - type: "null"
+                    amount:
+                      type: integer
+                      minimum: -9007199254740991
+                      maximum: 9007199254740991
+                    remittance:
+                      type: string
+                      maxLength: 140
+                    endToEndId:
+                      type: string
+                      pattern: ^[A-Za-z0-9/?:().,'+\- ]{1,35}$
+                    executionDate:
+                      type: string
+                  required:
+                    - payeeName
+                    - payeeIban
+                    - payeeBic
+                    - amount
+                    - remittance
+                    - endToEndId
+                    - executionDate
+              required:
+                - bank
+                - login
+                - account
+                - expected
+                - order
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        const: done
+                      data:
+                        type: object
+                        properties:
+                          bankMessage:
+                            type: string
+                          reference:
+                            type:
+                              - string
+                              - "null"
+                          bankOrderId:
+                            type:
+                              - string
+                              - "null"
+                          vop:
+                            type: object
+                            properties:
+                              result:
+                                type: string
+                                enum:
+                                  - match
+                                  - close_match
+                                  - no_match
+                                  - not_applicable
+                                  - pending
+                                  - none
+                              payeeName:
+                                type:
+                                  - string
+                                  - "null"
+                              reason:
+                                type:
+                                  - string
+                                  - "null"
+                              explanation:
+                                type: string
+                              structured:
+                                type: boolean
+                            required:
+                              - result
+                              - payeeName
+                              - reason
+                              - explanation
+                              - structured
+                            additionalProperties: false
+                        required:
+                          - bankMessage
+                          - reference
+                          - bankOrderId
+                          - vop
+                        additionalProperties: false
+                      state:
+                        type: string
+                    required:
+                      - status
+                      - data
+                      - state
+                    additionalProperties: false
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        const: approval
+                      operationId:
+                        type: string
+                      challenge:
+                        type: object
+                        properties:
+                          decoupled:
+                            type: boolean
+                          text:
+                            type: string
+                          medium:
+                            type: string
+                          validUntil:
+                            type: string
+                          methodName:
+                            type: string
+                        required:
+                          - decoupled
+                          - text
+                          - medium
+                          - validUntil
+                          - methodName
+                        additionalProperties: false
+                      vop:
+                        type: object
+                        properties:
+                          result:
+                            type: string
+                            enum:
+                              - match
+                              - close_match
+                              - no_match
+                              - not_applicable
+                              - pending
+                              - none
+                          payeeName:
+                            type:
+                              - string
+                              - "null"
+                          reason:
+                            type:
+                              - string
+                              - "null"
+                          explanation:
+                            type: string
+                          structured:
+                            type: boolean
+                        required:
+                          - result
+                          - payeeName
+                          - reason
+                          - explanation
+                          - structured
+                        additionalProperties: false
+                    required:
+                      - status
+                      - operationId
+                      - challenge
+                    additionalProperties: false
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        const: confirm
+                      operationId:
+                        type: string
+                      vop:
+                        type: object
+                        properties:
+                          result:
+                            type: string
+                            enum:
+                              - match
+                              - close_match
+                              - no_match
+                              - not_applicable
+                              - pending
+                              - none
+                          payeeName:
+                            type:
+                              - string
+                              - "null"
+                          reason:
+                            type:
+                              - string
+                              - "null"
+                          explanation:
+                            type: string
+                          structured:
+                            type: boolean
+                        required:
+                          - result
+                          - payeeName
+                          - reason
+                          - explanation
+                          - structured
+                        additionalProperties: false
+                    required:
+                      - status
+                      - operationId
+                      - vop
+                    additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectorError"
+  /v1/scheduled-transfers/delete:
+    post:
+      operationId: deleteScheduledTransfer
+      summary: Delete a scheduled transfer (HKCSL) after checking it against the bank's current list
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bank:
+                  type: object
+                  properties:
+                    blz:
+                      type: string
+                      pattern: ^\d{8}$
+                    url:
+                      type: string
+                      format: starts_with
+                      pattern: ^https:\/\/.*
+                  required:
+                    - blz
+                    - url
+                login:
+                  type: object
+                  properties:
+                    userId:
+                      type: string
+                      minLength: 1
+                      maxLength: 30
+                    customerId:
+                      type: string
+                      maxLength: 30
+                    pin:
+                      type: string
+                      minLength: 1
+                      maxLength: 64
+                    state:
+                      type: string
+                      maxLength: 2000000
+                    tanMethod:
+                      type: string
+                      pattern: ^9\d\d$
+                    tanMedium:
+                      type: string
+                      maxLength: 32
+                  required:
+                    - userId
+                    - pin
+                account:
+                  type: object
+                  properties:
+                    accountNumber:
+                      type: string
+                      minLength: 1
+                      maxLength: 35
+                    subAccount:
+                      default: ""
+                      type: string
+                      maxLength: 30
+                    iban:
+                      default: null
+                      anyOf:
+                        - type: string
+                          maxLength: 34
+                        - type: "null"
+                    bic:
+                      default: null
+                      anyOf:
+                        - type: string
+                          maxLength: 11
+                        - type: "null"
+                  required:
+                    - accountNumber
+                expected:
+                  type: object
+                  properties:
+                    bankOrderId:
+                      type: string
+                      minLength: 1
+                    payeeName:
+                      type: string
+                    payeeIban:
+                      type: string
+                    amount:
+                      type: integer
+                      minimum: -9007199254740991
+                      maximum: 9007199254740991
+                    remittance:
+                      type: string
+                    executionDate:
+                      type: string
+                  required:
+                    - bankOrderId
+                    - payeeName
+                    - payeeIban
+                    - amount
+                    - remittance
+                    - executionDate
+              required:
+                - bank
+                - login
+                - account
+                - expected
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        const: done
+                      data:
+                        type: object
+                        properties:
+                          bankMessage:
+                            type: string
+                          reference:
+                            type:
+                              - string
+                              - "null"
+                          bankOrderId:
+                            type:
+                              - string
+                              - "null"
+                          vop:
+                            type: object
+                            properties:
+                              result:
+                                type: string
+                                enum:
+                                  - match
+                                  - close_match
+                                  - no_match
+                                  - not_applicable
+                                  - pending
+                                  - none
+                              payeeName:
+                                type:
+                                  - string
+                                  - "null"
+                              reason:
+                                type:
+                                  - string
+                                  - "null"
+                              explanation:
+                                type: string
+                              structured:
+                                type: boolean
+                            required:
+                              - result
+                              - payeeName
+                              - reason
+                              - explanation
+                              - structured
+                            additionalProperties: false
+                        required:
+                          - bankMessage
+                          - reference
+                          - bankOrderId
+                          - vop
+                        additionalProperties: false
+                      state:
+                        type: string
+                    required:
+                      - status
+                      - data
+                      - state
+                    additionalProperties: false
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        const: approval
+                      operationId:
+                        type: string
+                      challenge:
+                        type: object
+                        properties:
+                          decoupled:
+                            type: boolean
+                          text:
+                            type: string
+                          medium:
+                            type: string
+                          validUntil:
+                            type: string
+                          methodName:
+                            type: string
+                        required:
+                          - decoupled
+                          - text
+                          - medium
+                          - validUntil
+                          - methodName
+                        additionalProperties: false
+                      vop:
+                        type: object
+                        properties:
+                          result:
+                            type: string
+                            enum:
+                              - match
+                              - close_match
+                              - no_match
+                              - not_applicable
+                              - pending
+                              - none
+                          payeeName:
+                            type:
+                              - string
+                              - "null"
+                          reason:
+                            type:
+                              - string
+                              - "null"
+                          explanation:
+                            type: string
+                          structured:
+                            type: boolean
+                        required:
+                          - result
+                          - payeeName
+                          - reason
+                          - explanation
+                          - structured
+                        additionalProperties: false
+                    required:
+                      - status
+                      - operationId
+                      - challenge
+                    additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectorError"
+  /v1/standing-orders/create:
+    post:
+      operationId: createStandingOrder
+      summary: Set up a standing order (HKCDE) with verification of payee; never repeated on its own
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bank:
+                  type: object
+                  properties:
+                    blz:
+                      type: string
+                      pattern: ^\d{8}$
+                    url:
+                      type: string
+                      format: starts_with
+                      pattern: ^https:\/\/.*
+                  required:
+                    - blz
+                    - url
+                login:
+                  type: object
+                  properties:
+                    userId:
+                      type: string
+                      minLength: 1
+                      maxLength: 30
+                    customerId:
+                      type: string
+                      maxLength: 30
+                    pin:
+                      type: string
+                      minLength: 1
+                      maxLength: 64
+                    state:
+                      type: string
+                      maxLength: 2000000
+                    tanMethod:
+                      type: string
+                      pattern: ^9\d\d$
+                    tanMedium:
+                      type: string
+                      maxLength: 32
+                  required:
+                    - userId
+                    - pin
+                account:
+                  type: object
+                  properties:
+                    accountNumber:
+                      type: string
+                      minLength: 1
+                      maxLength: 35
+                    subAccount:
+                      default: ""
+                      type: string
+                      maxLength: 30
+                    iban:
+                      default: null
+                      anyOf:
+                        - type: string
+                          maxLength: 34
+                        - type: "null"
+                    bic:
+                      default: null
+                      anyOf:
+                        - type: string
+                          maxLength: 11
+                        - type: "null"
+                  required:
+                    - accountNumber
+                order:
+                  type: object
+                  properties:
+                    payeeName:
+                      type: string
+                      minLength: 1
+                      maxLength: 70
+                    payeeIban:
+                      type: string
+                      pattern: ^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$
+                    payeeBic:
+                      anyOf:
+                        - type: string
+                          pattern: ^[A-Z0-9]{8}([A-Z0-9]{3})?$
+                        - type: "null"
+                    amount:
+                      type: integer
+                      minimum: -9007199254740991
+                      maximum: 9007199254740991
+                    remittance:
+                      type: string
+                      maxLength: 140
+                    endToEndId:
+                      type: string
+                      pattern: ^[A-Za-z0-9/?:().,'+\- ]{1,35}$
+                    recurrence:
+                      type: object
+                      properties:
+                        firstDate:
+                          type: string
+                        unit:
+                          type: string
+                          enum:
+                            - month
+                            - week
+                        every:
+                          type: integer
+                          minimum: 1
+                          maximum: 99
+                        executionDay:
+                          type: integer
+                          minimum: 1
+                          maximum: 99
+                        lastDate:
+                          type:
+                            - string
+                            - "null"
+                      required:
+                        - firstDate
+                        - unit
+                        - every
+                        - executionDay
+                        - lastDate
+                  required:
+                    - payeeName
+                    - payeeIban
+                    - payeeBic
+                    - amount
+                    - remittance
+                    - endToEndId
+                    - recurrence
+              required:
+                - bank
+                - login
+                - account
+                - order
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        const: done
+                      data:
+                        type: object
+                        properties:
+                          bankMessage:
+                            type: string
+                          reference:
+                            type:
+                              - string
+                              - "null"
+                          bankOrderId:
+                            type:
+                              - string
+                              - "null"
+                          vop:
+                            type: object
+                            properties:
+                              result:
+                                type: string
+                                enum:
+                                  - match
+                                  - close_match
+                                  - no_match
+                                  - not_applicable
+                                  - pending
+                                  - none
+                              payeeName:
+                                type:
+                                  - string
+                                  - "null"
+                              reason:
+                                type:
+                                  - string
+                                  - "null"
+                              explanation:
+                                type: string
+                              structured:
+                                type: boolean
+                            required:
+                              - result
+                              - payeeName
+                              - reason
+                              - explanation
+                              - structured
+                            additionalProperties: false
+                        required:
+                          - bankMessage
+                          - reference
+                          - bankOrderId
+                          - vop
+                        additionalProperties: false
+                      state:
+                        type: string
+                    required:
+                      - status
+                      - data
+                      - state
+                    additionalProperties: false
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        const: approval
+                      operationId:
+                        type: string
+                      challenge:
+                        type: object
+                        properties:
+                          decoupled:
+                            type: boolean
+                          text:
+                            type: string
+                          medium:
+                            type: string
+                          validUntil:
+                            type: string
+                          methodName:
+                            type: string
+                        required:
+                          - decoupled
+                          - text
+                          - medium
+                          - validUntil
+                          - methodName
+                        additionalProperties: false
+                      vop:
+                        type: object
+                        properties:
+                          result:
+                            type: string
+                            enum:
+                              - match
+                              - close_match
+                              - no_match
+                              - not_applicable
+                              - pending
+                              - none
+                          payeeName:
+                            type:
+                              - string
+                              - "null"
+                          reason:
+                            type:
+                              - string
+                              - "null"
+                          explanation:
+                            type: string
+                          structured:
+                            type: boolean
+                        required:
+                          - result
+                          - payeeName
+                          - reason
+                          - explanation
+                          - structured
+                        additionalProperties: false
+                    required:
+                      - status
+                      - operationId
+                      - challenge
+                    additionalProperties: false
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        const: confirm
+                      operationId:
+                        type: string
+                      vop:
+                        type: object
+                        properties:
+                          result:
+                            type: string
+                            enum:
+                              - match
+                              - close_match
+                              - no_match
+                              - not_applicable
+                              - pending
+                              - none
+                          payeeName:
+                            type:
+                              - string
+                              - "null"
+                          reason:
+                            type:
+                              - string
+                              - "null"
+                          explanation:
+                            type: string
+                          structured:
+                            type: boolean
+                        required:
+                          - result
+                          - payeeName
+                          - reason
+                          - explanation
+                          - structured
+                        additionalProperties: false
+                    required:
+                      - status
+                      - operationId
+                      - vop
+                    additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectorError"
+  /v1/standing-orders/change:
+    post:
+      operationId: changeStandingOrder
+      summary: Change a standing order (HKCDN) after checking it against the bank's current list
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bank:
+                  type: object
+                  properties:
+                    blz:
+                      type: string
+                      pattern: ^\d{8}$
+                    url:
+                      type: string
+                      format: starts_with
+                      pattern: ^https:\/\/.*
+                  required:
+                    - blz
+                    - url
+                login:
+                  type: object
+                  properties:
+                    userId:
+                      type: string
+                      minLength: 1
+                      maxLength: 30
+                    customerId:
+                      type: string
+                      maxLength: 30
+                    pin:
+                      type: string
+                      minLength: 1
+                      maxLength: 64
+                    state:
+                      type: string
+                      maxLength: 2000000
+                    tanMethod:
+                      type: string
+                      pattern: ^9\d\d$
+                    tanMedium:
+                      type: string
+                      maxLength: 32
+                  required:
+                    - userId
+                    - pin
+                account:
+                  type: object
+                  properties:
+                    accountNumber:
+                      type: string
+                      minLength: 1
+                      maxLength: 35
+                    subAccount:
+                      default: ""
+                      type: string
+                      maxLength: 30
+                    iban:
+                      default: null
+                      anyOf:
+                        - type: string
+                          maxLength: 34
+                        - type: "null"
+                    bic:
+                      default: null
+                      anyOf:
+                        - type: string
+                          maxLength: 11
+                        - type: "null"
+                  required:
+                    - accountNumber
+                expected:
+                  type: object
+                  properties:
+                    bankOrderId:
+                      type: string
+                      minLength: 1
+                    payeeName:
+                      type: string
+                    payeeIban:
+                      type: string
+                    amount:
+                      type: integer
+                      minimum: -9007199254740991
+                      maximum: 9007199254740991
+                    remittance:
+                      type: string
+                    firstDate:
+                      type: string
+                    unit:
+                      type: string
+                      enum:
+                        - month
+                        - week
+                    every:
+                      type: integer
+                      minimum: 1
+                      maximum: 52
+                    executionDay:
+                      type: integer
+                      minimum: 1
+                      maximum: 99
+                    lastDate:
+                      type:
+                        - string
+                        - "null"
+                  required:
+                    - bankOrderId
+                    - payeeName
+                    - payeeIban
+                    - amount
+                    - remittance
+                    - firstDate
+                    - unit
+                    - every
+                    - executionDay
+                    - lastDate
+                order:
+                  type: object
+                  properties:
+                    payeeName:
+                      type: string
+                      minLength: 1
+                      maxLength: 70
+                    payeeIban:
+                      type: string
+                      pattern: ^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$
+                    payeeBic:
+                      anyOf:
+                        - type: string
+                          pattern: ^[A-Z0-9]{8}([A-Z0-9]{3})?$
+                        - type: "null"
+                    amount:
+                      type: integer
+                      minimum: -9007199254740991
+                      maximum: 9007199254740991
+                    remittance:
+                      type: string
+                      maxLength: 140
+                    endToEndId:
+                      type: string
+                      pattern: ^[A-Za-z0-9/?:().,'+\- ]{1,35}$
+                    recurrence:
+                      type: object
+                      properties:
+                        firstDate:
+                          type: string
+                        unit:
+                          type: string
+                          enum:
+                            - month
+                            - week
+                        every:
+                          type: integer
+                          minimum: 1
+                          maximum: 99
+                        executionDay:
+                          type: integer
+                          minimum: 1
+                          maximum: 99
+                        lastDate:
+                          type:
+                            - string
+                            - "null"
+                      required:
+                        - firstDate
+                        - unit
+                        - every
+                        - executionDay
+                        - lastDate
+                  required:
+                    - payeeName
+                    - payeeIban
+                    - payeeBic
+                    - amount
+                    - remittance
+                    - endToEndId
+                    - recurrence
+              required:
+                - bank
+                - login
+                - account
+                - expected
+                - order
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        const: done
+                      data:
+                        type: object
+                        properties:
+                          bankMessage:
+                            type: string
+                          reference:
+                            type:
+                              - string
+                              - "null"
+                          bankOrderId:
+                            type:
+                              - string
+                              - "null"
+                          vop:
+                            type: object
+                            properties:
+                              result:
+                                type: string
+                                enum:
+                                  - match
+                                  - close_match
+                                  - no_match
+                                  - not_applicable
+                                  - pending
+                                  - none
+                              payeeName:
+                                type:
+                                  - string
+                                  - "null"
+                              reason:
+                                type:
+                                  - string
+                                  - "null"
+                              explanation:
+                                type: string
+                              structured:
+                                type: boolean
+                            required:
+                              - result
+                              - payeeName
+                              - reason
+                              - explanation
+                              - structured
+                            additionalProperties: false
+                        required:
+                          - bankMessage
+                          - reference
+                          - bankOrderId
+                          - vop
+                        additionalProperties: false
+                      state:
+                        type: string
+                    required:
+                      - status
+                      - data
+                      - state
+                    additionalProperties: false
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        const: approval
+                      operationId:
+                        type: string
+                      challenge:
+                        type: object
+                        properties:
+                          decoupled:
+                            type: boolean
+                          text:
+                            type: string
+                          medium:
+                            type: string
+                          validUntil:
+                            type: string
+                          methodName:
+                            type: string
+                        required:
+                          - decoupled
+                          - text
+                          - medium
+                          - validUntil
+                          - methodName
+                        additionalProperties: false
+                      vop:
+                        type: object
+                        properties:
+                          result:
+                            type: string
+                            enum:
+                              - match
+                              - close_match
+                              - no_match
+                              - not_applicable
+                              - pending
+                              - none
+                          payeeName:
+                            type:
+                              - string
+                              - "null"
+                          reason:
+                            type:
+                              - string
+                              - "null"
+                          explanation:
+                            type: string
+                          structured:
+                            type: boolean
+                        required:
+                          - result
+                          - payeeName
+                          - reason
+                          - explanation
+                          - structured
+                        additionalProperties: false
+                    required:
+                      - status
+                      - operationId
+                      - challenge
+                    additionalProperties: false
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        const: confirm
+                      operationId:
+                        type: string
+                      vop:
+                        type: object
+                        properties:
+                          result:
+                            type: string
+                            enum:
+                              - match
+                              - close_match
+                              - no_match
+                              - not_applicable
+                              - pending
+                              - none
+                          payeeName:
+                            type:
+                              - string
+                              - "null"
+                          reason:
+                            type:
+                              - string
+                              - "null"
+                          explanation:
+                            type: string
+                          structured:
+                            type: boolean
+                        required:
+                          - result
+                          - payeeName
+                          - reason
+                          - explanation
+                          - structured
+                        additionalProperties: false
+                    required:
+                      - status
+                      - operationId
+                      - vop
+                    additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectorError"
+  /v1/standing-orders/delete:
+    post:
+      operationId: deleteStandingOrder
+      summary: Delete a standing order (HKCDL) after checking it against the bank's current list
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bank:
+                  type: object
+                  properties:
+                    blz:
+                      type: string
+                      pattern: ^\d{8}$
+                    url:
+                      type: string
+                      format: starts_with
+                      pattern: ^https:\/\/.*
+                  required:
+                    - blz
+                    - url
+                login:
+                  type: object
+                  properties:
+                    userId:
+                      type: string
+                      minLength: 1
+                      maxLength: 30
+                    customerId:
+                      type: string
+                      maxLength: 30
+                    pin:
+                      type: string
+                      minLength: 1
+                      maxLength: 64
+                    state:
+                      type: string
+                      maxLength: 2000000
+                    tanMethod:
+                      type: string
+                      pattern: ^9\d\d$
+                    tanMedium:
+                      type: string
+                      maxLength: 32
+                  required:
+                    - userId
+                    - pin
+                account:
+                  type: object
+                  properties:
+                    accountNumber:
+                      type: string
+                      minLength: 1
+                      maxLength: 35
+                    subAccount:
+                      default: ""
+                      type: string
+                      maxLength: 30
+                    iban:
+                      default: null
+                      anyOf:
+                        - type: string
+                          maxLength: 34
+                        - type: "null"
+                    bic:
+                      default: null
+                      anyOf:
+                        - type: string
+                          maxLength: 11
+                        - type: "null"
+                  required:
+                    - accountNumber
+                expected:
+                  type: object
+                  properties:
+                    bankOrderId:
+                      type: string
+                      minLength: 1
+                    payeeName:
+                      type: string
+                    payeeIban:
+                      type: string
+                    amount:
+                      type: integer
+                      minimum: -9007199254740991
+                      maximum: 9007199254740991
+                    remittance:
+                      type: string
+                    firstDate:
+                      type: string
+                    unit:
+                      type: string
+                      enum:
+                        - month
+                        - week
+                    every:
+                      type: integer
+                      minimum: 1
+                      maximum: 52
+                    executionDay:
+                      type: integer
+                      minimum: 1
+                      maximum: 99
+                    lastDate:
+                      type:
+                        - string
+                        - "null"
+                  required:
+                    - bankOrderId
+                    - payeeName
+                    - payeeIban
+                    - amount
+                    - remittance
+                    - firstDate
+                    - unit
+                    - every
+                    - executionDay
+                    - lastDate
+              required:
+                - bank
+                - login
+                - account
+                - expected
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        const: done
+                      data:
+                        type: object
+                        properties:
+                          bankMessage:
+                            type: string
+                          reference:
+                            type:
+                              - string
+                              - "null"
+                          bankOrderId:
+                            type:
+                              - string
+                              - "null"
+                          vop:
+                            type: object
+                            properties:
+                              result:
+                                type: string
+                                enum:
+                                  - match
+                                  - close_match
+                                  - no_match
+                                  - not_applicable
+                                  - pending
+                                  - none
+                              payeeName:
+                                type:
+                                  - string
+                                  - "null"
+                              reason:
+                                type:
+                                  - string
+                                  - "null"
+                              explanation:
+                                type: string
+                              structured:
+                                type: boolean
+                            required:
+                              - result
+                              - payeeName
+                              - reason
+                              - explanation
+                              - structured
+                            additionalProperties: false
+                        required:
+                          - bankMessage
+                          - reference
+                          - bankOrderId
+                          - vop
+                        additionalProperties: false
+                      state:
+                        type: string
+                    required:
+                      - status
+                      - data
+                      - state
+                    additionalProperties: false
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        const: approval
+                      operationId:
+                        type: string
+                      challenge:
+                        type: object
+                        properties:
+                          decoupled:
+                            type: boolean
+                          text:
+                            type: string
+                          medium:
+                            type: string
+                          validUntil:
+                            type: string
+                          methodName:
+                            type: string
+                        required:
+                          - decoupled
+                          - text
+                          - medium
+                          - validUntil
+                          - methodName
+                        additionalProperties: false
+                      vop:
+                        type: object
+                        properties:
+                          result:
+                            type: string
+                            enum:
+                              - match
+                              - close_match
+                              - no_match
+                              - not_applicable
+                              - pending
+                              - none
+                          payeeName:
+                            type:
+                              - string
+                              - "null"
+                          reason:
+                            type:
+                              - string
+                              - "null"
+                          explanation:
+                            type: string
+                          structured:
+                            type: boolean
+                        required:
+                          - result
+                          - payeeName
+                          - reason
+                          - explanation
+                          - structured
+                        additionalProperties: false
+                    required:
+                      - status
+                      - operationId
+                      - challenge
                     additionalProperties: false
         default:
           description: Error
