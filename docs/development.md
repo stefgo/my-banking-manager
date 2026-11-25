@@ -100,6 +100,10 @@ lädt die betroffenen Abfragen neu (`clients/web/src/lib/socket.ts`).
   jeder übergeordneten Zeile die ganze Tabelle (Import rückgängig, Konto löschen). Ausnahmen (kleine
   Tabellen, seltenes Löschen) stehen mit Begründung in `WITHOUT_INDEX` in
   `server/src/db/migrations/migrations.test.ts`; der Test dort meldet jede neue Spalte ohne Index.
+- **Offline oder Bank:** Ein Konto ist offline, wenn es keinen Bankzugang hat (`connection_id IS
+  NULL`, in `shared`: `isOffline`). `kind` sagt nur, was es ist (`giro`, `savings`, `credit_card`,
+  `loan`, `other` für selbst angelegte). Ein vom Bankzugang gelöstes Konto behält seine Art. Einen
+  Bankzugang mit Konten lässt das Schema nicht löschen; `deleteConnection` löst oder löscht sie vorher.
 - Der Fingerabdruck einer Bankbuchung ist je Konto eindeutig (Index `transactions_fingerprint`).
 - Kategorien hängen über `transaction_categories` an Buchungen, eine Zeile je Anteil. Noch kann
   keine Route eine Buchung aufteilen, aber alles Lesende verträgt mehrere Anteile: Die Umsatzliste

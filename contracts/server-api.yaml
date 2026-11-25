@@ -3354,13 +3354,14 @@ paths:
                         - savings
                         - credit_card
                         - loan
-                        - offline
+                        - other
                     connectionId:
                       anyOf:
                         - type: integer
                           exclusiveMinimum: 0
                           maximum: 9007199254740991
                         - type: "null"
+                      description: Bank access; null for an offline account
                     name:
                       type: string
                     icon:
@@ -3710,13 +3711,14 @@ paths:
                       - savings
                       - credit_card
                       - loan
-                      - offline
+                      - other
                   connectionId:
                     anyOf:
                       - type: integer
                         exclusiveMinimum: 0
                         maximum: 9007199254740991
                       - type: "null"
+                    description: Bank access; null for an offline account
                   name:
                     type: string
                   icon:
@@ -4093,13 +4095,14 @@ paths:
                       - savings
                       - credit_card
                       - loan
-                      - offline
+                      - other
                   connectionId:
                     anyOf:
                       - type: integer
                         exclusiveMinimum: 0
                         maximum: 9007199254740991
                       - type: "null"
+                    description: Bank access; null for an offline account
                   name:
                     type: string
                   icon:

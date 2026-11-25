@@ -5,7 +5,7 @@ import { accountTree, accountsInScope, accountsInTreeOrder, categoryColor, categ
 const NO_INFO = { attributes: [], notes: "" };
 const group = (id: number, parentId: number | null, position: number, name = `G${id}`): AccountGroup => ({ id, parentId, name, icon: "folder", color: "neutral", position, info: NO_INFO });
 const account = (id: number, groupId: number | null, position: number, balance = 0): Account => ({
-    id, kind: "offline", connectionId: null, name: `A${id}`, icon: "wallet", color: "green", groupId, position, hidden: false, iban: null, cardNumber: null,
+    id, kind: "other", connectionId: null, name: `A${id}`, icon: "wallet", color: "green", groupId, position, hidden: false, iban: null, cardNumber: null,
     currency: "EUR", openingBalance: 0, balance, pendingSum: 0, pendingCount: 0, transactionCount: 0, createdAt: "", info: NO_INFO,
 });
 

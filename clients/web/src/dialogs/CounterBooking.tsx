@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link2, Tag } from "lucide-react";
-import { routes } from "@mbm/shared";
+import { isOffline, routes } from "@mbm/shared";
 import { call } from "../lib/api";
 import { useAccounts, useAction, useCategoryIndex, useTxById } from "../lib/queries";
 import { categoryPath } from "../lib/tree";
@@ -25,7 +25,7 @@ export function CounterBookingDialog({ txId }: { txId: number }) {
     const [picked, setPicked] = useState<number | null | undefined>(undefined);
     const [targetError, setTargetError] = useState<string | undefined>();
 
-    const offline = useMemo(() => (accountsData ?? []).filter((a) => a.kind === "offline" && a.id !== tx?.accountId), [accountsData, tx?.accountId]);
+    const offline = useMemo(() => (accountsData ?? []).filter((a) => isOffline(a) && a.id !== tx?.accountId), [accountsData, tx?.accountId]);
     const accountItems = useMemo(() => accountPickItems(offline), [offline]);
     if (!tx) return null;
 

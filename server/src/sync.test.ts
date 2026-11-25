@@ -92,6 +92,14 @@ describe("taking over accounts", () => {
         expect(body.find((a) => a.id === ids.giro)).toMatchObject({ cardNumber: null });
     });
 
+    it("keeps kind and card number of a credit card detached from its access", async () => {
+        const { ids } = await setUpAccess();
+        expect((await api("POST", `/api/accounts/${ids.card}/detach`, { mode: "keep" })).status).toBe(200);
+        const { body } = await api<{ id: number; kind: string; connectionId: number | null; cardNumber: string | null }[]>("GET", "/api/accounts");
+        expect(body.find((a) => a.id === ids.card)).toMatchObject({ kind: "credit_card", connectionId: null, cardNumber: "4111000000001234" });
+        // As an offline account it takes counter bookings and can be deleted
+        expect((await api("DELETE", `/api/accounts/${ids.card}`)).status).toBe(200);
+    });
 });
 
 describe("CSV import into a bank account", () => {
@@ -439,9 +447,9 @@ describe("fetching", () => {
         await api("POST", `/api/bank-connections/${id}/login/accounts`);
         expect((await api("POST", `/api/bank-connections/${id}/accounts`, { accounts: [], ignore: [NEW.externalId] })).status).toBe(200);
         expect((await api("POST", `/api/accounts/${ids.savings}/detach`, { mode: "keep" })).status).toBe(200);
-        const savings = (await api<{ id: number; kind: string; balance: number }[]>("GET", "/api/accounts")).body.find((a) => a.id === ids.savings);
+        const savings = (await api<{ id: number; kind: string; connectionId: number | null; balance: number }[]>("GET", "/api/accounts")).body.find((a) => a.id === ids.savings);
         // The last bank balance stays
-        expect(savings).toMatchObject({ kind: "offline", balance: 50000 });
+        expect(savings).toMatchObject({ kind: "savings", connectionId: null, balance: 50000 });
 
         fc.received.length = 0;
         const [second] = (await api<Run[]>("POST", "/api/sync", {})).body;

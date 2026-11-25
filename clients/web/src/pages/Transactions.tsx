@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowDownUp, BarChart3, CalendarDays, ChartColumn, ChartLine, Check, CheckCheck, CircleDot, Folder, Landmark, Plus, RefreshCw, Search, Send, Tag, Wand2, X } from "lucide-react";
 import { isActive, startSync, useConnections, useSyncRuns } from "../lib/bank";
-import { addDaysIso, dateBounds, groupCardNumber, groupIban, isValidIsoDate, parseTxQuery, routes, todayIso, TxRange, type AccountScope, type Transaction, type TxDateBounds } from "@mbm/shared";
+import { addDaysIso, dateBounds, groupCardNumber, groupIban, isOffline, isValidIsoDate, parseTxQuery, routes, todayIso, TxRange, type AccountScope, type Transaction, type TxDateBounds } from "@mbm/shared";
 import { transactionsRoute } from "../router";
 import { call } from "../lib/api";
 import { useAccounts, useAction, useCategoryIndex, useGroups, useRules, useSeries, useTransactions, useTransferAccounts } from "../lib/queries";
@@ -668,10 +668,10 @@ function ContextHeader({
     const pendingN = ids.reduce((s, a) => s + a.pendingCount, 0);
     const pendingSum = ids.reduce((s, a) => s + a.pendingSum, 0);
     const node = account ?? group;
-    const offline = account?.kind === "offline";
+    const offline = !!account && isOffline(account);
     const bankName = account?.connectionId != null ? connections?.find((c) => c.id === account.connectionId)?.bankName : undefined;
     // A group is fetched when it holds at least one bank account, in it or in a subgroup
-    const bankIds = account ? (offline ? [] : [account.id]) : group ? ids.filter((a) => a.kind !== "offline").map((a) => a.id) : [];
+    const bankIds = account ? (offline ? [] : [account.id]) : group ? ids.filter((a) => !isOffline(a)).map((a) => a.id) : [];
     const syncing = (syncRuns ?? []).some((r) => isActive(r) && r.accountIds.some((id) => bankIds.includes(id)));
 
     return (

@@ -84,9 +84,9 @@ interface AccountSeed {
 const ACCOUNT_SEEDS: AccountSeed[] = [
     { id: 1, kind: "giro", connectionId: 1, name: "Girokonto", icon: "landmark", color: "blue", groupId: 2, position: 0, iban: "DE02120300000000202051", cardNumber: null, start: 215000 },
     { id: 2, kind: "credit_card", connectionId: 1, name: "Kreditkarte", icon: "credit-card", color: "violet", groupId: 2, position: 1, iban: null, cardNumber: "4910 •••• •••• 1234", start: 0 },
-    { id: 4, kind: "offline", connectionId: null, name: "Bargeld", icon: "banknote", color: "green", groupId: 2, position: 2, iban: null, cardNumber: null, start: 15000 },
+    { id: 4, kind: "other", connectionId: null, name: "Bargeld", icon: "banknote", color: "green", groupId: 2, position: 2, iban: null, cardNumber: null, start: 15000 },
     { id: 3, kind: "savings", connectionId: 1, name: "Tagesgeld", icon: "piggy-bank", color: "teal", groupId: 3, position: 0, iban: "DE89370400440532013000", cardNumber: null, start: 1200000 },
-    { id: 5, kind: "offline", connectionId: null, name: "Urlaubskasse", icon: "tree-palm", color: "amber", groupId: 3, position: 1, iban: null, cardNumber: null, start: 60000 },
+    { id: 5, kind: "other", connectionId: null, name: "Urlaubskasse", icon: "tree-palm", color: "amber", groupId: 3, position: 1, iban: null, cardNumber: null, start: 60000 },
 ];
 
 export const GIRO = 1;
@@ -194,7 +194,7 @@ function bookingTextOf(b: Booking, kind: string): string {
 function book(b: Booking): Transaction | null {
     if (b.date > TODAY) return null;
     const seedAccount = ACCOUNT_SEEDS.find((a) => a.id === b.account)!;
-    const bank = seedAccount.kind !== "offline";
+    const bank = seedAccount.connectionId !== null;
     const t: Transaction = {
         id: nextTxId++,
         accountId: b.account,
@@ -238,7 +238,7 @@ function book(b: Booking): Transaction | null {
 /** A booking and its counter booking in another own account. */
 function transfer(from: number, to: number, date: string, amount: number, remittance: string, fromName: string, toName: string) {
     const out = book({ account: from, date, amount: -amount, name: toName, remittance, category: "Umbuchung" });
-    if (out) book({ account: to, date, amount, name: fromName, remittance, category: "Umbuchung", counterOf: ACCOUNT_SEEDS.find((a) => a.id === to)!.kind === "offline" ? out.id : undefined });
+    if (out) book({ account: to, date, amount, name: fromName, remittance, category: "Umbuchung", counterOf: ACCOUNT_SEEDS.find((a) => a.id === to)!.connectionId === null ? out.id : undefined });
 }
 
 const IBAN = {
@@ -331,7 +331,7 @@ export const accounts: Account[] = ACCOUNT_SEEDS.map((s) => {
         iban: s.iban,
         cardNumber: s.cardNumber,
         currency: "EUR",
-        openingBalance: s.kind === "offline" ? s.start : null,
+        openingBalance: s.connectionId === null ? s.start : null,
         balance: s.start + sumOf(own),
         pendingSum: sumOf(pending),
         pendingCount: pending.length,

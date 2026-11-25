@@ -193,7 +193,7 @@ describe("taking over accounts", () => {
         expect(t.vault.database.prepare("SELECT transactions_fetched_at AS f FROM accounts WHERE id = ?").get(giroId)).toEqual({ f: null });
         expect((await api("POST", `/api/accounts/${savingsId}/detach`, { mode: "delete" })).status).toBe(200);
         const accounts = (await api<{ id: number; kind: string; connectionId: number | null }[]>("GET", "/api/accounts")).body;
-        expect(accounts.find((a) => a.id === giroId)).toMatchObject({ kind: "offline", connectionId: null });
+        expect(accounts.find((a) => a.id === giroId)).toMatchObject({ kind: "giro", connectionId: null });
         expect(accounts.some((a) => a.id === savingsId)).toBe(false);
         expect((await api<{ error: string }>("POST", `/api/accounts/${giroId}/detach`, { mode: "keep" })).body.error).toBe("not_bank_account");
         expect((await api<{ accountCount: number }[]>("GET", "/api/bank-connections")).body[0]?.accountCount).toBe(0);
@@ -226,7 +226,7 @@ describe("taking over accounts", () => {
         const { body } = await api<{ created: number[] }>("POST", `/api/bank-connections/${id}/accounts`, { accounts: [{ externalId: giro.externalId }] });
         expect((await api("DELETE", `/api/bank-connections/${id}?accounts=keep`)).status).toBe(200);
         const accounts = await api<{ id: number; kind: string; connectionId: null }[]>("GET", "/api/accounts");
-        expect(accounts.body.find((a) => a.id === body.created[0])).toMatchObject({ kind: "offline", connectionId: null });
+        expect(accounts.body.find((a) => a.id === body.created[0])).toMatchObject({ kind: "giro", connectionId: null });
         expect((await api<unknown[]>("GET", "/api/bank-connections")).body).toEqual([]);
     });
 });

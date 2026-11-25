@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Copy, Eye, FileUp, Pencil, Plus, Trash2, Undo2 } from "lucide-react";
-import { routes } from "@mbm/shared";
+import { isOffline, routes } from "@mbm/shared";
 import { settingsRoute } from "../router";
 import { SETTINGS_TABS } from "../lib/settingsTabs";
 import { call } from "../lib/api";
@@ -100,7 +100,7 @@ function Versions() {
 
 function AccountsTab() {
     const accounts = accountsInTreeOrder(useGroups().data ?? [], useAccounts().data ?? []);
-    const offline = accounts.filter((a) => a.kind === "offline");
+    const offline = accounts.filter((a) => isOffline(a));
     const open = useOpenTransactions();
     const action = useAction();
     return (

@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { getUi, ui } from "../lib/ui";
 import { queryClient } from "../lib/queries";
-import type { Account } from "@mbm/shared";
+import { isOffline, type Account } from "@mbm/shared";
 import { GO_KEYS, type GoLetter } from "../lib/keys";
 import { inspectorMode } from "../lib/media";
 import { useTxHome } from "../lib/useTxHome";
@@ -22,7 +22,7 @@ export const overlayOpen = (): boolean =>
 
 export function openBooking(accountId?: number): void {
     const accounts = queryClient.getQueryData<Account[]>(["accounts"]) ?? [];
-    if (!accounts.some((a) => a.kind === "offline")) {
+    if (!accounts.some((a) => isOffline(a))) {
         ui.toast("Lege zuerst ein Offline-Konto an.", "info");
         ui.open({ kind: "addAccount" });
         return;

@@ -31,6 +31,13 @@ Nothing inside an HTML comment is published.
 - **Löschen ohne Wartezeit:** „Import rückgängig“, das Löschen eines Kontos und ein Abruf mit vielen
   vorgemerkten Umsätzen hielten den Server bei vielen Buchungen sekundenlang an. Jetzt geht das
   sofort.
+- **Gelöste Kreditkarte bleibt Kreditkarte:** Löst du ein Konto von seinem Bankzugang, behält es
+  seine Kontoart. Eine Kreditkarte zeigt also weiter ihre Kartennummer statt nur „Offline-Konto“.
+
+### Upgrade
+
+- **API:** Die Kontoart `offline` gibt es nicht mehr. Ein Konto ist offline, wenn `connectionId`
+  leer ist. Selbst angelegte Konten haben die neue Art `other`.
 
 ### Lizenz
 

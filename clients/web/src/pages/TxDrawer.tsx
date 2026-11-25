@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Dialog as RDialog } from "radix-ui";
 import { CheckCheck, CircleDot, Copy, Link2, Pencil, PenLine, Send, Tag, Trash2, Unlink, Wand2, X } from "lucide-react";
-import { groupIban, quoteTxQueryValue, returnReasonText, routes, type RuleEdit } from "@mbm/shared";
+import { groupIban, isOffline, quoteTxQueryValue, returnReasonText, routes, type RuleEdit } from "@mbm/shared";
 import { call } from "../lib/api";
 import { useAccounts, useAction, useCategoryIndex, useGroups, useRules, useTransferAccounts, useTxById } from "../lib/queries";
 import { useStartTransfer } from "../lib/transfer";
@@ -66,7 +66,7 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
     const close = () => ui.openTx(null);
     if (!tx) return null;
     const account = accounts.find((a) => a.id === tx.accountId);
-    const offline = accounts.filter((a) => a.kind === "offline" && a.id !== tx.accountId);
+    const offline = accounts.filter((a) => isOffline(a) && a.id !== tx.accountId);
     const c = tx.categoryId !== null ? index.byId.get(tx.categoryId) : undefined;
     // Rules and offers read the bank's name; everything shown here is the adjusted one
     const bankParty = partyName(tx);

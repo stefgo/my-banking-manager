@@ -11,6 +11,7 @@ import { transactionsFetchedAt } from "./0009-transactions-fetched-at.js";
 import { orderWrites } from "./0010-order-writes.js";
 import { foreignKeyIndexes } from "./0011-foreign-key-indexes.js";
 import { bookingGuards } from "./0012-booking-guards.js";
+import { accountKind } from "./0013-account-kind.js";
 
 export interface Migration {
     name: string;
@@ -25,7 +26,7 @@ export interface Migration {
 // One file per migration. Each runs once, in this order, inside a transaction. Never change one
 // that shipped; add the next file and list it here.
 export const migrations: Migration[] = [initial, unread, bookingDetails, importFormats, bookingReturns, counterpartyAccount, ruleActions, bookingReferences, transactionsFetchedAt, orderWrites,
-    foreignKeyIndexes, bookingGuards];
+    foreignKeyIndexes, bookingGuards, accountKind];
 
 /** Runs one migration inside a transaction. */
 export function applyMigration(db: Database.Database, m: Migration): void {

@@ -1,7 +1,7 @@
 // Items for the pickers: the account tree and the category tree as flat, indented lists.
 
 import { useMemo, type ReactNode } from "react";
-import type { Account, AccountScope, Category } from "@mbm/shared";
+import { isOffline, type Account, type AccountScope, type Category } from "@mbm/shared";
 import { useAccounts, useCategoryIndex, useGroups } from "../lib/queries";
 import { accountTree, type TreeNode } from "../lib/tree";
 import { CatTile, Tile } from "./icons";
@@ -67,12 +67,12 @@ export function useCategoryItems(opts: { all?: boolean; none?: boolean; topOnly?
 
 /** Single accounts as a flat list, value = account id. Offline accounts are marked in a mixed list. */
 export function accountPickItems(accounts: Account[]): PickItem[] {
-    const mixed = accounts.some((a) => a.kind === "offline") && accounts.some((a) => a.kind !== "offline");
+    const mixed = accounts.some((a) => isOffline(a)) && accounts.some((a) => !isOffline(a));
     return accounts.map((a) => ({
         value: String(a.id),
         label: a.name,
         top: true,
-        hint: mixed && a.kind === "offline" ? "Offline-Konto" : undefined,
+        hint: mixed && isOffline(a) ? "Offline-Konto" : undefined,
         icon: <Tile icon={a.icon} color={a.color} size={12} className="ti-s" />,
     }));
 }

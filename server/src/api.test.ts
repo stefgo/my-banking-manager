@@ -269,7 +269,7 @@ describe("offline accounts", () => {
         const daily = groups.body.find((g) => g.name === "Alltag")!;
         const cash = (await api<Account>("POST", "/api/accounts", { name: "Bargeld", groupId: daily.id, openingBalance: 6000 })).body;
         const box = (await api<Account>("POST", "/api/accounts", { name: "Spardose" })).body;
-        expect(cash.balance).toBe(6000);
+        expect(cash).toMatchObject({ kind: "other", connectionId: null, balance: 6000 });
 
         const spent = await api<Transaction>("POST", `/api/accounts/${cash.id}/transactions`, {
             bookingDate: "2026-11-03",

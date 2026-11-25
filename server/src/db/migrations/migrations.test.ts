@@ -12,6 +12,7 @@ import { transactionsFetchedAt } from "./0009-transactions-fetched-at.js";
 import { orderWrites } from "./0010-order-writes.js";
 import { foreignKeyIndexes } from "./0011-foreign-key-indexes.js";
 import { bookingGuards } from "./0012-booking-guards.js";
+import { accountKind } from "./0013-account-kind.js";
 import { applyMigration, migrations, type Migration } from "./index.js";
 
 const columns = (db: Database.Database, table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
@@ -415,5 +416,59 @@ describe("0012-booking-guards", () => {
             { id: 6, fingerprint: null },
         ]);
         expect(() => db.exec("UPDATE transactions SET fingerprint = 'fp#1' WHERE id = 2")).toThrow();
+    });
+});
+
+describe("0013-account-kind", () => {
+    let db: Database.Database;
+
+    beforeEach(() => {
+        db = before(accountKind);
+        db.exec(`
+            INSERT INTO bank_connections (id, name, bank_name, blz, fints_url, icon, color, created_at) VALUES (1, 'Sparkasse', 'Sparkasse', '70054306', 'https://x.invalid', 'landmark', 'red', '${T0}');
+            INSERT INTO account_groups (id, parent_id, name, icon, color, position) VALUES (1, NULL, 'Alltag', 'wallet', 'blue', 0);
+            INSERT INTO accounts (id, connection_id, external_id, card_number, name, kind, reference_account_id, group_id, icon, color, position, hidden, opening_balance, created_at, transactions_fetched_at) VALUES
+                (1, 1, 'DE02', NULL, 'Giro', 'giro', NULL, 1, 'landmark', 'blue', 0, 0, 500, '${T0}', '${T0}'),
+                (2, NULL, NULL, NULL, 'Bargeld', 'offline', NULL, 1, 'banknote', 'green', 1, 1, 1500, '${T0}', NULL),
+                (3, NULL, NULL, '4111000000001234', 'Visa', 'offline', 1, NULL, 'credit-card', 'violet', 2, 0, -200, '${T0}', NULL),
+                (4, 9, 'DE09', NULL, 'Verwaist', 'savings', NULL, NULL, 'piggy-bank', 'teal', 3, 0, NULL, '${T0}', NULL);
+            INSERT INTO transactions (id, account_id, booking_date, amount, status, first_seen_at, source) VALUES (1, 2, '2026-01-02', -100, 'booked', '${T0}', 'manual');
+            INSERT INTO transfers (id, request_id, account_id, created_by_name, payee_name, payee_iban, amount, remittance, end_to_end_id, status, created_at, updated_at)
+            VALUES (1, 'r1', 1, 'Anna', 'Erika', 'DE89370400440532013000', 100, '', 'MBM-1', 'executed', '${T0}', '${T0}');
+        `);
+        applyMigration(db, accountKind);
+    });
+    afterEach(() => db.close());
+
+    it("turns the kind offline into other, or credit card with a card number, and keeps everything else", () => {
+        expect(db.prepare("SELECT id, connection_id AS c, external_id AS e, kind, reference_account_id AS ref, group_id AS g, hidden, opening_balance AS ob, transactions_fetched_at AS f FROM accounts ORDER BY id").all()).toEqual([
+            { id: 1, c: 1, e: "DE02", kind: "giro", ref: null, g: 1, hidden: 0, ob: 500, f: T0 },
+            { id: 2, c: null, e: null, kind: "other", ref: null, g: 1, hidden: 1, ob: 1500, f: null },
+            { id: 3, c: null, e: null, kind: "credit_card", ref: 1, g: null, hidden: 0, ob: -200, f: null },
+            { id: 4, c: null, e: null, kind: "savings", ref: null, g: null, hidden: 0, ob: null, f: null },
+        ]);
+        expect(() => db.exec("UPDATE accounts SET kind = 'offline' WHERE id = 2")).toThrow();
+        expect(columns(db, "accounts").at(-1)).toBe("transactions_fetched_at");
+    });
+
+    it("keeps the links of the other tables to the accounts", () => {
+        for (const table of ["transactions", "transfers", "balances", "imports", "bank_login_accounts", "sync_runs", "rule_accounts"]) {
+            expect((db.pragma(`foreign_key_list(${table})`) as { table: string; from: string }[]).filter((f) => f.from === "account_id").map((f) => f.table)).toEqual(["accounts"]);
+        }
+        db.exec("DELETE FROM accounts WHERE id = 2");
+        expect(db.prepare("SELECT count(*) AS n FROM transactions").get()).toEqual({ n: 0 });
+        db.exec("DELETE FROM accounts WHERE id = 1");
+        expect(db.prepare("SELECT reference_account_id AS ref FROM accounts WHERE id = 3").get()).toEqual({ ref: null });
+        expect(db.prepare("SELECT count(*) AS n FROM transfers").get()).toEqual({ n: 0 });
+    });
+
+    it("keeps a bank access while accounts hang on it, and links an account fully or not at all", () => {
+        expect(() => db.exec("DELETE FROM bank_connections WHERE id = 1")).toThrow();
+        expect(() => db.exec("UPDATE accounts SET external_id = NULL WHERE id = 1")).toThrow();
+        expect(() => db.exec("UPDATE accounts SET external_id = 'X' WHERE id = 2")).toThrow();
+        expect(() => db.exec("UPDATE accounts SET hidden = 2 WHERE id = 2")).toThrow();
+        expect(() => db.exec("INSERT INTO accounts (connection_id, external_id, name, kind, icon, color, position, created_at) VALUES (1, 'DE02', 'Doppelt', 'giro', 'x', 'x', 9, 'x')")).toThrow();
+        db.exec("UPDATE accounts SET connection_id = NULL, external_id = NULL WHERE id = 1");
+        db.exec("DELETE FROM bank_connections WHERE id = 1");
     });
 });

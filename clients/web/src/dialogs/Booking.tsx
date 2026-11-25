@@ -3,7 +3,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Check, Scale, Tag } from "lucide-react";
-import { centsToInput, isValidIsoDate, parseAmount, routes, todayIso, type Transaction } from "@mbm/shared";
+import { centsToInput, isOffline, isValidIsoDate, parseAmount, routes, todayIso, type Transaction } from "@mbm/shared";
 import { call } from "../lib/api";
 import { useAccounts, useAction, useCategoryIndex, usePayees, useTxById } from "../lib/queries";
 import { categoryPath } from "../lib/tree";
@@ -33,7 +33,7 @@ type BookingForm = z.infer<typeof BookingForm>;
 export function BookingDialog({ accountId, txId }: { accountId?: number; txId?: number }) {
     const accountsData = useAccounts().data;
     const accounts = accountsData ?? [];
-    const offline = useMemo(() => (accountsData ?? []).filter((a) => a.kind === "offline"), [accountsData]);
+    const offline = useMemo(() => (accountsData ?? []).filter((a) => isOffline(a)), [accountsData]);
     const accountItems = useMemo(() => accountPickItems(offline), [offline]);
     const { index } = useCategoryIndex();
     const payees = usePayees().data;
