@@ -429,18 +429,6 @@ function TransactionList() {
                     />
                 )}
             </div>
-            <div className="sumline">
-                {list.data ? (
-                    <>
-                        <span>{plural(list.data.count, "Umsatz", "Umsätze")}{list.data.truncated ? " (gekürzt)" : ""}</span>
-                        <span>
-                            Summe <Amt cents={list.data.total} signed as="b" />
-                        </span>
-                    </>
-                ) : (
-                    <span>Wird geladen …</span>
-                )}
-            </div>
             <section className="panel list-panel" aria-label="Umsatzliste" aria-busy={list.isFetching}>
                 {items.length ? (
                     <TxList
