@@ -173,6 +173,8 @@ export const Transaction = z.object({
     returnReason: z.string().describe("Reason code of the return as the bank sends it; \"\" if none"),
     returnOfId: Id.nullable().describe("The booking this return gives back"),
     returnedById: Id.nullable().describe("The return that gave this booking back"),
+    fundingOfId: Id.nullable().describe("Added by MBM (PayPal): the payment this debit from bank account or card, or this credit of \"Pay in 30 days\", paid for"),
+    fundedById: Id.nullable().describe("The booking MBM added for where the money of this payment came from"),
     categoryId: Id.nullable(),
     categorySource: CategorySource.nullable(),
     createdAt: Timestamp,

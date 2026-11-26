@@ -26,6 +26,7 @@ export const emptyTransaction = (): Transaction => ({
     isReturn: false,
     returnReason: "",
     replaces: null,
+    transfer: null,
 });
 
 /** SEPA references that are no references (DFÜ-Abkommen fill value). */

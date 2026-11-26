@@ -184,6 +184,26 @@ export function bookingText(code: EbTransaction["bank_transaction_code"]): strin
 
 export type MappedTransaction = { kind: "ok"; tx: ConnectorTransaction } | { kind: "skipped" } | { kind: "foreign_currency" };
 
+/** PayPal itself as the counterparty, or none at all (as PayPal sends its own bookings). */
+const isPaypalOrNone = (party: EbParty | null | undefined): boolean => {
+    const name = text(party?.name);
+    const email = text(party?.contact_details?.email_address);
+    return (!name && !email) || /paypal/i.test(name) || /@paypal\./i.test(email);
+};
+
+/**
+ * PayPal's own movements, neither income nor expense: "Pay in 30 days" (sub code LOAN, PayPal as
+ * counterparty) and payouts to the own bank account (MONEY_TRANSFER without counterparty). A LOAN
+ * booking with a shop as counterparty would be a purchase and keeps no mark.
+ */
+function paypalTransfer(t: EbTransaction, debit: boolean): (Pick<ConnectorTransaction, "transfer" | "bookingText"> & { counterpartyName?: string }) | null {
+    const sub = text(t.bank_transaction_code?.sub_code).toUpperCase();
+    const party = debit ? t.creditor : t.debtor;
+    if (sub === "LOAN" && isPaypalOrNone(party)) return debit ? { transfer: "repayment", bookingText: "Rückzahlung Später bezahlen" } : { transfer: "credit", bookingText: "Später bezahlen" };
+    if (sub === "MONEY_TRANSFER" && debit && !text(party?.name) && !text(party?.contact_details?.email_address)) return { transfer: "payout", bookingText: "Auszahlung auf Bankkonto", counterpartyName: "Bankkonto" };
+    return null;
+}
+
 /** One booking; rejected, cancelled and scheduled ones move no money and are left out. */
 export function connectorTransaction(t: EbTransaction, accountCurrencyCode: string, today: string): MappedTransaction {
     const status = text(t.status).toUpperCase();
@@ -201,6 +221,7 @@ export function connectorTransaction(t: EbTransaction, accountCurrencyCode: stri
     const name = text(party?.name);
     const email = text(party?.contact_details?.email_address);
     const remittance = [...(t.remittance_information ?? []).map(text), text(t.note)].filter(Boolean).join(" ");
+    const own = paypalTransfer(t, debit);
     return {
         kind: "ok",
         tx: {
@@ -226,6 +247,49 @@ export function connectorTransaction(t: EbTransaction, accountCurrencyCode: stri
             isReturn: false,
             returnReason: "",
             replaces: null,
+            transfer: own?.transfer ?? null,
+            ...(own ? { bookingText: own.bookingText } : {}),
+            ...(own?.counterpartyName ? { counterpartyName: own.counterpartyName } : {}),
         },
     };
+}
+
+/** How far back a refund looks for the rejected payment it gives back (seen: up to 15 days). */
+export const VOID_REFUND_DAYS = 45;
+
+const partyKey = (party: EbParty | null | undefined): string => (text(party?.name) || text(party?.contact_details?.email_address)).toLowerCase();
+const dayNumber = (date: string): number => Date.parse(`${date}T00:00:00Z`) / 86_400_000;
+
+/**
+ * All bookings of one answer. Rejected and cancelled payments stay out (they moved no money that
+ * stays booked); a credit of the same counterparty and amount on or up to 45 days after one of
+ * them refunds it and is marked "refund": it must not count as income, the payment never did.
+ * `from` leaves out what lies before it: the answer reaches back further only to see such payments.
+ */
+export function connectorTransactions(list: EbTransaction[], accountCurrencyCode: string, today: string, from?: string): { transactions: ConnectorTransaction[]; foreignCurrency: number } {
+    const voids = list
+        .filter((t) => ["RJCT", "CNCL"].includes(text(t.status).toUpperCase()) && text(t.credit_debit_indicator).toUpperCase() === "DBIT")
+        .map((t) => ({ key: partyKey(t.creditor), cents: decimalToCents(t.transaction_amount?.amount), date: dateOf(t.booking_date) ?? dateOf(t.transaction_date) ?? dateOf(t.value_date), used: false }))
+        .filter((v) => v.key && v.cents !== null && v.date);
+    const transactions: { tx: ConnectorTransaction; key: string }[] = [];
+    let foreignCurrency = 0;
+    for (const t of list) {
+        const m = connectorTransaction(t, accountCurrencyCode, today);
+        if (m.kind === "skipped") continue;
+        const date = m.kind === "ok" ? m.tx.bookingDate : (dateOf(t.booking_date) ?? dateOf(t.transaction_date) ?? today);
+        if (from && date < from) continue;
+        if (m.kind === "foreign_currency") foreignCurrency++;
+        else transactions.push({ tx: m.tx, key: partyKey(t.debtor) });
+    }
+    // Oldest refunds first, so that each rejected payment goes to its earliest one; the answer keeps the bank's order
+    const credits = transactions.filter(({ tx }) => tx.amount > 0 && !tx.transfer).sort((a, b) => a.tx.bookingDate.localeCompare(b.tx.bookingDate));
+    for (const { tx, key } of credits) {
+        const day = dayNumber(tx.bookingDate);
+        const voided = voids.find((v) => !v.used && v.key === key && Math.abs(v.cents!) === tx.amount && day - dayNumber(v.date!) >= 0 && day - dayNumber(v.date!) <= VOID_REFUND_DAYS);
+        if (!voided) continue;
+        voided.used = true;
+        tx.transfer = "refund";
+        tx.bookingText = "Erstattung zu abgelehnter Zahlung";
+    }
+    return { transactions: transactions.map((x) => x.tx), foreignCurrency };
 }

@@ -48,6 +48,8 @@ interface TxRow {
     return_reason: string;
     return_of_id: number | null;
     returned_by_id: number | null;
+    funding_of_id: number | null;
+    funded_by_id: number | null;
     first_seen_at: string;
     category_id: number | null;
     category_source: "rule" | "manual" | "auto" | null;
@@ -60,6 +62,8 @@ interface TxRow {
 }
 
 const RETURNED_BY = "(SELECT rb.id FROM transactions rb WHERE rb.return_of_id = t.id) AS returned_by_id";
+/** The booking MBM added for where the money of a PayPal payment came from. */
+const FUNDED_BY = "(SELECT fb.id FROM transactions fb WHERE fb.funding_of_id = t.id ORDER BY fb.id LIMIT 1) AS funded_by_id";
 
 /** Bookings that count in figures: neither a linked return nor the booking it gave back. */
 const NOT_RETURNED = "t.return_of_id IS NULL AND NOT EXISTS (SELECT 1 FROM transactions rb WHERE rb.return_of_id = t.id)";
@@ -73,12 +77,12 @@ const TX_JOINS = `transactions t
     LEFT JOIN transaction_edits er ON er.transaction_id = t.id AND er.field = 'remittance'`;
 
 const TX_SELECT = `
-    SELECT t.*, ${RETURNED_BY}, c.category_id, c.source AS category_source, ${EDIT_COLUMNS}
+    SELECT t.*, ${RETURNED_BY}, ${FUNDED_BY}, c.category_id, c.source AS category_source, ${EDIT_COLUMNS}
     FROM ${TX_JOINS}`;
 
 /** Like TX_SELECT, with `unread` for the user given as the first parameter. */
 const TX_SELECT_FOR_USER = `
-    SELECT t.*, ${RETURNED_BY}, c.category_id, c.source AS category_source, ${EDIT_COLUMNS},
+    SELECT t.*, ${RETURNED_BY}, ${FUNDED_BY}, c.category_id, c.source AS category_source, ${EDIT_COLUMNS},
            EXISTS (SELECT 1 FROM transaction_unread u WHERE u.transaction_id = t.id AND u.user_id = ?) AS unread
     FROM ${TX_JOINS}`;
 
@@ -110,6 +114,8 @@ export const toTransaction = (r: TxRow): Transaction => ({
     returnReason: r.return_reason,
     returnOfId: r.return_of_id,
     returnedById: r.returned_by_id,
+    fundingOfId: r.funding_of_id,
+    fundedById: r.funded_by_id,
     categoryId: r.category_id,
     categorySource: r.category_source,
     createdAt: r.first_seen_at,

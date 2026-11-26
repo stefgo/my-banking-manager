@@ -179,6 +179,13 @@ export const ConnectorTransaction = z.object({
      * booking. They give its old fingerprint, so that the stored booking is corrected, not doubled.
      */
     replaces: z.object({ counterpartyIban: z.string().nullable(), remittance: z.string(), endToEndId: z.string().nullable() }).nullable().default(null),
+    /**
+     * Money moved between the user's own pockets, neither income nor expense: the repayment of a
+     * credit ("repayment", PayPal "Pay in 30 days"), another credit booking ("credit"), a payout to
+     * the own bank account ("payout"), the refund of a payment that never got booked ("refund").
+     * Null for everything else. Older connectors leave it out.
+     */
+    transfer: z.enum(["repayment", "credit", "payout", "refund"]).nullable().default(null),
 });
 export type ConnectorTransaction = z.infer<typeof ConnectorTransaction>;
 

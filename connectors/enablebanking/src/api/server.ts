@@ -8,7 +8,7 @@ import { z } from "zod";
 import { connectorRoutes, type ConnectorError, type ConnectorRouteDef, type ConnectorRoutes, type Psd2Credentials, type Psd2Login } from "@mbm/shared";
 import { createClient, EnableBankingError, type Client, type ClientOptions } from "../client.js";
 import { readPrivateKey } from "../jwt.js";
-import { connectorAccount, connectorBalance, connectorTransaction, storedAccount, type EbAccount, type EbBalance, type EbTransaction } from "../mapping.js";
+import { connectorAccount, connectorBalance, connectorTransactions, storedAccount, VOID_REFUND_DAYS, type EbAccount, type EbBalance, type EbTransaction } from "../mapping.js";
 import { parseState, serializeState, type State } from "../state.js";
 
 export interface ApiOptions {
@@ -195,8 +195,9 @@ export function buildApi(o: ApiOptions): { app: FastifyInstance } {
         if (!account?.uid) throw new ApiError(422, { error: "not_supported", message: "Die Freigabe umfasst dieses Konto nicht mehr. Bitte die Freigabe erneuern." });
         const api = client(body.login);
         const headers = psuHeaders(state, body.psu);
-        const transactions = [];
-        let foreignCurrency = 0;
+        const raw: EbTransaction[] = [];
+        // Reaches back further than asked, to see the rejected payment a refund gives back
+        const lookBack = body.from ? new Date(Date.parse(`${body.from}T00:00:00Z`) - VOID_REFUND_DAYS * 86_400_000).toISOString().slice(0, 10) : undefined;
         let continuationKey: string | undefined;
         let pages = 0;
         do {
@@ -204,19 +205,16 @@ export function buildApi(o: ApiOptions): { app: FastifyInstance } {
                 `/accounts/${encodeURIComponent(account.uid)}/transactions`,
                 {
                     // Without a start: as far back as the bank allows (first fetch after an approval).
-                    ...(body.from ? { date_from: body.from } : { strategy: "longest" }),
+                    ...(lookBack ? { date_from: lookBack } : { strategy: "longest" }),
                     ...(continuationKey ? { continuation_key: continuationKey } : {}),
                 },
                 headers,
             );
-            for (const t of page.transactions ?? []) {
-                const m = connectorTransaction(t, account.currency, today());
-                if (m.kind === "ok") transactions.push(m.tx);
-                else if (m.kind === "foreign_currency") foreignCurrency++;
-            }
+            raw.push(...(page.transactions ?? []));
             continuationKey = page.continuation_key || undefined;
             pages++;
         } while (continuationKey && pages < MAX_PAGES);
+        const { transactions, foreignCurrency } = connectorTransactions(raw, account.currency, today(), body.from);
         return { status: "done", data: { transactions, foreignCurrency }, state: serializeState(state) };
     });
 

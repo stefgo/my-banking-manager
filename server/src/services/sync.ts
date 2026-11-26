@@ -293,8 +293,9 @@ export class SyncManager {
 
         for (const t of run.api.ordersOnly ? [] : targets) {
             const newest = (db().prepare("SELECT MAX(booking_date) AS d FROM transactions WHERE account_id = ? AND source = 'bank' AND status = 'booked'").get(t.id) as { d: string | null }).d;
-            const fetchedAt = (db().prepare("SELECT transactions_fetched_at AS f FROM accounts WHERE id = ?").get(t.id) as { f: string | null }).f;
-            const from = fetchFrom(newest, fetchedAt);
+            const { f: fetchedAt, r: refetchAll } = db().prepare("SELECT transactions_fetched_at AS f, refetch_all AS r FROM accounts WHERE id = ?").get(t.id) as { f: string | null; r: number };
+            // Once from the start, when stored bookings are to learn something new (see migration 0016)
+            const from = refetchAll ? undefined : fetchFrom(newest, fetchedAt);
             let txs: ConnectorTransaction[] = [];
             let balance = balances[withBalance.indexOf(t)] ?? null;
             const fetchesBookings = (t.kind === "credit_card" && !!t.caps.cardTransactions) || !!t.caps.transactions;
@@ -310,9 +311,9 @@ export class SyncManager {
             // Data that comes after an approval has not been checked against the contract yet
             const checked = ConnectorTransaction.array().safeParse(txs);
             if (!checked.success) throw new ConnectorCallError("internal", "Die Antwort des Konnektors passt nicht zum Vertrag.");
-            const result = applyFetch(db(), t.id, checked.data, balance, run.userId);
+            const result = applyFetch(db(), t.id, checked.data, balance, run.userId, { refetchAll: !!refetchAll });
             // The start of the run: what the bank booked while it waited for an approval is not passed over
-            if (fetchesBookings) db().prepare("UPDATE accounts SET transactions_fetched_at = ? WHERE id = ?").run(run.api.startedAt, t.id);
+            if (fetchesBookings) db().prepare("UPDATE accounts SET transactions_fetched_at = ?, refetch_all = 0 WHERE id = ?").run(run.api.startedAt, t.id);
             run.api.newTransactions += result.newTransactions;
             this.emit(run);
         }

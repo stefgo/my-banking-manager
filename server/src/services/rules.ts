@@ -89,10 +89,13 @@ interface RunRow extends BookingRow {
     status: "booked" | "pending";
     fingerprint: string | null;
     return_of_id: number | null;
+    /** The connector's mark of a move between own pockets (PayPal), kept in raw; null for others. */
+    transfer: string | null;
 }
 
 const RUN_SELECT = `SELECT t.id, t.account_id, t.booking_date, t.amount, t.counterparty_name, t.ultimate_party, t.counterparty_iban, t.remittance,
-    t.booking_text, t.reference, t.mandate_id, t.creditor_id, t.source, t.status, t.fingerprint, t.return_of_id, NULL AS category_id FROM transactions t`;
+    t.booking_text, t.reference, t.mandate_id, t.creditor_id, t.source, t.status, t.fingerprint, t.return_of_id,
+    json_extract(t.raw, '$.transfer') AS transfer, NULL AS category_id FROM transactions t`;
 
 /** Prepares bookings for the rules; account and category names are loaded once. */
 export function ruleBookings(db: Db): (row: BookingRow) => RuleBooking {
@@ -110,7 +113,8 @@ export function ruleBookings(db: Db): (row: BookingRow) => RuleBooking {
     });
 }
 
-const allBookings = (db: Db): RunRow[] => db.prepare(`${RUN_SELECT} ORDER BY t.booking_date DESC, t.id DESC`).all() as RunRow[];
+/** Bookings MBM added itself (where the money of a PayPal payment came from) are no matter for rules. */
+const allBookings = (db: Db): RunRow[] => db.prepare(`${RUN_SELECT} WHERE t.funding_of_id IS NULL ORDER BY t.booking_date DESC, t.id DESC`).all() as RunRow[];
 
 export function listRules(db: Db): Rule[] {
     const rules = loadRules(db);
@@ -309,9 +313,9 @@ function textChange(field: TxEditField, bank: string, edit: StoredEdit | undefin
     return change(edit.source === "rule" ? "change" : "replace", result);
 }
 
-function categoryChange(stored: StoredCategory[], result: number | null, mode: RuleRunMode, manual: boolean, linkedReturn: boolean): RuleFieldChange | null {
-    // A split keeps its parts and a linked return the category of its booking
-    if (result === null || stored.length > 1 || linkedReturn) return null;
+function categoryChange(stored: StoredCategory[], result: number | null, mode: RuleRunMode, manual: boolean, keep: boolean): RuleFieldChange | null {
+    // A split keeps its parts, a linked return the category of its booking, a move between own pockets the preset one
+    if (result === null || stored.length > 1 || keep) return null;
     const current = stored[0];
     const change = (kind: RuleFieldChange["kind"]): RuleFieldChange => ({
         field: "category",
@@ -353,7 +357,8 @@ export function planRuleRun(db: Db, ruleId: number | undefined, mode: RuleRunMod
         const changes = [
             textChange("counterparty", party, edit?.counterparty, result?.counterparty ?? null, mode, manual),
             textChange("remittance", row.remittance, edit?.remittance, result?.remittance ?? null, mode, manual),
-            categoryChange(stored, result?.categoryId ?? null, mode, manual, row.return_of_id !== null),
+            // A linked return keeps the category of its booking, a move between own pockets the preset one
+            categoryChange(stored, result?.categoryId ?? null, mode, manual, row.return_of_id !== null || row.transfer !== null),
         ].filter((c): c is RuleFieldChange => c !== null);
         if (!changes.length) {
             unchanged++;

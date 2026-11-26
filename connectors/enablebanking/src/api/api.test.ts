@@ -150,7 +150,8 @@ describe("fetching", () => {
         const res = await call("psd2Transactions", { bank, login: { ...credentials, state }, account: { accountNumber: "PAYPALACCOUNT00000000000001" }, from: "2026-11-11" });
         expect((res.json.data as { transactions: unknown[] }).transactions).toHaveLength(6);
         const txCalls = eb.calls.filter((c) => c.path.endsWith("/transactions"));
-        expect(txCalls.map((c) => c.query)).toEqual([{ date_from: "2026-11-11" }, { date_from: "2026-11-11", continuation_key: "3" }]);
+        // 45 days further back, to see rejected payments that refunds give back; the answer starts at the date asked for
+        expect(txCalls.map((c) => c.query)).toEqual([{ date_from: "2026-09-27" }, { date_from: "2026-09-27", continuation_key: "3" }, { date_from: "2026-09-27", continuation_key: "6" }]);
     });
 
     it("sends the user's browser along when the bank wants none or only those headers", async () => {

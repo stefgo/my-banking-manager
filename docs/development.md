@@ -106,7 +106,11 @@ npm run eb-info -w connectors/enablebanking -- probe PayPal DE
   Adresszeile einfügen. Die Seite hinter der Rückleitung muss dafür nicht laden. Danach zeigt das
   Werkzeug Konten, Salden und Umsätze **nur als Form**: Felder, Art (Text, Datum, Dezimalzahl),
   Längen, wie oft sie vorkommen. Werte zeigt es nur bei Codes wie Status, Währung oder
-  Buchungscode. Am Ende beendet es die Sitzung. Es speichert nichts.
+  Buchungscode. Je Konto folgt eine Auswertung (`tools/analysis.ts`), ebenfalls ohne Namen,
+  Beträge, Daten oder Referenzen: Arten der Buchungen und ihrer Gegenseite, Buchungen mit gleichem
+  Betrag und ihr Abstand, ob der Saldo nach „Guthaben zuerst“ aufgeht (mit derselben Rechnung wie
+  der Server, `shared/src/funding.ts`), „Später bezahlen“ und abgelehnte Zahlungen. Am Ende beendet
+  es die Sitzung. Es speichert nichts.
 - Optional: `MBM_EB_REDIRECT_URL` (Standard `https://localhost/bank-callback`, muss in der Anwendung
   eingetragen sein), `MBM_EB_DAYS` (Standard 90), `MBM_EB_STRATEGY=longest` (so weit zurück, wie die
   Bank erlaubt).
