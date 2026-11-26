@@ -6,6 +6,8 @@
 |---|---|
 | `shared` | Einzige Quelle für Typen und Prüfungen: Zod-Schemas, die Routenliste `src/api.ts`, Server-Ereignisse, CSV-Lesen, Beträge, Symbole und Farben, Start-Kategorien |
 | `server` | Fastify 5, `better-sqlite3-multiple-ciphers`, Umzug-Migrationen, Pino |
+| `connectors/fints` | FinTS-Konnektor (eigene Umsetzung nach der DK-Spezifikation) |
+| `connectors/enablebanking` | Enable-Banking-Konnektor (PSD2, nur lesend), siehe „Enable Banking lokal“ |
 | `clients/web` | React 19, Vite, TanStack Router/Query/Virtual, Tailwind 4 (nur Utilities), Radix, cmdk, Recharts, React Hook Form |
 
 ## VS Code
@@ -13,12 +15,12 @@
 Der Ordner `.vscode/` bringt Tasks, Startkonfigurationen und Empfehlungen für Erweiterungen mit
 (ESLint, EditorConfig, Vitest, Tailwind CSS).
 
-- **Starten:** `⇧⌘B` (Task „Server + Web starten“) startet Server (Port 3040), FinTS-Konnektor und
-  Web-Client (Port 5173) parallel, dann `http://localhost:5173` öffnen. Einzeln: „Server (dev)“,
-  „FinTS-Konnektor (dev)“, „Web (dev)“.
-- **Debuggen:** Unter *Ausführen und Debuggen* „Server debuggen“, „FinTS-Konnektor debuggen“, „Web
-  in Chrome debuggen“ oder alles zusammen als „Server + Web debuggen“. Haltepunkte in `server/src`,
-  `connectors/fints/src` und `clients/web/src` greifen.
+- **Starten:** `⇧⌘B` (Task „Server + Web starten“) startet Server (Port 3040), beide Konnektoren
+  und Web-Client (Port 5173) parallel, dann `http://localhost:5173` öffnen. Einzeln: „Server (dev)“,
+  „FinTS-Konnektor (dev)“, „Enable-Banking-Konnektor (dev)“, „Web (dev)“.
+- **Debuggen:** Unter *Ausführen und Debuggen* „Server debuggen“, „FinTS-Konnektor debuggen“,
+  „Enable-Banking-Konnektor debuggen“, „Web in Chrome debuggen“ oder alles zusammen als „Server +
+  Web debuggen“. Haltepunkte in `server/src`, `connectors/*/src` und `clients/web/src` greifen.
 - **Weitere Tasks:** „Tests“, „Typecheck + Lint“, „Contracts erzeugen“; Tests auch über die
   Vitest-Erweiterung.
 - Aus VS Code gestartet lauscht der Server nur auf `127.0.0.1`. Daten liegen in `server/data`.
@@ -55,6 +57,59 @@ Antwortet eine Bank anders als erwartet, schreibt der Konnektor mit `MBM_FINTS_T
 dann Konnektor neu starten) zu jeder Nachricht eine Zeile auf stderr: Segmente mit Version,
 Rückmeldecodes und die Form der UPD (Anzahl Konten, ob Kontonummer/IBAN vorhanden). Inhalte wie
 Namen, Nummern, Beträge oder Rückmeldetexte erscheinen nicht.
+
+### Enable Banking lokal
+
+Der Konnektor `connectors/enablebanking` spricht PSD2 über Enable Banking (Routen `/v1/psd2/…` des
+Konnektor-Vertrags). Er ist zustandslos wie `fints`: Application-ID und privater Schlüssel kommen
+bei jedem Aufruf vom Server, die Sitzung der Freigabe steht im versiegelten Konnektor-Zustand.
+`npm run dev:enablebanking` startet ihn auf `.run/enablebanking.sock`, wo ihn `npm run
+dev:server` erwartet; `dev:full` bettet ihn ein. Images: `mbm-enablebanking` (allein, über den
+Socket) und eingebaut in `mbm-server-full`.
+
+- **Server:** Ein PSD2-Zugang ist ein Bankzugang mit `connector = 'enablebanking'`, `aspsp` und
+  `country` statt BLZ und FinTS-Adresse (Migration `0015`). Das Login hält Application-ID und
+  Schlüssel versiegelt in `sealed_credentials`, die Sitzung im Konnektor-Zustand und das Ende der
+  Freigabe in `consent_until`. Routen: `psd2Banks`, `createPsd2Connection`, `setPsd2Login`,
+  `startConsent`, `completeConsent` (`routes/bank.ts`). Die Rückleitung geht nur auf
+  `/bank-callback` der eigenen Adresse oder auf `https://localhost/bank-callback`. Eine offene
+  Freigabe lebt 15 Minuten im Arbeitsspeicher, einmal verwendbar, nur für ihren Benutzer.
+- **Abruf** (`services/sync.ts`): dieselben Schritte über `psd2Accounts`, `psd2Balances` und
+  `psd2Transactions`, mit IP-Adresse und Browserkennung des Nutzers (PSU). `consent_expired` setzt
+  das Login auf `consent_needed`. FinTS-Schritte lehnen einen PSD2-Zugang ab (`not_fints`).
+- **Tests:** `server/src/psd2.test.ts` bettet den echten Konnektor ein, gegen das simulierte
+  Enable Banking aus `@mbm/connector-enablebanking/testing`.
+
+- `src/mapping.ts`: Konten, Salden und Umsätze aus den Antworten von Enable Banking (Kontoart aus
+  `cash_account_type`, `OTHR` wird Girokonto; Buchungstag notfalls aus `transaction_date`;
+  Vorzeichen aus `credit_debit_indicator`; abgelehnte, stornierte und geplante Umsätze fallen weg;
+  andere Währungen als die des Kontos werden gezählt, nicht übernommen).
+- `src/testing/`: ein simuliertes Enable Banking für die Tests von Konnektor und Server.
+- Ohne Startdatum holt `psd2Transactions` mit `strategy=longest` so weit zurück, wie die Bank
+  erlaubt (PayPal: zwei Jahre).
+
+Für `eb-info` braucht es eine eigene Anwendung im Control Panel von Enable Banking
+(Production, Restricted Mode, mit dem eigenen Konto verknüpft). Application-ID und Pfad des
+privaten Schlüssels gehören in die `.env`; ein relativer Pfad gilt ab dem Projektordner. Am besten
+liegt die `.pem`-Datei außerhalb des Repositorys (nur für dich lesbar, `chmod 600`). Liegt sie doch
+im Projektordner, schließt die `.gitignore` sie aus (`*.pem`).
+
+```bash
+MBM_EB_APP_ID=…                                   # in .env
+MBM_EB_KEY=/pfad/zur/<application-id>.pem         # in .env
+npm run eb-info -w connectors/enablebanking -- banks DE
+npm run eb-info -w connectors/enablebanking -- probe PayPal DE
+```
+
+- `banks` listet die Banken eines Landes, die Enable Banking anbietet (öffentliche Angaben).
+- `probe` holt eine Freigabe bei der Bank: Adresse öffnen, freigeben, danach die Adresse aus der
+  Adresszeile einfügen. Die Seite hinter der Rückleitung muss dafür nicht laden. Danach zeigt das
+  Werkzeug Konten, Salden und Umsätze **nur als Form**: Felder, Art (Text, Datum, Dezimalzahl),
+  Längen, wie oft sie vorkommen. Werte zeigt es nur bei Codes wie Status, Währung oder
+  Buchungscode. Am Ende beendet es die Sitzung. Es speichert nichts.
+- Optional: `MBM_EB_REDIRECT_URL` (Standard `https://localhost/bank-callback`, muss in der Anwendung
+  eingetragen sein), `MBM_EB_DAYS` (Standard 90), `MBM_EB_STRATEGY=longest` (so weit zurück, wie die
+  Bank erlaubt).
 
 `server/tsconfig.json` leitet `better-sqlite3-multiple-ciphers` per `paths` auf dessen `index.d.ts`
 um, weil das Paket seine Typen nicht über `exports` angibt. tsx würde diese Umleitung auch zur
@@ -363,7 +418,7 @@ Requests.
 | Workflow | Wann | Was |
 |---|---|---|
 | `ci.yml` „Check Code“ | Push auf Themen-Branches, Pull Requests; von den anderen aufgerufen | build, typecheck, lint, test, `contracts:check`; Commit-Nachrichten (nur PR); deckt `cleanup-packages.yml` alle Images ab? |
-| `build.yml` „Build Images“ | Push auf `main`/`dev` (nicht bei reinen `.md`-Änderungen), Versions-Tag, von Hand | Prüfungen, dann alle drei Images je Architektur auf eigenem Runner (amd64, arm64 nativ), Push nur per Digest, Smoke-Test, erst dann Tags |
+| `build.yml` „Build Images“ | Push auf `main`/`dev` (nicht bei reinen `.md`-Änderungen), Versions-Tag, von Hand | Prüfungen, dann alle vier Images je Architektur auf eigenem Runner (amd64, arm64 nativ), Push nur per Digest, Smoke-Test, erst dann Tags |
 | `release.yml` „Create Release“ | nur von Hand im Actions-Tab | Release von `main` oder Beta von `dev` (siehe unten) |
 | `cleanup-packages.yml` „Prune Registry“ | nachts, von Hand (Standard: Probelauf) | löscht alte, unmarkierte Images in ghcr.io, prüft die geschützten Tags |
 
@@ -371,9 +426,10 @@ Requests.
 
 | Image | Dockerfile | Inhalt |
 |---|---|---|
-| `mbm-server` | `docker/server.Dockerfile` | Server und Web-Client; Konnektor über den Socket |
+| `mbm-server` | `docker/server.Dockerfile` | Server und Web-Client; Konnektoren über ihre Sockets |
 | `mbm-fints` | `docker/fints.Dockerfile` | FinTS-Konnektor allein, **nie** mit Produkt-ID |
-| `mbm-server-full` | `docker/server-full.Dockerfile` | Server, Web-Client und FinTS-Konnektor im selben Prozess |
+| `mbm-enablebanking` | `docker/enablebanking.Dockerfile` | Enable-Banking-Konnektor (PSD2) allein |
+| `mbm-server-full` | `docker/server-full.Dockerfile` | Server, Web-Client und beide Konnektoren im selben Prozess |
 
 | Anlass | Tags | Produkt-ID in `mbm-server-full` |
 |---|---|---|
@@ -381,12 +437,14 @@ Requests.
 | Release `v1.2.0` | `1.2.0`, `1.2`, `sha-<kurz>`, `latest` | ja |
 | Beta `v1.2.0-beta.1` | `1.2.0-beta.1`, `sha-<kurz>` (nie `latest`) | ja |
 
-Der **Smoke-Test** startet `mbm-server` und `mbm-fints` so wie `compose.split.yaml` und daneben
-`mbm-server-full` so wie `compose.yaml` (nur lesbares Dateisystem, tmpfs für `/tmp` und den
-Socket, `no-new-privileges`, ohne Abruf bei bundesbank.de). Er prüft `/api/health` beider Server,
-den Konnektor über den gemeinsamen Socket aus dem Server-Container und die Startzeilen der
-Konnektoren: `mbm-fints` immer „no product ID“, `mbm-server-full` „embedded (product ID of this
-build)“ in offiziellen Images, sonst „embedded (no product ID …)“. Schlägt er fehl, bleiben die
+Der **Smoke-Test** startet `mbm-server`, `mbm-fints` und `mbm-enablebanking` so wie
+`compose.split.yaml` und daneben `mbm-server-full` so wie `compose.yaml` (nur lesbares
+Dateisystem, tmpfs für `/tmp` und die Sockets, `no-new-privileges`, ohne Abruf bei bundesbank.de).
+Er prüft `/api/health` beider Server, beide Konnektoren über den gemeinsamen Socket aus dem
+Server-Container und die Startzeilen der Konnektoren: `mbm-fints` immer „no product ID“,
+`mbm-server-full` „embedded (product ID of this build)“ in offiziellen Images, sonst „embedded (no
+product ID …)“; der Enable-Banking-Konnektor „listening on /run/mbm/enablebanking.sock“ bzw.
+„embedded“. Schlägt er fehl, bleiben die
 Images ohne Tag; „Prune Registry“ räumt sie weg.
 
 **Release erstellen:**

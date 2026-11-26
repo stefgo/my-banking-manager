@@ -21,6 +21,9 @@ Bank, und deine Daten verlassen deinen Server nicht.
 - **Bankkonten über FinTS** — Kontostände und Umsätze direkt von der Bank, mit eigenem
   FinTS-Konnektor. Getestet mit der Sparkasse und S-pushTAN. Abgerufen wird nur, wenn du es
   auslöst.
+- **PayPal und andere Banken ohne FinTS** — über PSD2, nur lesend, mit einer eigenen Anwendung beim
+  zugelassenen Dienst Enable Banking, durch dessen Server die Umsätze dieser Banken laufen;
+  abschaltbar.
 - **Offline-Konten** — Bargeld, Sparbuch, Depot und alles ohne Online-Zugang: Buchungen von Hand,
   Saldo abgleichen, Gegenbuchungen.
 - **Umsätze** — Konten- und Kategorienbaum, Saldoverlauf, Filter und eine Suche mit Feldern,
@@ -51,7 +54,7 @@ MBM_IMAGE_SERVER_FULL=ghcr.io/stefgo/mbm-server-full:latest
 docker compose pull && docker compose up -d
 ```
 
-Der Container `mbm-server-full` enthält Server, Web-Client und FinTS-Konnektor und hört auf Port
+Der Container `mbm-server-full` enthält Server, Web-Client und beide Konnektoren und hört auf Port
 `3040`. Dann MBM im Browser öffnen:
 
 1. **Ersten Benutzer** anlegen: Name und Passwort (mindestens 12 Zeichen). Das Passwort
@@ -96,7 +99,8 @@ liegen in [`docs/`](./docs):
 ## Entwicklung
 
 Ein npm-Monorepo: `shared` (Zod-Schemas und die Routenliste der Server-API), `server` (Fastify,
-vollständig verschlüsseltes SQLite), `connectors/fints` (eigener FinTS-Konnektor), `clients/web`
+vollständig verschlüsseltes SQLite), `connectors/fints` (eigener FinTS-Konnektor),
+`connectors/enablebanking` (PSD2 über Enable Banking), `clients/web`
 (React 19, Vite) und `contracts` (erzeugte OpenAPI-Datei). Node.js 26 oder neuer.
 
 ```bash

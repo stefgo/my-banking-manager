@@ -129,6 +129,16 @@ const SHOTS: Shot[] = [
             await page.getByRole("button", { name: "Konto hinzufügen" }).first().click();
         },
     },
+    {
+        name: "psd2-einrichten",
+        route: "/settings?tab=accounts",
+        themes: ["dark"],
+        viewport: { width: 1200, height: 820 },
+        prepare: async (page) => {
+            await page.getByRole("button", { name: "Konto hinzufügen" }).first().click();
+            await page.getByRole("button", { name: /Bank über PSD2/ }).click();
+        },
+    },
     { name: "einstellungen-regeln", route: "/settings?tab=rules", themes: ["dark"] },
     { name: "einstellungen-profil", route: "/settings?tab=profile", themes: ["dark"] },
     { name: "einstellungen-benutzer", route: "/settings?tab=users", themes: ["dark"] },
@@ -206,7 +216,7 @@ const ANSWERS: Partial<Record<keyof typeof routes, Answer>> = {
     detectImportFormat: () => ({ format: fx.importPreview.format, formatKey: fx.importPreview.formatKey }),
     importPreview: () => fx.importPreview,
     listConnections: () => fx.connections,
-    lastOfferedAccounts: () => fx.offeredAccounts,
+    lastOfferedAccounts: (r) => (Number(r.params.id) === 2 ? fx.paypalOfferedAccounts : fx.offeredAccounts),
     connectorStatus: () => fx.connectorStatus.map((c) => ({ ...c, version: VERSION })),
     bankDirectory: () => fx.bankDirectory,
     searchBanks: (r) => fx.searchBanks(String(r.query.q)),

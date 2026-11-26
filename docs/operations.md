@@ -166,8 +166,9 @@ Der Reverse Proxy muss WebSockets unter `/api/events` durchreichen. Sein Leerlau
 nicht unter 60 Sekunden liegen (der Server pingt alle 30 Sekunden). Sonst bricht die Verbindung ab,
 und das Fenster zählt für die automatische Sperre nicht mehr als offen.
 
-Der FinTS-Konnektor hat keinen Port. Mit `mbm-server-full` läuft er im Prozess des Servers, mit
-`mbm-server` und `mbm-fints` als eigener Container hinter einem Unix-Socket (siehe unten).
+Die Konnektoren haben keinen Port. Mit `mbm-server-full` laufen sie im Prozess des Servers, mit
+`mbm-server`, `mbm-fints` und `mbm-enablebanking` als eigene Container hinter je einem Unix-Socket
+(siehe unten).
 
 ## Bankzugänge und FinTS-Konnektor
 
@@ -225,3 +226,46 @@ Der FinTS-Konnektor hat keinen Port. Mit `mbm-server-full` läuft er im Prozess 
     `npm run blz -- <blz-aktuell-txt-data.txt>`.
   - Bringt ein neues Image eine neuere Kopie mit als `/data/blz.json`, gilt die neuere.
   - Für das Backup ist `blz.json` nicht nötig; fehlt sie, lädt der Server sie neu.
+
+## PSD2 über Enable Banking
+
+Für Banken ohne FinTS (PayPal und andere) gibt es einen zweiten Konnektor, `connectors/enablebanking`.
+Er spricht die PSD2-Schnittstelle der Bank über den zugelassenen Dienst Enable Banking an, nur
+lesend. Bedienung: [Konten → Bank über PSD2](guide/konten.md#bank-über-psd2).
+
+- **Aufbau** wie beim FinTS-Konnektor:
+  - **Ein Container** (`mbm-server-full`): im Prozess des Servers (`MBM_ENABLEBANKING_EMBEDDED=1`,
+    im Image gesetzt). Beim Start schreibt der Server `MBM Enable Banking connector … embedded` ins
+    Log.
+  - **Eigener Container** (`compose.split.yaml`, Image `mbm-enablebanking`): ohne Port und ohne
+    Datenvolume, über den Socket `/run/mbm/enablebanking.sock` im selben tmpfs-Volume
+    `mbm-sockets`. Der Server findet ihn über `MBM_ENABLEBANKING_SOCKET` oder
+    `connectors.enablebanking.socket` in `config.yaml`.
+  - `MBM_ENABLEBANKING_EMBEDDED` und `MBM_ENABLEBANKING_SOCKET` zusammen lehnt der Server ab.
+- **Abschalten:** `MBM_ENABLEBANKING_EMBEDDED=0` (auch gegen einen Eintrag in `config.yaml`) bzw. den
+  Container `mbm-enablebanking` und `MBM_ENABLEBANKING_SOCKET` weglassen. Dann bietet MBM keinen
+  PSD2-Zugang an. Bestehende PSD2-Zugänge bleiben mit ihren Konten, rufen aber nicht mehr ab.
+- **Verbindungen:** Der Konnektor spricht nur mit `https://api.enablebanking.com`, ohne
+  Weiterleitungen, und nur, wenn ein Benutzer einen PSD2-Zugang nutzt. Der Browser öffnet für die
+  Freigabe die Seite von Enable Banking und der Bank; die Bank schickt ihn danach auf
+  `/bank-callback` zurück.
+- **Was wo liegt:** Bank und Land gehören allen Benutzern. Application-ID und privater Schlüssel
+  der Enable-Banking-Anwendung, die Sitzung der Freigabe (im Zustand des Konnektors) und ihr Ende
+  liegen je Benutzer, die ersten drei verschlüsselt mit dessen Benutzerschlüssel. Der Konnektor
+  hält nichts: Er signiert jede Anfrage mit dem Schlüssel aus dem Aufruf des Servers (JWT,
+  RS256, eine Stunde gültig).
+- **Freigabe:** Der Server startet sie mit einem Zufallswert (`state`), der 15 Minuten im
+  Arbeitsspeicher liegt, nur für den Benutzer gilt, der sie gestartet hat, und nur einmal. Die
+  Rückleitung muss auf `/bank-callback` der eigenen MBM-Adresse zeigen (wie bei der Prüfung der
+  Herkunft) oder auf `https://localhost/bank-callback`, dann fügt der Benutzer die Adresse von Hand
+  ein. Die Freigabe gilt so lange, wie die Bank höchstens erlaubt, abzüglich zehn Minuten (PayPal:
+  180 Tage).
+- **Abruf:** Der erste nach einer Freigabe holt so weit zurück, wie die Bank erlaubt, danach wie bei
+  FinTS ab zwei Wochen vor dem letzten Abruf. IP-Adresse und Browserkennung des Benutzers gehen als
+  PSU-Header mit, wenn die Bank keine oder nur diese verlangt; sonst zählt die Bank den Abruf als
+  unbeaufsichtigt (höchstens vier am Tag). Ist die Freigabe laut ihrem Ende schon vorbei, fragt der
+  Server Enable Banking gar nicht erst; meldet Enable Banking sie als beendet, steht das Login auf
+  „Freigabe nötig“.
+- **Abmelden:** Entfernt ein Benutzer seine Anmeldung, den Bankzugang oder ersetzt er seine
+  Anwendung, beendet der Server die Sitzung bei Enable Banking (die Bank beendet die Freigabe dann,
+  wo sie es anbietet).

@@ -24,7 +24,8 @@ Dann:
 docker compose pull && docker compose up -d
 ```
 
-Der Container enthält Server, Web-Client und FinTS-Konnektor und hört auf Port `3040`. Die Daten
+Der Container enthält Server, Web-Client und beide Konnektoren (FinTS und PSD2 über Enable
+Banking) und hört auf Port `3040`. Die Daten
 liegen im Volume `mbm-data`.
 
 !!! tip "Hinter dem Reverse Proxy"
@@ -32,10 +33,10 @@ liegen im Volume `mbm-data`.
     `172.16.0.0/12` für Docker-Netze. Sonst erkennt MBM HTTPS nicht, und das Sitzungscookie bekommt
     kein `Secure`. Mehr unter [Konfiguration](konfiguration.md#hinter-dem-reverse-proxy).
 
-??? note "Zwei Container statt einem"
-    `compose.split.yaml` startet Server (`mbm-server`) und FinTS-Konnektor (`mbm-fints`) getrennt.
-    Der Konnektor hat dann keinen Port und kein Datenvolume und spricht nur über einen Unix-Socket
-    mit dem Server. **`mbm-fints` enthält keine FinTS-Produkt-ID:** Du brauchst eine eigene, siehe
+??? note "Getrennte Container statt einem"
+    `compose.split.yaml` startet Server (`mbm-server`), FinTS-Konnektor (`mbm-fints`) und
+    Enable-Banking-Konnektor (`mbm-enablebanking`) getrennt. Die Konnektoren haben dann keinen Port
+    und kein Datenvolume und sprechen nur über einen Unix-Socket mit dem Server. **`mbm-fints` enthält keine FinTS-Produkt-ID:** Du brauchst eine eigene, siehe
     [Konfiguration](konfiguration.md#fints-produkt-id).
 
 ??? note "Selbst bauen"
@@ -56,8 +57,8 @@ liegen im Volume `mbm-data`.
    Passwort sind die Daten verloren; auch MBM kann sie dann nicht mehr öffnen.
 3. Die **Authenticator-App** einrichten (TOTP, etwa mit einer Passwort-App oder einer
    Authenticator-App auf dem Handy). Ab jetzt fragt MBM bei jeder neuen Anmeldung nach dem Code.
-4. Unter **Einstellungen → Konto hinzufügen** einen Bankzugang (FinTS) oder ein Offline-Konto
-   anlegen. Wie das geht, steht unter [Konten](guide/konten.md).
+4. Unter **Einstellungen → Konto hinzufügen** einen Bankzugang (FinTS oder, etwa für PayPal, über
+   PSD2) oder ein Offline-Konto anlegen. Wie das geht, steht unter [Konten](guide/konten.md).
 
 ## 3. Nach einem Neustart
 
