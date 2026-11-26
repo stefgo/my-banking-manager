@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { accountCurrency, bookingText, connectorBalance, connectorTransaction, decimalToCents, storedAccount } from "./mapping.js";
+import { accountCurrency, bookingText, connectorBalance, connectorTransaction, connectorTransactions, decimalToCents, storedAccount, type EbTransaction } from "./mapping.js";
 import { paypalAccount } from "./testing/index.js";
 
 const TODAY = "2026-11-26";
@@ -164,5 +164,112 @@ describe("bookingText", () => {
         expect(bookingText({ code: "PMNT", sub_code: "ICDT" })).toBe("ICDT");
         expect(bookingText({ code: "PMNT" })).toBe("PMNT");
         expect(bookingText(null)).toBe("");
+    });
+});
+
+describe("PayPal's own movements", () => {
+    const tx = (dir: "DBIT" | "CRDT", sub: string, party: EbTransaction["creditor"], extra: Partial<EbTransaction> = {}): EbTransaction => ({
+        entry_reference: `R${sub}${dir}`,
+        transaction_amount: { currency: "EUR", amount: "50.00" },
+        credit_debit_indicator: dir,
+        status: "BOOK",
+        transaction_date: "2026-11-10",
+        [dir === "DBIT" ? "creditor" : "debtor"]: party,
+        bank_transaction_code: { code: "PAYMENT", sub_code: sub },
+        ...extra,
+    });
+    const mapped = (t: EbTransaction) => {
+        const m = connectorTransaction(t, "EUR", TODAY);
+        return m.kind === "ok" ? m.tx : null;
+    };
+
+    it("marks the repayment and other credit bookings of Pay in 30 days", () => {
+        expect(mapped(tx("DBIT", "LOAN", { name: "PayPal (Europe) S.a r.l. et Cie, S.C.A." }))).toMatchObject({ transfer: "repayment", bookingText: "Rückzahlung Später bezahlen", amount: -5000 });
+        expect(mapped(tx("CRDT", "LOAN", { name: "PayPal (Europe) S.a r.l. et Cie, S.C.A." }))).toMatchObject({ transfer: "credit", bookingText: "Später bezahlen" });
+        expect(mapped(tx("DBIT", "LOAN", null))).toMatchObject({ transfer: "repayment" });
+    });
+
+    it("keeps a LOAN booking to a shop a purchase", () => {
+        expect(mapped(tx("DBIT", "LOAN", { name: "Möbel Muster GmbH" }))).toMatchObject({ transfer: null, bookingText: "Kredit", counterpartyName: "Möbel Muster GmbH" });
+    });
+
+    it("names a payout to the own bank account", () => {
+        expect(mapped(tx("DBIT", "MONEY_TRANSFER", {}))).toMatchObject({ transfer: "payout", bookingText: "Auszahlung auf Bankkonto", counterpartyName: "Bankkonto" });
+        expect(mapped(tx("DBIT", "MONEY_TRANSFER", { name: "Erika Mustermann" }))).toMatchObject({ transfer: null, counterpartyName: "Erika Mustermann" });
+    });
+
+    it("leaves ordinary payments unmarked", () => {
+        expect(mapped(tx("DBIT", "PAYMENT", { name: "Shop" }))).toMatchObject({ transfer: null, bookingText: "Zahlung" });
+    });
+});
+
+describe("connectorTransactions", () => {
+    const base = (ref: string, date: string, dir: "DBIT" | "CRDT", status: string, name: string, sub = "PAYMENT"): EbTransaction => ({
+        entry_reference: ref,
+        transaction_amount: { currency: "EUR", amount: "15.00" },
+        credit_debit_indicator: dir,
+        status,
+        transaction_date: date,
+        [dir === "DBIT" ? "creditor" : "debtor"]: { name },
+        bank_transaction_code: { code: "PAYMENT", sub_code: sub },
+    });
+
+    it("marks the refund of a rejected payment of the same counterparty, on the day or later", () => {
+        const { transactions } = connectorTransactions(
+            [
+                base("4", "2026-11-20", "CRDT", "BOOK", "Shop C", "REFUND"),
+                base("3", "2026-11-12", "CRDT", "BOOK", "Shop D", "REFUND"),
+                base("2", "2026-11-05", "DBIT", "RJCT", "Shop C"),
+                base("1", "2026-11-05", "DBIT", "CNCL", "Shop D"),
+            ],
+            "EUR",
+            TODAY,
+        );
+        expect(transactions.map((t) => [t.bankReference, t.transfer, t.bookingText])).toEqual([
+            ["4", "refund", "Erstattung zu abgelehnter Zahlung"],
+            ["3", "refund", "Erstattung zu abgelehnter Zahlung"],
+        ]);
+    });
+
+    it("leaves a refund alone without such a payment: other counterparty, other amount, before it or too late", () => {
+        const { transactions } = connectorTransactions(
+            [
+                base("5", "2026-12-30", "CRDT", "BOOK", "Shop C", "REFUND"),
+                base("4", "2026-11-04", "CRDT", "BOOK", "Shop C", "REFUND"),
+                { ...base("3", "2026-11-06", "CRDT", "BOOK", "Shop C", "REFUND"), transaction_amount: { currency: "EUR", amount: "14.00" } },
+                base("2", "2026-11-06", "CRDT", "BOOK", "Shop X", "REFUND"),
+                base("1", "2026-11-05", "DBIT", "RJCT", "Shop C"),
+            ],
+            "EUR",
+            TODAY,
+        );
+        expect(transactions.map((t) => t.transfer)).toEqual([null, null, null, null]);
+    });
+
+    it("gives one rejected payment to one refund only, the earliest", () => {
+        const { transactions } = connectorTransactions(
+            [base("3", "2026-11-09", "CRDT", "BOOK", "Shop C"), base("2", "2026-11-07", "CRDT", "BOOK", "Shop C"), base("1", "2026-11-05", "DBIT", "RJCT", "Shop C")],
+            "EUR",
+            TODAY,
+        );
+        expect(transactions.map((t) => [t.bankReference, t.transfer])).toEqual([
+            ["3", null],
+            ["2", "refund"],
+        ]);
+    });
+
+    it("uses what lies before the start only to find such payments", () => {
+        const { transactions, foreignCurrency } = connectorTransactions(
+            [
+                base("3", "2026-11-12", "CRDT", "BOOK", "Shop C"),
+                { ...base("2", "2026-11-03", "DBIT", "BOOK", "Shop E"), transaction_amount: { currency: "USD", amount: "1.00" } },
+                base("1", "2026-11-01", "DBIT", "RJCT", "Shop C"),
+            ],
+            "EUR",
+            TODAY,
+            "2026-11-10",
+        );
+        expect(transactions.map((t) => [t.bankReference, t.transfer])).toEqual([["3", "refund"]]);
+        expect(foreignCurrency).toBe(0);
     });
 });

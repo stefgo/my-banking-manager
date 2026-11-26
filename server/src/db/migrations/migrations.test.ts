@@ -15,6 +15,7 @@ import { bookingGuards } from "./0012-booking-guards.js";
 import { accountKind } from "./0013-account-kind.js";
 import { transferChecks } from "./0014-transfer-checks.js";
 import { psd2Connections } from "./0015-psd2-connections.js";
+import { paypalFunding } from "./0016-paypal-funding.js";
 import { applyMigration, migrations, type Migration } from "./index.js";
 
 const columns = (db: Database.Database, table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
@@ -601,5 +602,41 @@ describe("0015-psd2-connections", () => {
         db.exec("UPDATE bank_logins SET status = 'consent_needed', consent_until = '2027-05-25T10:00:00.000Z' WHERE id = 2");
         expect(() => db.exec("UPDATE bank_logins SET status = 'expired' WHERE id = 2")).toThrow();
         expect(() => db.exec(`INSERT INTO bank_logins (connection_id, user_id, login_hint, created_at) VALUES (1, 1, 'x', '${T0}')`)).toThrow();
+    });
+});
+
+describe("0016-paypal-funding", () => {
+    let db: Database.Database;
+
+    beforeEach(() => {
+        db = before(paypalFunding);
+        db.exec(`
+            INSERT INTO bank_connections (id, name, bank_name, blz, fints_url, icon, color, created_at) VALUES (1, 'Sparkasse', 'Sparkasse', '70054306', 'https://x.invalid', 'landmark', 'red', '${T0}');
+            INSERT INTO bank_connections (id, name, connector, bank_name, blz, fints_url, icon, color, created_at, aspsp, country) VALUES (2, 'PayPal', 'enablebanking', 'PayPal', '', '', 'wallet', 'blue', '${T0}', 'PayPal', 'DE'),
+                (3, 'N26', 'enablebanking', 'N26', '', '', 'landmark', 'blue', '${T0}', 'N26', 'DE');
+            INSERT INTO accounts (id, connection_id, external_id, name, kind, icon, color, position, created_at) VALUES
+                (1, 1, 'DE02', 'Giro', 'giro', 'landmark', 'blue', 0, '${T0}'),
+                (2, 2, 'PP1', 'PayPal', 'giro', 'wallet', 'blue', 1, '${T0}'),
+                (3, 3, 'DE03', 'N26', 'giro', 'landmark', 'blue', 2, '${T0}'),
+                (4, NULL, NULL, 'Bar', 'other', 'wallet', 'blue', 3, '${T0}');
+            INSERT INTO transactions (id, account_id, booking_date, amount, status, first_seen_at, source) VALUES (1, 2, '2026-10-01', -1999, 'booked', '${T0}', 'bank');
+        `);
+        applyMigration(db, paypalFunding);
+    });
+    afterEach(() => db.close());
+
+    it("fetches PayPal accounts once from the start, no others", () => {
+        expect(db.prepare("SELECT id, refetch_all AS r FROM accounts ORDER BY id").all()).toEqual([
+            { id: 1, r: 0 },
+            { id: 2, r: 1 },
+            { id: 3, r: 0 },
+            { id: 4, r: 0 },
+        ]);
+    });
+
+    it("lets an added booking go with its payment", () => {
+        db.exec(`INSERT INTO transactions (id, account_id, booking_date, amount, status, first_seen_at, source, funding_of_id) VALUES (2, 2, '2026-10-01', 1999, 'booked', '${T0}', 'bank', 1)`);
+        db.exec("DELETE FROM transactions WHERE id = 1");
+        expect(db.prepare("SELECT count(*) AS n FROM transactions").get()).toEqual({ n: 0 });
     });
 });

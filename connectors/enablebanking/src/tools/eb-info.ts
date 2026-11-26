@@ -11,7 +11,8 @@
 //       (fields, kinds, lengths; values only for codes such as status or currency). The session is
 //       closed at the end. Optional: MBM_EB_REDIRECT_URL (default https://localhost/bank-callback),
 //       MBM_EB_DAYS (bookings of the last n days, default 90), MBM_EB_STRATEGY=longest (as far back
-//       as the bank allows).
+//       as the bank allows). After the bookings of each account follows an analysis without values:
+//       which bookings belong together, whether the balance adds up, how LOAN bookings show.
 
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -19,6 +20,7 @@ import { resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { createClient, EnableBankingError, type Client } from "../client.js";
 import { readPrivateKey } from "../jwt.js";
+import { analyse } from "./analysis.js";
 import { Shape } from "./shape.js";
 
 interface Aspsp {
@@ -160,15 +162,27 @@ async function probe(api: Client, bankName: string, country: string): Promise<vo
                 console.log("  no uid: the account cannot be read in this session.");
                 continue;
             }
-            const balances = new Shape(BALANCE_VALUES);
             try {
-                for (const b of (await api.get<{ balances: unknown[] }>(`/accounts/${account.uid}/balances`)).balances) balances.add(b);
+                const details = new Shape(ACCOUNT_VALUES);
+                details.add(await api.get<unknown>(`/accounts/${account.uid}/details`));
+                printShape("Account details", details);
+            } catch (e) {
+                console.log(`  account details failed: ${describe(e)}`);
+            }
+            const balances = new Shape(BALANCE_VALUES);
+            const rawBalances: Record<string, unknown>[] = [];
+            try {
+                for (const b of (await api.get<{ balances: Record<string, unknown>[] }>(`/accounts/${account.uid}/balances`)).balances) {
+                    balances.add(b);
+                    rawBalances.push(b);
+                }
                 printShape("Balances", balances);
             } catch (e) {
                 console.log(`  balances failed: ${describe(e)}`);
             }
 
             const txs = new Shape(TRANSACTION_VALUES);
+            const rawTxs: Record<string, unknown>[] = [];
             let pages = 0;
             let continuationKey: string | undefined;
             const combos = new Map<string, number>();
@@ -186,6 +200,7 @@ async function probe(api: Client, bankName: string, country: string): Promise<vo
                     pages++;
                     for (const t of page.transactions) {
                         txs.add(t);
+                        rawTxs.push(t);
                         const amount = String((t.transaction_amount as { amount?: unknown } | undefined)?.amount ?? "");
                         bump(combos, `${String(t.credit_debit_indicator)} with ${amount.startsWith("-") ? "negative" : "positive"} amount`);
                         const dates = ["booking_date", "value_date", "transaction_date"].filter((k) => typeof t[k] === "string" && t[k]).join("+") || "no date";
@@ -208,6 +223,8 @@ async function probe(api: Client, bankName: string, country: string): Promise<vo
                 console.log(`  ${k}: ${m.size} distinct, ${doubles} occurring more than once`);
             }
             if (earliest) console.log(`  Earliest booking: ${Math.round((Date.now() - Date.parse(earliest)) / 86_400_000)} days ago`);
+            console.log("\nAnalysis (counts, day spans and shares only):");
+            for (const l of analyse({ transactions: rawTxs, balances: rawBalances, accountName: typeof account.name === "string" ? account.name : "" })) console.log(l);
         }
     } finally {
         await api

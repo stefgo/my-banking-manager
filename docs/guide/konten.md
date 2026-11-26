@@ -111,10 +111,61 @@ widerrufen.
 - **Keinen Verwendungszweck.** MBM schreibt stattdessen die E-Mail-Adresse der Gegenseite dorthin,
   damit du danach suchen kannst. Die PayPal-Transaktionsnummer steht in den Details als
   Bankreferenz.
-- Als **Umsatzart** „Zahlung“, „Erstattung“, „Kredit“ (Später bezahlen) oder „Geldtransfer“.
-  Abgelehnte und stornierte Zahlungen übernimmt MBM nicht.
+- Als **Umsatzart** „Zahlung“, „Erstattung“, „Rückzahlung Später bezahlen“ oder „Auszahlung auf
+  Bankkonto“. Abgelehnte und stornierte Zahlungen übernimmt MBM nicht.
 - **Nur Euro.** Umsätze in einer anderen Währung übernimmt MBM nicht und sagt beim Abruf, wie viele
   es waren.
+- **Nicht, woher das Geld kam.** PayPal meldet die Zahlung an den Händler, aber nicht die Abbuchung
+  von deinem Bankkonto oder deiner Karte. MBM ergänzt sie (siehe unten).
+
+### Abbuchungen, die MBM ergänzt
+
+Zahlst du mit PayPal, ohne genug Guthaben zu haben, holt PayPal den Rest von einer deiner
+Zahlungsquellen. Diese Buchung fehlt in dem, was PayPal über PSD2 schickt. Ohne sie zeigte das
+PayPal-Konto nur Ausgaben, und der Saldoverlauf stimmte nicht. MBM rechnet sie deshalb aus dem
+Saldo nach:
+
+![Das PayPal-Konto mit den ergänzten Abbuchungen und einem Kauf mit „Später bezahlen“](../assets/screenshots/paypal-dark.png)
+
+- **Guthaben zuerst:** Eine Zahlung nimmt, was an Guthaben da ist. Für den Rest steht beim selben
+  Datum eine **Abbuchung** von „Bankkonto oder Karte“. Welche deiner Zahlungsquellen PayPal genutzt
+  hat, meldet PayPal nicht.
+- **Später bezahlen:** Ein Kauf mit „Später bezahlen“ bekommt statt der Abbuchung eine Buchung
+  **Später bezahlen**. Die Abbuchung steht dann bei der **Rückzahlung** etwa 30 Tage später, denn
+  erst dann holt PayPal das Geld. Erkennen kann MBM das erst mit der Rückzahlung: Bis dahin steht
+  beim Kauf eine Abbuchung, danach die Buchung „Später bezahlen“. Gibt es im Monat davor zwei Käufe
+  mit dem Betrag der Rückzahlung (etwa ein Abo), bleibt es bei der Abbuchung.
+- **Auszahlungen** aufs Bankkonto bekommen nie eine Abbuchung.
+- Ergänzte Buchungen stehen als normale Zeilen in der Liste, sind nie neu und lassen sich nicht
+  löschen. In den Details steht „von MBM ergänzt“ und der Link zur Zahlung, bei der Zahlung der Link
+  zu ihrer Abbuchung.
+
+Geht die Rechnung nicht auf, etwa weil du trotz Guthaben das Bankkonto gewählt hast, ergänzt MBM
+nur, was „Guthaben zuerst“ ergibt. Den Rest fängt der Anfangssaldo des Kontos auf. Der Saldo stimmt
+immer mit dem von PayPal überein.
+
+### Was bei PayPal nicht zählt
+
+Diese Buchungen sind weder Einnahme noch Ausgabe. MBM gibt ihnen automatisch die Kategorie, die du
+als **Vorbelegung für Gegenbuchungen** gewählt hast (anfangs „Umbuchung“, zählt nicht in
+Auswertungen). Regeln vergeben ihnen keine andere:
+
+- die ergänzten Abbuchungen und „Später bezahlen“
+- die **Rückzahlung Später bezahlen**: Gezählt wird der Kauf, am Tag des Kaufs
+- die **Auszahlung auf Bankkonto**
+- eine **Erstattung zu abgelehnter Zahlung**: PayPal hat die Zahlung als abgelehnt oder storniert
+  gemeldet, und MBM hat sie nicht übernommen. Die Erstattung über denselben Betrag von derselben
+  Gegenseite zählt dann auch nicht.
+
+Wählst du für eine dieser Buchungen von Hand eine andere Kategorie, zählt sie wieder. Ohne
+Vorbelegung für Gegenbuchungen bleiben sie ohne Kategorie und zählen.
+
+!!! note "Nach dem Update"
+
+    Beim ersten Abruf nach dem Update holt MBM die PayPal-Umsätze einmal so weit zurück, wie PayPal
+    erlaubt. Schon gespeicherte Umsätze bleiben dabei, wie sie sind, und kommen nicht doppelt.
+    Rückzahlungen, Auszahlungen und Erstattungen zu abgelehnten Zahlungen bekommen ihre neue
+    Umsatzart und die Vorbelegung. Eine Kategorie, die du selbst gewählt hast, bleibt.
 
 ## Abrufen
 

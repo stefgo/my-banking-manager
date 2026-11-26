@@ -1397,6 +1397,16 @@ paths:
                                         - endToEndId
                                       additionalProperties: false
                                     - type: "null"
+                                transfer:
+                                  default: null
+                                  anyOf:
+                                    - type: string
+                                      enum:
+                                        - repayment
+                                        - credit
+                                        - payout
+                                        - refund
+                                    - type: "null"
                               required:
                                 - bookingDate
                                 - valueDate
@@ -1419,6 +1429,7 @@ paths:
                                 - isReturn
                                 - returnReason
                                 - replaces
+                                - transfer
                               additionalProperties: false
                         required:
                           - transactions
@@ -1690,6 +1701,16 @@ paths:
                                         - endToEndId
                                       additionalProperties: false
                                     - type: "null"
+                                transfer:
+                                  default: null
+                                  anyOf:
+                                    - type: string
+                                      enum:
+                                        - repayment
+                                        - credit
+                                        - payout
+                                        - refund
+                                    - type: "null"
                               required:
                                 - bookingDate
                                 - valueDate
@@ -1712,6 +1733,7 @@ paths:
                                 - isReturn
                                 - returnReason
                                 - replaces
+                                - transfer
                               additionalProperties: false
                           balance:
                             anyOf:
@@ -6092,6 +6114,16 @@ paths:
                                         - endToEndId
                                       additionalProperties: false
                                     - type: "null"
+                                transfer:
+                                  default: null
+                                  anyOf:
+                                    - type: string
+                                      enum:
+                                        - repayment
+                                        - credit
+                                        - payout
+                                        - refund
+                                    - type: "null"
                               required:
                                 - bookingDate
                                 - valueDate
@@ -6114,6 +6146,7 @@ paths:
                                 - isReturn
                                 - returnReason
                                 - replaces
+                                - transfer
                               additionalProperties: false
                           foreignCurrency:
                             default: 0

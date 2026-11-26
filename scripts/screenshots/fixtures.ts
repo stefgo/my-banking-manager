@@ -11,6 +11,9 @@
 // the same from run to run.
 
 import {
+    fundingOrder,
+    payLaterPairs,
+    runFunding,
     BUILTIN_IMPORT_FORMATS,
     columnsFromFormat,
     addDaysIso,
@@ -84,7 +87,8 @@ interface AccountSeed {
 const ACCOUNT_SEEDS: AccountSeed[] = [
     { id: 1, kind: "giro", connectionId: 1, name: "Girokonto", icon: "landmark", color: "blue", groupId: 2, position: 0, iban: "DE02120300000000202051", cardNumber: null, start: 215000 },
     { id: 2, kind: "credit_card", connectionId: 1, name: "Kreditkarte", icon: "credit-card", color: "violet", groupId: 2, position: 1, iban: null, cardNumber: "4910 •••• •••• 1234", start: 0 },
-    { id: 6, kind: "giro", connectionId: 2, name: "PayPal", icon: "wallet", color: "sky", groupId: 2, position: 2, iban: null, cardNumber: null, start: 12000 },
+    // At 0 as most PayPal accounts: payments come from bank account or card
+    { id: 6, kind: "giro", connectionId: 2, name: "PayPal", icon: "wallet", color: "sky", groupId: 2, position: 2, iban: null, cardNumber: null, start: 0 },
     { id: 4, kind: "other", connectionId: null, name: "Bargeld", icon: "banknote", color: "green", groupId: 2, position: 3, iban: null, cardNumber: null, start: 15000 },
     { id: 3, kind: "savings", connectionId: 1, name: "Tagesgeld", icon: "piggy-bank", color: "teal", groupId: 3, position: 0, iban: "DE89370400440532013000", cardNumber: null, start: 1200000 },
     { id: 5, kind: "other", connectionId: null, name: "Urlaubskasse", icon: "tree-palm", color: "amber", groupId: 3, position: 1, iban: null, cardNumber: null, start: 60000 },
@@ -210,6 +214,10 @@ interface Booking {
     iban?: string | null;
     pending?: boolean;
     counterOf?: number;
+    /** Added by MBM (PayPal): the payment whose money this booking says where it came from. */
+    fundingOf?: number;
+    /** The category came by itself (a move between own pockets), not by a rule. */
+    auto?: boolean;
     /** Booking text of the bank; by default guessed from the booking. */
     bookingText?: string;
     /** References the bank sent; none by default. */
@@ -257,11 +265,13 @@ function book(b: Booking): Transaction | null {
         returnReason: "",
         returnOfId: null,
         returnedById: null,
+        fundingOfId: b.fundingOf ?? null,
+        fundedById: null,
         categoryId: b.category ? cat(b.category) : null,
-        categorySource: b.category ? (bank ? "rule" : "manual") : null,
+        categorySource: b.category ? (b.auto ? "auto" : bank ? "rule" : "manual") : null,
         createdAt: at(b.date, "09:29:12"),
-        // What the last fetches brought is new for Alex
-        unread: bank && b.date >= "2026-11-18",
+        // What the last fetches brought is new for Alex; what MBM added is never new
+        unread: bank && b.date >= "2026-11-18" && !b.fundingOf,
         edits: { counterparty: null, remittance: null },
     };
     transactions.push(t);
@@ -344,9 +354,34 @@ const paypal = (date: string, amount: number, name: string, email: string, categ
     book({ account: PAYPAL, date, amount, name, remittance: email, category, bookingText, refs: { bankReference: ref } });
 paypal("2026-08-14", -1999, "Spielwerkstatt Holzwurm", "verkauf@holzwurm.example", "Online-Handel", "Zahlung", "1AB23456CD789012E");
 paypal("2026-09-03", -4590, "Kartenhaus Tickets", "tickets@kartenhaus.example", "Konzerte & Events", "Zahlung", "2BC34567DE890123F");
+paypal("2026-10-05", -8900, "Möbelhaus Eichenhain", "kontakt@eichenhain.example", "Online-Handel", "Zahlung", "6FA78901BC234567K");
 paypal("2026-10-12", -2750, "Gartenwelt Online", "shop@gartenwelt.example", "Online-Handel", "Zahlung", "3CD45678EF901234G");
 paypal("2026-10-20", 2750, "Gartenwelt Online", "shop@gartenwelt.example", "Erstattungen", "Erstattung", "4DE56789FA012345H");
+// The purchase at Eichenhain with "Pay in 30 days": its repayment, a move between own pockets
+book({ account: PAYPAL, date: "2026-11-04", amount: -8900, name: "PayPal (Europe) S.à r.l. et Cie, S.C.A.", remittance: "", category: "Umbuchung", auto: true, bookingText: "Rückzahlung Später bezahlen", refs: { bankReference: "7AB89012CD345678L" } });
 paypal("2026-11-15", -1290, "Rösterei Bohnenglück", "hallo@bohnenglueck.example", "Freizeit", "Zahlung", "5EF67890AB123456J");
+// What PayPal does not report, worked out as the server does it (services/paypalfunding.ts)
+{
+    const own = transactions
+        .filter((t) => t.accountId === PAYPAL)
+        .map((t) => ({ t, amount: t.amount, date: t.bookingDate, repayment: t.bookingText === "Rückzahlung Später bezahlen", purchase: t.amount < 0 && t.bookingText === "Zahlung" }));
+    const onCredit = new Set(payLaterPairs(own).keys());
+    const ordered = fundingOrder(own);
+    const run = runFunding(
+        ordered.map((i) => ({ amount: i.amount, date: i.date, onCredit: onCredit.has(i) })),
+        ACCOUNT_SEEDS.find((a) => a.id === PAYPAL)!.start,
+    );
+    ordered.forEach((i, n) => {
+        const payLater = onCredit.has(i);
+        const amount = payLater ? -i.amount : run.outside[n]!;
+        if (amount <= 0) return;
+        const purpose = i.repayment ? "für Rückzahlung Später bezahlen" : `für Zahlung an ${i.t.counterpartyName}`;
+        const added = payLater
+            ? book({ account: PAYPAL, date: i.date, amount, name: "PayPal Später bezahlen", remittance: purpose, category: "Umbuchung", auto: true, bookingText: "Später bezahlen", fundingOf: i.t.id })
+            : book({ account: PAYPAL, date: i.date, amount, name: "Bankkonto oder Karte", remittance: purpose, category: "Umbuchung", auto: true, bookingText: "Abbuchung", fundingOf: i.t.id });
+        if (added) i.t.fundedById = added.id;
+    });
+}
 book({ account: GIRO, date: "2026-11-20", amount: -2499, name: "Buchhandlung Seitenweise", remittance: "Kartenzahlung", category: null });
 book({ account: GIRO, date: "2026-11-20", amount: -3745, name: "Frischemarkt Sonnenhof", remittance: "Kartenzahlung", category: "Supermarkt", pending: true });
 

@@ -44,6 +44,9 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
     const partner = useTxById(tx?.counterTransactionId ?? null);
     const returnLink = tx?.returnOfId ?? tx?.returnedById ?? null;
     const returnPartner = useTxById(returnLink);
+    // PayPal: the booking MBM added for where the money of a payment came from, or that payment
+    const fundingLink = tx?.fundingOfId ?? tx?.fundedById ?? null;
+    const fundingPartner = useTxById(fundingLink);
     const canTransfer = (useTransferAccounts().data ?? []).length > 0;
     const startTransfer = useStartTransfer();
     // The rule offer belongs to the booking it was made for
@@ -188,6 +191,32 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                                     )}
                                 </button>,
                             )}
+                        {tx.fundedById !== null &&
+                            row(
+                                fundingPartner?.bookingText || "Abbuchung",
+                                <button className="link" onClick={() => ui.openTx(tx.fundedById)}>
+                                    {fundingPartner ? (
+                                        <>
+                                            <span className="amt">{fmtSigned(fundingPartner.amount)}</span> · {fundingPartner.counterpartyName}
+                                        </>
+                                    ) : (
+                                        "Umsatz öffnen"
+                                    )}
+                                </button>,
+                            )}
+                        {tx.fundingOfId !== null &&
+                            row(
+                                "Für Zahlung",
+                                <button className="link" onClick={() => ui.openTx(tx.fundingOfId)}>
+                                    {fundingPartner ? (
+                                        <>
+                                            {shownParty(fundingPartner) || dateText(fundingPartner.bookingDate)} · <span className="amt">{fmtSigned(fundingPartner.amount)}</span>
+                                        </>
+                                    ) : (
+                                        "Umsatz öffnen"
+                                    )}
+                                </button>,
+                            )}
                         {tx.reference && row("Referenz", <span className="mono">{tx.reference}</span>)}
                         {tx.customerReference && row("Kundenreferenz", <span className="mono">{tx.customerReference}</span>)}
                         {tx.bankReference && row("Bankreferenz", <span className="mono">{tx.bankReference}</span>)}
@@ -210,7 +239,16 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                         {tx.counterpartyAccount && row("Kontonummer", <span className="mono">{tx.counterpartyAccount}</span>)}
                         {tx.counterpartyBankCode && row("BLZ", <span className="mono">{tx.counterpartyBankCode}</span>)}
                         {tx.counterpartyBic && row("BIC", <span className="mono">{tx.counterpartyBic}</span>)}
-                        {row("Herkunft", tx.source === "manual" ? "von Hand erfasst" : tx.source === "import" ? "CSV-Import" : "Abruf von der Bank")}
+                        {row(
+                            "Herkunft",
+                            tx.fundingOfId !== null
+                                ? "von MBM ergänzt: PayPal meldet diese Buchung nicht"
+                                : tx.source === "manual"
+                                  ? "von Hand erfasst"
+                                  : tx.source === "import"
+                                    ? "CSV-Import"
+                                    : "Abruf von der Bank",
+                        )}
                         {tx.counterTransactionId &&
                             row(
                                 "Gegenbuchung",

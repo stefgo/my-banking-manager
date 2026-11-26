@@ -27,6 +27,13 @@ Nothing inside an HTML comment is published.
   danach ruft MBM Saldo und Umsätze wie bei jeder Bank ab, nur lesend. Der erste Abruf holt so weit
   zurück, wie die Bank erlaubt (bei PayPal zwei Jahre). Die Freigabe gilt höchstens 180 Tage; zwei
   Wochen vorher erinnert MBM daran, und „Freigabe erneuern“ verlängert sie.
+- **PayPal: woher das Geld kam.** PayPal meldet über PSD2 nur die Zahlung an den Händler, nicht die
+  Abbuchung von deinem Bankkonto oder deiner Karte. MBM ergänzt sie nach der Regel „Guthaben
+  zuerst“ als „Abbuchung von Bankkonto oder Karte“; Liste und Saldoverlauf des PayPal-Kontos stimmen
+  damit. Ein Kauf mit **Später bezahlen** zählt einmal, am Tag des Kaufs; die Rückzahlung rund
+  30 Tage später zählt nicht und trägt die Abbuchung. Auszahlungen aufs Bankkonto und Erstattungen zu
+  abgelehnten Zahlungen zählen ebenfalls nicht als Einnahme oder Ausgabe. Sie alle bekommen die
+  Vorbelegung für Gegenbuchungen (anfangs „Umbuchung“).
 - **Hinweis auf eine neue Oberfläche:** Nach einem Update merkt ein offenes Browserfenster, dass der
   Server eine neue Version der Oberfläche ausliefert, und bietet **Neu laden** an. Vor der Anmeldung
   lädt es von selbst neu.
@@ -50,6 +57,9 @@ Nothing inside an HTML comment is published.
   Kreditkarte, andere Offline-Konten bekommen die Kontoart „Sonstiges“.
 - Migration 0015 baut die Tabellen der Bankzugänge für PSD2 um. Bestehende FinTS-Zugänge bleiben,
   wie sie sind.
+- Migration 0016 bereitet die ergänzten PayPal-Buchungen vor. Der erste Abruf eines PayPal-Kontos
+  danach reicht einmal so weit zurück, wie PayPal erlaubt: Schon gespeicherte Umsätze bekommen ihre
+  neue Umsatzart und Kategorie, keiner kommt doppelt. Eine selbst gewählte Kategorie bleibt.
 - **Getrennte Container (`compose.split.yaml`):** Neu ist der Dienst `enablebanking` mit dem Image
   `mbm-enablebanking` (in der `.env`: `MBM_IMAGE_ENABLEBANKING`). Übernimm die neue
   `compose.split.yaml`, oder lass den Dienst und `MBM_ENABLEBANKING_SOCKET` weg, wenn du kein PSD2

@@ -15,6 +15,10 @@
 //   account as its counterparty is corrected in place, since the corrected IBAN changes its fingerprint.
 // - The balance: the account's opening balance is set so that opening balance plus booked
 //   bookings equals the bank's booked balance (balance series and totals keep working).
+// - Moves between own pockets the connector marks (PayPal: repayment of "Pay in 30 days", payout,
+//   refund of a rejected payment) get the preset category for counter bookings instead of a rule's;
+//   the mark stays in raw. For PayPal, MBM then adds where the money of each payment came from
+//   (paypalfunding.ts). A fetch from the start (`refetchAll`) gives stored bookings the marks too.
 
 import { createHash } from "node:crypto";
 import { duplicateKey, normalizeText, sameCounterparty, type ConnectorBalance, type ConnectorTransaction } from "@mbm/shared";
@@ -23,6 +27,7 @@ import { alignBankBalance } from "./accounts.js";
 import { evaluateNew, writeRuleCategories, writeRuleTexts } from "./rules.js";
 import { cleanIban, inheritReturnCategories, linkReturns } from "./returns.js";
 import { counterDefaultCategoryId } from "./transactions.js";
+import { deriveFunding, isPaypalAccount } from "./paypalfunding.js";
 import { linkBookedTransfers } from "./transfers.js";
 import { markNew, markNewFor } from "./unread.js";
 
@@ -91,7 +96,12 @@ export interface FetchResult {
     newIds: number[];
 }
 
-export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[], balance: ConnectorBalance | null, userId: number | null): FetchResult {
+export interface FetchOptions {
+    /** The fetch reached back as far as the bank allows, to give stored bookings what is new about them. */
+    refetchAll?: boolean;
+}
+
+export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[], balance: ConnectorBalance | null, userId: number | null, options: FetchOptions = {}): FetchResult {
     return db.transaction((): FetchResult => {
         const now = new Date().toISOString();
         const booked = txs.filter((t) => t.status === "booked");
@@ -125,7 +135,7 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bank', ?)`,
         );
         const rawOf = (t: ConnectorTransaction) =>
-            JSON.stringify({ bookingText: t.bookingText, mandateId: t.mandateId, creditorId: t.creditorId, customerReference: t.customerReference, bankReference: t.bankReference, counterpartyBic: t.counterpartyBic });
+            JSON.stringify({ bookingText: t.bookingText, mandateId: t.mandateId, creditorId: t.creditorId, customerReference: t.customerReference, bankReference: t.bankReference, counterpartyBic: t.counterpartyBic, ...(t.transfer ? { transfer: t.transfer } : {}) });
         const insertCat = db.prepare("INSERT INTO transaction_categories (transaction_id, category_id, amount, source, rule_id) VALUES (?, ?, ?, ?, NULL)");
         // A single category takes the booking's amount; a split keeps its shares
         const carryCategories = (id: number, from: OldPending, amount: number) => {
@@ -133,6 +143,8 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
         };
 
         const newIds: number[] = [];
+        // Moves between own pockets: the preset category of counter bookings, no rule's
+        const transferIds = new Set<number>();
         // A pending booking that comes back is not new to the rules
         const returning = new Set<number>();
         let newBooked = 0;
@@ -148,6 +160,7 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
                 markNewFor(db, id, carried.unreadBy);
             } else markNew(db, [id]);
             newIds.push(id);
+            if (t.transfer) transferIds.add(id);
             return id;
         };
 
@@ -247,6 +260,14 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
              WHERE id = ?`,
         );
 
+        // A fetch from the start: a stored booking takes the connector's mark, its texts and the preset category
+        const storedId = db.prepare("SELECT id FROM transactions WHERE account_id = ? AND fingerprint = ?");
+        const takeMark = db.prepare(
+            `UPDATE transactions SET booking_text = ?, counterparty_name = COALESCE(NULLIF(?, ''), counterparty_name),
+                raw = json_set(COALESCE(raw, '{}'), '$.transfer', ?) WHERE id = ?`,
+        );
+        const marked: number[] = [];
+
         const bookedFps = fingerprints(booked);
         // Numbered over the whole list as before, so that equal bookings keep their old fingerprint
         const earlierFps = fingerprints(booked.map((t) => (t.replaces ? { ...t, ...t.replaces } : t)));
@@ -256,6 +277,11 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
                 if (t.isReturn) markReturn.run(t.returnReason, accountId, fp);
                 if (t.counterpartyAccount || t.counterpartyBankCode) fillAccount.run(t.counterpartyAccount, t.counterpartyBankCode, accountId, fp);
                 if (t.customerReference || t.bankReference) fillReferences.run(refOf(t.customerReference), refOf(t.bankReference), accountId, fp);
+                if (options.refetchAll && t.transfer) {
+                    const id = (storedId.get(accountId, fp) as { id: number }).id;
+                    takeMark.run(t.bookingText, t.counterpartyName, t.transfer, id);
+                    marked.push(id);
+                }
                 return;
             }
             const earlierFp = earlierFps[i]!;
@@ -289,14 +315,16 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
         const linkedReturns = linkReturns(db, accountId);
         const linked = new Set(linkedReturns);
         const results = evaluateNew(db, newIds.filter((id) => !returning.has(id)));
-        writeRuleCategories(db, results, linked);
-        categorizeTransfers(db, newIds.filter((id) => !linked.has(id)));
+        writeRuleCategories(db, results, new Set([...linked, ...transferIds]));
+        categorizeTransfers(db, newIds.filter((id) => !linked.has(id)), transferIds);
+        recategorizeMarked(db, marked);
         inheritReturnCategories(db, linkedReturns);
         writeRuleTexts(db, results);
         // Transfers from MBM find their booking by the end-to-end ID
         linkBookedTransfers(db, accountId);
 
         if (balance) {
+            if (isPaypalAccount(db, accountId)) deriveFunding(db, accountId, balance.booked, newIds);
             db.prepare(
                 `INSERT INTO balances (account_id, amount, currency, booked_at, pending, available, credit_line, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                  ON CONFLICT (account_id) DO UPDATE SET amount = excluded.amount, currency = excluded.currency, booked_at = excluded.booked_at, pending = excluded.pending, available = excluded.available, credit_line = excluded.credit_line, fetched_at = excluded.fetched_at`,
@@ -307,12 +335,16 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
     })();
 }
 
-/** New bookings between own accounts that are still without category get the preset one. */
-function categorizeTransfers(db: Db, ids: number[]): void {
+/**
+ * New bookings between own accounts that are still without category get the preset one, and so do
+ * the moves between own pockets the connector marked (`marked`).
+ */
+function categorizeTransfers(db: Db, ids: number[], marked: ReadonlySet<number> = new Set()): void {
     if (ids.length === 0) return;
     const transferCat = counterDefaultCategoryId(db);
     if (transferCat === null) return;
     const uncategorized = (id: number) => !db.prepare("SELECT 1 FROM transaction_categories WHERE transaction_id = ?").get(id);
+    for (const id of ids) if (marked.has(id) && uncategorized(id)) db.prepare("INSERT INTO transaction_categories (transaction_id, category_id, amount, source, rule_id) SELECT id, ?, amount, 'auto', NULL FROM transactions WHERE id = ?").run(transferCat, id);
     const rows = db
         .prepare(`SELECT id, account_id, booking_date, amount, counterparty_iban FROM transactions WHERE id IN (${ids.map(() => "?").join(",")})`)
         .all(...ids) as { id: number; account_id: number; booking_date: string; amount: number; counterparty_iban: string | null }[];
@@ -331,5 +363,22 @@ function categorizeTransfers(db: Db, ids: number[]): void {
             )
             .get(other, -r.amount, r.booking_date) as { id: number; amount: number } | undefined;
         if (counter) insertCat.run(counter.id, transferCat, counter.amount, "auto", null);
+    }
+}
+
+/**
+ * Stored bookings that turned out to be moves between own pockets: the preset category replaces
+ * one from rules or set automatically; one the user chose stays.
+ */
+function recategorizeMarked(db: Db, ids: readonly number[]): void {
+    const transferCat = counterDefaultCategoryId(db);
+    if (transferCat === null || ids.length === 0) return;
+    const manual = db.prepare("SELECT 1 FROM transaction_categories WHERE transaction_id = ? AND source = 'manual'");
+    const drop = db.prepare("DELETE FROM transaction_categories WHERE transaction_id = ?");
+    const insert = db.prepare("INSERT INTO transaction_categories (transaction_id, category_id, amount, source, rule_id) SELECT id, ?, amount, 'auto', NULL FROM transactions WHERE id = ?");
+    for (const id of ids) {
+        if (manual.get(id)) continue;
+        drop.run(id);
+        insert.run(transferCat, id);
     }
 }
