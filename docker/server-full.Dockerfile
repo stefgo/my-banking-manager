@@ -1,12 +1,15 @@
-# My Banking Manager: server with the built web client and the FinTS connector inside its process
-# (image mbm-server-full). One container, no socket: the server calls the connector directly
-# (MBM_FINTS_EMBEDDED=1). The connector reaches out only to the banks (HTTPS).
+# My Banking Manager: server with the built web client and both connectors inside its process
+# (image mbm-server-full). One container, no socket: the server calls the connectors directly
+# (MBM_FINTS_EMBEDDED=1, MBM_ENABLEBANKING_EMBEDDED=1). The FinTS connector reaches out only to the
+# banks, the Enable Banking connector only to api.enablebanking.com (HTTPS), and only once a user
+# sets up a PSD2 access. MBM_ENABLEBANKING_EMBEDDED=0 at run time leaves Enable Banking out.
 FROM node:26-trixie-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY shared/package.json shared/
 COPY server/package.json server/
 COPY connectors/fints/package.json connectors/fints/
+COPY connectors/enablebanking/package.json connectors/enablebanking/
 COPY clients/web/package.json clients/web/
 # No install scripts: better-sqlite3-multiple-ciphers ships prebuilt binaries (linux x64/arm64)
 # and loads them at run time; with scripts, npm would compile it with node-gyp (no Python here).
@@ -16,9 +19,10 @@ RUN npm ci --ignore-scripts
 COPY shared shared
 COPY server server
 COPY connectors/fints connectors/fints
+COPY connectors/enablebanking connectors/enablebanking
 COPY clients/web clients/web
 RUN npm run build -w shared && npm run build -w server && npm run build -w connectors/fints \
-    && npm run build -w clients/web && npm prune --omit=dev
+    && npm run build -w connectors/enablebanking && npm run build -w clients/web && npm prune --omit=dev
 # FinTS product registration number, only for the official images: the registration terms allow it
 # inside the registered product, never in the source. It comes as a build secret (not a build
 # argument, which would stay readable in the image history):
@@ -41,7 +45,8 @@ ENV NODE_ENV=production \
     MBM_DATA_DIR=/data \
     MBM_WEB_ROOT=/app/clients/web/dist \
     MBM_PORT=3040 \
-    MBM_FINTS_EMBEDDED=1
+    MBM_FINTS_EMBEDDED=1 \
+    MBM_ENABLEBANKING_EMBEDDED=1
 WORKDIR /app
 # License and notice (NOTICE: the FinTS product ID of official images is not under MIT)
 COPY LICENSE NOTICE ./
@@ -55,12 +60,14 @@ COPY --from=build /app/server/dist server/dist
 COPY --from=build /app/server/data-static server/data-static
 COPY --from=build /app/connectors/fints/package.json connectors/fints/
 COPY --from=build /app/connectors/fints/dist connectors/fints/dist
+COPY --from=build /app/connectors/enablebanking/package.json connectors/enablebanking/
+COPY --from=build /app/connectors/enablebanking/dist connectors/enablebanking/dist
 COPY --from=build /app/clients/web/dist clients/web/dist
 RUN mkdir -p /data && chown node:node /data
 USER node
 VOLUME /data
 EXPOSE 3040
-# Version the server and the connector report (set by build.yml); empty: that of their package.json
+# Version the server and the connectors report (set by build.yml); empty: that of their package.json
 ARG MBM_VERSION=
 ENV MBM_VERSION=$MBM_VERSION
 HEALTHCHECK --interval=30s --timeout=5s CMD node -e "fetch('http://127.0.0.1:3040/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"

@@ -1,0 +1,35 @@
+{
+  "name": "@mbm/connector-enablebanking",
+  "version": "0.6.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "MBM Enable Banking connector: read-only PSD2 account information through Enable Banking",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./embedded": {
+      "development": "./src/embedded.ts",
+      "types": "./dist/embedded.d.ts",
+      "default": "./dist/embedded.js"
+    },
+    "./testing": {
+      "development": "./src/testing/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit --customConditions development",
+    "dev": "MBM_ENABLEBANKING_SOCKET=${MBM_ENABLEBANKING_SOCKET:-../../.run/enablebanking.sock} tsx watch --conditions=development src/index.ts",
+    "start": "node dist/index.js",
+    "eb-info": "tsx --env-file-if-exists=../../.env --conditions=development src/tools/eb-info.ts"
+  },
+  "dependencies": {
+    "@mbm/shared": "*",
+    "fastify": "^5.12.8",
+    "zod": "^4.6.7"
+  }
+}

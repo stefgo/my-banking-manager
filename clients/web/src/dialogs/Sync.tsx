@@ -11,7 +11,9 @@ import { Ic } from "../components/icons";
 import { Approval } from "../components/Approval";
 
 /** A finished run with nothing to read beyond its toast. */
-const quietlyDone = (r: SyncRun): boolean => r.status === "done" && r.newAccounts.length === 0 && r.missingAccounts.length === 0;
+const quietlyDone = (r: SyncRun): boolean => r.status === "done" && r.newAccounts.length === 0 && r.missingAccounts.length === 0 && r.foreignCurrency === 0;
+/** The approval at the bank has ended (PSD2): fetching again does not help, approving again does. */
+const consentEnded = (r: SyncRun): boolean => r.status === "error" && (r.error === "consent_expired" || r.error === "consent_needed");
 
 /**
  * The fetch runs of the signed-in user. Closing it does not stop them. It opens for an approval or
@@ -94,10 +96,13 @@ function RunRow({ run }: { run: SyncRun }) {
                 </form>
             )}
             {run.status === "error" && run.error !== "pin_required" && run.error !== "cancelled" && run.message && <p className="muted small">{run.message}</p>}
-            {run.status === "error" && run.error !== "pin_required" && (
-                <Button className="btn-sm" icon={RefreshCw} style={{ justifySelf: "start" }} onClick={() => retry()}>Erneut abrufen</Button>
+            {consentEnded(run) ? (
+                <Button className="btn-sm btn-primary" style={{ justifySelf: "start" }} onClick={() => ui.open({ kind: "psd2Setup", connectionId: run.connectionId, mode: "consent" })}>Freigabe erneuern</Button>
+            ) : (
+                run.status === "error" && run.error !== "pin_required" && <Button className="btn-sm" icon={RefreshCw} style={{ justifySelf: "start" }} onClick={() => retry()}>Erneut abrufen</Button>
             )}
             {run.status === "done" && run.ordersMessage && <p className="muted small">{run.ordersMessage}</p>}
+            {run.foreignCurrency > 0 && <p className="muted small">{plural(run.foreignCurrency, "Umsatz", "Umsätze")} in einer anderen Währung als der des Kontos {run.foreignCurrency === 1 ? "hat" : "haben"} MBM nicht übernommen.</p>}
             {run.newAccounts.length > 0 && <p className="muted small">Neu bei der Bank: {run.newAccounts.join(", ")}. In den Einstellungen unter „Bankzugänge“ zeigt „Konten abrufen“ sie unter „Weitere Konten bei der Bank“; dort kannst du sie übernehmen oder ausblenden.</p>}
             {run.missingAccounts.length > 0 && <p className="muted small">{plural(run.missingAccounts.length, "Konto meldet", "Konten melden")} die Bank nicht mehr. Gelöscht wird nichts.</p>}
         </section>

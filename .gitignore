@@ -8,6 +8,8 @@ coverage/
 server/data/
 server/config.yaml
 .env
+# Private keys (e.g. of an Enable Banking application)
+*.pem
 # FinTS product registration number of an official build (written from a build secret)
 product-id
 # Unix sockets of the local development start

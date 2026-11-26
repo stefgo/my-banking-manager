@@ -22,15 +22,18 @@ type Offered = { externalId: string; name: string; iban: string | null; cardNumb
 
 /**
  * Sets up a bank access: find the bank, FinTS address, login name and PIN, TAN method, take
- * over accounts. With `connectionId` it starts at the login (access exists, own login missing).
+ * over accounts. With `connectionId` it starts at the login (access exists, own login missing);
+ * with `start: "accounts"` at taking over (a PSD2 access right after its approval).
  * New accounts left unpicked are ignored: a fetch no longer reports them as new.
  * A PIN that should not be stored stays in this dialog's state only.
  */
-export function BankSetupDialog({ connectionId }: { connectionId?: number }) {
-    const [step, setStep] = useState<Step>(connectionId ? "login" : "bank");
+export function BankSetupDialog({ connectionId, start }: { connectionId?: number; start?: "accounts" }) {
+    const [step, setStep] = useState<Step>(start === "accounts" && connectionId ? "accounts" : connectionId ? "login" : "bank");
     const [conn, setConn] = useState<number | null>(connectionId ?? null);
     const [error, setError] = useState<string | null>(null);
-    const [busy, setBusy] = useState(false);
+    // Right after a PSD2 approval the dialog starts with the account list, no PIN or TAN involved
+    const startedAtAccounts = start === "accounts" && !!connectionId;
+    const [busy, setBusy] = useState(startedAtAccounts);
     const { pending, outcome, approval } = useBankOperation(setError);
 
     // Step "bank"
@@ -136,6 +139,15 @@ export function BankSetupDialog({ connectionId }: { connectionId?: number }) {
             setStep("accounts");
             await loadAccounts(pinBody);
         });
+
+    useEffect(() => {
+        if (!startedAtAccounts) return;
+        loadAccounts({})
+            .catch((err: unknown) => setError(errorText(err)))
+            .finally(() => setBusy(false));
+        // once, when the dialog opens
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // New accounts not picked are left out: a fetch no longer reports them
     const leftOut = (offered ?? []).filter((a) => a.supported && a.accountId === null && !picked.has(a.externalId)).map((a) => a.externalId);
@@ -274,7 +286,7 @@ export function BankSetupDialog({ connectionId }: { connectionId?: number }) {
                             <>
                                 <Hint>Die Bank hat keine Konten gemeldet.</Hint>
                                 <div className="actions">
-                                    <Button busy={busy && !pending} disabled={!!pending} onClick={() => void fetchAccounts()}>Noch einmal abrufen</Button>
+                                    <Button busy={busy && !pending} disabled={!!pending} onClick={() => void (startedAtAccounts ? run(() => loadAccounts({})) : fetchAccounts())}>Noch einmal abrufen</Button>
                                 </div>
                             </>
                         )}

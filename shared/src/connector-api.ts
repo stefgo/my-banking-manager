@@ -40,6 +40,13 @@ export const connectorRoutes = {
     operationTan: r({ method: "POST", path: "/v1/operations/:id/tan", summary: "Hand in the TAN of an operation", params: C.OperationParam, body: C.TanRequest, response: C.paymentOutcome(C.AnyOutcomeData) }),
     confirmOperation: r({ method: "POST", path: "/v1/operations/:id/confirm", summary: "Go on with a payment although the payee's name differs; the bank then asks for the approval", params: C.OperationParam, response: C.paymentOutcome(C.AnyOutcomeData) }),
     cancelOperation: r({ method: "DELETE", path: "/v1/operations/:id", summary: "Cancel an operation and end its dialog", params: C.OperationParam, response: Ok }),
+    psd2Banks: r({ method: "POST", path: "/v1/psd2/banks", summary: "PSD2: banks of a country that Enable Banking offers; checks application ID and key on the way", body: C.Psd2BanksRequest, response: C.Psd2BanksData }),
+    psd2Consent: r({ method: "POST", path: "/v1/psd2/consents", summary: "PSD2: start the approval at the bank; answers with the address to send the user's browser to", body: C.Psd2ConsentRequest, response: C.Psd2ConsentData }),
+    psd2Session: r({ method: "POST", path: "/v1/psd2/sessions", summary: "PSD2: finish the approval with the code from the redirect; answers with the state for later calls", body: C.Psd2SessionRequest, response: C.Psd2SessionData }),
+    psd2CloseSession: r({ method: "POST", path: "/v1/psd2/sessions/close", summary: "PSD2: end the session at Enable Banking; the approval at the bank ends with it where the bank allows", body: C.Psd2CloseRequest, response: Ok }),
+    psd2Accounts: r({ method: "POST", path: "/v1/psd2/accounts", summary: "PSD2: accounts of the approval", body: C.Psd2Request, response: C.outcome(C.AccountsData) }),
+    psd2Balances: r({ method: "POST", path: "/v1/psd2/balances", summary: "PSD2: balances of accounts", body: C.Psd2BalancesRequest, response: C.outcome(C.BalancesData) }),
+    psd2Transactions: r({ method: "POST", path: "/v1/psd2/transactions", summary: "PSD2: booked and pending transactions of an account; without a start date as far back as the bank allows", body: C.Psd2TransactionsRequest, response: C.outcome(C.Psd2TransactionsData) }),
 } as const;
 
 export type ConnectorRoutes = typeof connectorRoutes;

@@ -2,7 +2,8 @@ import { useState } from "react";
 import { EyeOff, Plus, RefreshCw, Unlink } from "lucide-react";
 import { groupCardNumber, routes, type BankConnection, type BankLogin, type OfferedAccount } from "@mbm/shared";
 import { call, errorText } from "../lib/api";
-import { isActive, refreshBank, startSync, useBankDirectory, useConnections, useConnectorStatus, useOfferedAccounts, useSyncRuns } from "../lib/bank";
+import { canFetch, isActive, refreshBank, startSync, useBankDirectory, useConnections, useConnectorStatus, useOfferedAccounts, useSyncRuns } from "../lib/bank";
+import { consentText, isPsd2 } from "../lib/psd2";
 import { useBankOperation } from "../lib/bankOperation";
 import { useAccounts, useAction, useGroups } from "../lib/queries";
 import { accountsInTreeOrder } from "../lib/tree";
@@ -19,7 +20,14 @@ const STATUS_TEXT: Record<BankLogin["status"], string> = {
     credentials_lost: "Anmeldename und PIN bitte neu eingeben",
     pin_wrong: "PIN abgelehnt",
     error: "Letzter Abruf fehlgeschlagen",
+    consent_needed: "Freigabe bei der Bank nötig",
 };
+/** PSD2 logins have an application instead of login name and PIN. */
+const PSD2_STATUS_TEXT: Partial<Record<BankLogin["status"], string>> = {
+    credentials_lost: "Application-ID und Schlüssel bitte neu eingeben",
+    pin_wrong: "Application-ID oder Schlüssel abgelehnt",
+};
+const statusText = (s: BankLogin["status"], kind: BankConnection["kind"]): string => (kind === "psd2" ? PSD2_STATUS_TEXT[s] : undefined) ?? STATUS_TEXT[s];
 
 const dotClass = (s: BankLogin["status"] | null) => (s === "ready" ? "dot" : s === null ? "dot off" : "dot attn");
 
@@ -33,7 +41,7 @@ export function BankStatusRows() {
                 <span className="dot off" />
                 <span className="fs-main">
                     <b>Bankzugänge</b>
-                    <small>Noch keiner eingerichtet. „Konto hinzufügen → Bank (FinTS)“ richtet einen ein.</small>
+                    <small>Noch keiner eingerichtet. „Konto hinzufügen → Bank (FinTS)“ oder „Bank über PSD2“ richtet einen ein.</small>
                 </span>
                 <span className="fs-state">–</span>
                 <span />
@@ -47,9 +55,9 @@ export function BankStatusRows() {
                     <span className={dotClass(c.myLogin?.status ?? null)} />
                     <span className="fs-main">
                         <b>{c.name}</b>
-                        <small>{c.myLogin ? `${STATUS_TEXT[c.myLogin.status]}${c.myLogin.lastSyncAt ? ` · zuletzt abgerufen ${formatDateTime(c.myLogin.lastSyncAt)}` : ""}` : "Keine eigene Anmeldung"}</small>
+                        <small>{c.myLogin ? [statusText(c.myLogin.status, c.kind), consentText(c.myLogin.consentUntil)?.attn ? consentText(c.myLogin.consentUntil)!.text : null, c.myLogin.lastSyncAt ? `zuletzt abgerufen ${formatDateTime(c.myLogin.lastSyncAt)}` : null].filter(Boolean).join(" · ") : "Keine eigene Anmeldung"}</small>
                     </span>
-                    <span className="fs-state">{c.accountCount} Konten</span>
+                    <span className="fs-state">{plural(c.accountCount, "Konto", "Konten")}</span>
                     <ConnectionSyncButton c={c} syncing={runs.some((r) => r.connectionId === c.id && isActive(r))} />
                 </div>
             ))}
@@ -97,14 +105,19 @@ export function BankDirectoryRow() {
 /** „Bankzugänge“ with heading; hidden while there is neither a bank access nor a connector problem to show. */
 export function BankAccessCards() {
     const connections = useConnections().data ?? [];
-    const status = useConnectorStatus().data?.find((s) => s.name === "fints");
+    const statuses = useConnectorStatus().data;
+    const status = statuses?.find((s) => s.name === "fints");
     const unreachable = !!status && !status.reachable;
     const noProduct = !!status?.reachable && !status.productConfigured;
+    // PSD2 accesses need the Enable Banking connector: missing or silent, they cannot fetch
+    const eb = statuses?.find((s) => s.name === "enablebanking");
+    const ebProblem = !!statuses && connections.some(isPsd2) && (!eb || !eb.reachable);
     if (connections.length === 0 && !unreachable && !noProduct) return null;
     return (
         <>
             <h2 className="set-h">Bankzugänge</h2>
             {unreachable && <Hint tone="bad">Der FinTS-Konnektor antwortet nicht. Abrufe sind erst möglich, wenn er läuft.</Hint>}
+            {ebProblem && <Hint tone="bad">{eb ? "Der Enable-Banking-Konnektor antwortet nicht." : "Der Enable-Banking-Konnektor ist nicht eingerichtet."} PSD2-Zugänge können erst abrufen, wenn er läuft.</Hint>}
             {noProduct && <Hint tone="bad">Für den FinTS-Konnektor ist keine Produkt-ID eingetragen (MBM_FINTS_PRODUCT_ID).</Hint>}
             {connections.map((c) => <BankCard key={c.id} c={c} />)}
         </>
@@ -119,7 +132,9 @@ function BankCard({ c }: { c: BankConnection }) {
     const action = useAction();
     const [pinOpen, setPinOpen] = useState(false);
     const login = c.myLogin;
-    const canSync = !!login && login.status !== "setup" && login.status !== "credentials_lost";
+    const psd2 = isPsd2(c);
+    const canSync = canFetch(c);
+    const consent = psd2 ? consentText(login?.consentUntil ?? null) : null;
     const atBank = useAccountsAtBank(c.id, canSync, login?.savePin ?? true);
     // Accounts in MBM the own login does not reach yet (known from the last account list): account id → bank id
     const unlinked = new Map((atBank.list?.accounts ?? []).filter((x) => x.accountId !== null && x.supported && !x.linked).map((x) => [x.accountId!, x.externalId]));
@@ -152,7 +167,7 @@ function BankCard({ c }: { c: BankConnection }) {
                 <span className="acc-ic"><Sym name={c.icon} size={20} /></span>
                 <div style={{ minWidth: 0 }}>
                     <h3>{c.name}</h3>
-                    <p className="muted small">{c.bankName} · BLZ {c.blz}</p>
+                    <p className="muted small">{psd2 ? `${c.bankName} · PSD2 über Enable Banking` : `${c.bankName} · BLZ ${c.blz}`}</p>
                 </div>
                 <span />
             </div>
@@ -164,14 +179,16 @@ function BankCard({ c }: { c: BankConnection }) {
                         <b>Deine Anmeldung {login ? login.loginHint : ""}</b>
                         <small>
                             {login
-                                ? [STATUS_TEXT[login.status], login.tanMethod?.name, login.savePin ? null : "PIN wird bei jedem Abruf abgefragt", login.lastSyncAt ? `zuletzt abgerufen ${formatDateTime(login.lastSyncAt)}` : null, login.lastError]
+                                ? [statusText(login.status, c.kind), login.tanMethod?.name, consent?.text, login.savePin ? null : "PIN wird bei jedem Abruf abgefragt", login.lastSyncAt ? `zuletzt abgerufen ${formatDateTime(login.lastSyncAt)}` : null, login.lastError]
                                       .filter(Boolean)
                                       .join(" · ")
                                 : "Du hast hier noch keine eigene Anmeldung."}
                         </small>
                     </span>
                     <span className="fs-state cc-actions">
-                        {!login || login.status === "setup" || login.status === "credentials_lost" ? (
+                        {psd2 ? (
+                            <Psd2LoginActions c={c} atBank={canSync ? atBank : null} attn={!!consent?.attn} />
+                        ) : !login || login.status === "setup" || login.status === "credentials_lost" ? (
                             <button className="btn btn-sm" onClick={() => ui.open({ kind: "bankSetup", connectionId: c.id })}>{login ? "Einrichtung fortsetzen" : "Anmeldung hinzufügen"}</button>
                         ) : (
                             <>
@@ -229,6 +246,31 @@ function BankCard({ c }: { c: BankConnection }) {
                 <button className="btn btn-sm btn-ghost btn-danger" onClick={removeAccess}>Bankzugang entfernen</button>
             </div>
         </section>
+    );
+}
+
+/**
+ * What the own PSD2 login offers: set up the application, approve at the bank, take over accounts,
+ * then fetch the account list, renew the approval (marked when it runs out) or change the application.
+ */
+function Psd2LoginActions({ c, atBank, attn }: { c: BankConnection; atBank: ReturnType<typeof useAccountsAtBank> | null; attn: boolean }) {
+    const login = c.myLogin;
+    if (!login || login.status === "credentials_lost") {
+        return <button className="btn btn-sm" onClick={() => ui.open({ kind: "psd2Setup", connectionId: c.id, mode: "credentials" })}>{login ? "Zugangsdaten eingeben" : "Anmeldung hinzufügen"}</button>;
+    }
+    if (login.status === "setup" && !login.consentUntil) {
+        return <button className="btn btn-sm" onClick={() => ui.open({ kind: "psd2Setup", connectionId: c.id, mode: "consent" })}>Bei der Bank freigeben</button>;
+    }
+    if (login.status === "setup") {
+        return <button className="btn btn-sm" onClick={() => ui.open({ kind: "bankSetup", connectionId: c.id, start: "accounts" })}>Konten übernehmen</button>;
+    }
+    const renew = login.status === "consent_needed" || attn;
+    return (
+        <>
+            {atBank && <Button className="btn-sm btn-ghost" busy={atBank.busy} disabled={atBank.pending} onClick={atBank.start}>Konten abrufen</Button>}
+            <button className={`btn btn-sm ${renew ? "" : "btn-ghost"}`} onClick={() => ui.open({ kind: "psd2Setup", connectionId: c.id, mode: "consent" })}>Freigabe erneuern</button>
+            <button className="btn btn-sm btn-ghost" onClick={() => ui.open({ kind: "psd2Setup", connectionId: c.id, mode: "credentials" })}>Zugangsdaten ändern</button>
+        </>
     );
 }
 
@@ -348,7 +390,7 @@ function AskPin({ busy, onSubmit, onCancel }: { busy: boolean; onSubmit: (pin: s
 /** Fetches all accounts of a bank access with the own login; an empty cell without a usable login. */
 function ConnectionSyncButton({ c, syncing }: { c: BankConnection; syncing: boolean }) {
     const status = c.myLogin?.status;
-    if (!status || status === "setup" || status === "credentials_lost") return <span />;
+    if (!status || !canFetch(c)) return <span />;
     const label = syncing ? `„${c.name}“ wird abgerufen` : `„${c.name}“ abrufen`;
     return (
         <button type="button" className="mini" aria-label={label} title={label} aria-busy={syncing || undefined} onClick={() => !syncing && void startSync({ connectionId: c.id })}>

@@ -45,7 +45,7 @@ const ConfigSchema = z.object({
         .prefault({}),
     logLevel: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
     /**
-     * Connectors by name: each reachable on its Unix socket, or (only "fints", image
+     * Connectors by name ("fints", "enablebanking"): each reachable on its Unix socket, or (image
      * mbm-server-full) embedded in the server's process.
      */
     connectors: z.record(z.string(), ConnectorConfig).default({}),
@@ -78,13 +78,24 @@ export function loadConfig(env = process.env, cwd = process.cwd()): Config {
     if (env.MBM_BANK_DIRECTORY_UPDATE) fromEnv.bankDirectoryUpdate = env.MBM_BANK_DIRECTORY_UPDATE !== "false";
     if (env.MBM_TRUST_PROXY) fromEnv.trustProxy = env.MBM_TRUST_PROXY === "true" ? true : env.MBM_TRUST_PROXY === "false" ? false : env.MBM_TRUST_PROXY;
     if (env.MBM_ALLOWED_ORIGINS) fromEnv.allowedOrigins = env.MBM_ALLOWED_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean);
-    const embedded = env.MBM_FINTS_EMBEDDED === "1" || env.MBM_FINTS_EMBEDDED === "true";
-    if (embedded && env.MBM_FINTS_SOCKET) {
-        throw new Error("MBM_FINTS_EMBEDDED and MBM_FINTS_SOCKET are both set: the FinTS connector is either embedded or on its socket, not both.");
+    // Per connector: MBM_<NAME>_EMBEDDED=1 or MBM_<NAME>_SOCKET=<path>; they take precedence over config.yaml
+    const connectors: Record<string, unknown> = { ...((fromFile as { connectors?: object }).connectors ?? {}) };
+    let fromEnvConnectors = false;
+    for (const [name, prefix, label] of [["fints", "MBM_FINTS", "FinTS"], ["enablebanking", "MBM_ENABLEBANKING", "Enable Banking"]] as const) {
+        const flag = env[`${prefix}_EMBEDDED`];
+        const socket = env[`${prefix}_SOCKET`];
+        const embedded = flag === "1" || flag === "true";
+        if (embedded && socket) throw new Error(`${prefix}_EMBEDDED and ${prefix}_SOCKET are both set: the ${label} connector is either embedded or on its socket, not both.`);
+        if (embedded || socket) {
+            connectors[name] = embedded ? { embedded: true } : { socket };
+            fromEnvConnectors = true;
+        } else if (name === "enablebanking" && (flag === "0" || flag === "false")) {
+            // Switched off on purpose: the image mbm-server-full has it on (MBM_ENABLEBANKING_EMBEDDED=1)
+            delete connectors[name];
+            fromEnvConnectors = true;
+        }
     }
-    if (embedded || env.MBM_FINTS_SOCKET) {
-        fromEnv.connectors = { ...((fromFile as { connectors?: object }).connectors ?? {}), fints: embedded ? { embedded: true } : { socket: env.MBM_FINTS_SOCKET } };
-    }
+    if (fromEnvConnectors) fromEnv.connectors = connectors;
     const config = ConfigSchema.parse({ ...fromFile, ...fromEnv });
     return { ...config, dataDir: path.resolve(cwd, config.dataDir), webRoot: config.webRoot ? path.resolve(cwd, config.webRoot) : "" };
 }

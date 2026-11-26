@@ -330,6 +330,7 @@ const ACTION_LABELS: Record<string, string> = {
     import: "CSV importiert",
     import_undone: "Import rückgängig",
     import_removed: "Import aus Liste entfernt",
+    bank_consent_given: "Freigabe bei der Bank erteilt",
     sync: "Abgerufen",
     sync_failed: "Abruf fehlgeschlagen",
     transfer_submitted: "An die Bank gesendet",

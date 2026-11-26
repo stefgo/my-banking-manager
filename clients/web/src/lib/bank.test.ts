@@ -14,6 +14,7 @@ const run = (patch: Partial<SyncRun>): SyncRun => ({
     missingAccounts: [],
     ordersOnly: false,
     ordersMessage: null,
+    foreignCurrency: 0,
     error: null,
     message: null,
     startedAt: "2026-01-01T00:00:00.000Z",

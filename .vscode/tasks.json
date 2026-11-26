@@ -51,8 +51,24 @@
       }
     },
     {
+      "label": "Enable-Banking-Konnektor (dev)",
+      "detail": "Enable-Banking-Konnektor (PSD2) mit Neustart bei Änderungen, Socket .run/enablebanking.sock",
+      "type": "shell",
+      "command": "npm run dev:enablebanking",
+      "isBackground": true,
+      "presentation": { "group": "dev", "panel": "dedicated" },
+      "problemMatcher": {
+        "owner": "mbm-enablebanking",
+        "pattern": { "regexp": "^__never__$" },
+        "background": {
+          "beginsPattern": "dev:enablebanking|Restarting|change in",
+          "endsPattern": "MBM Enable Banking connector"
+        }
+      }
+    },
+    {
       "label": "Server + Web starten",
-      "dependsOn": ["Server (dev)", "FinTS-Konnektor (dev)", "Web (dev)"],
+      "dependsOn": ["Server (dev)", "FinTS-Konnektor (dev)", "Enable-Banking-Konnektor (dev)", "Web (dev)"],
       "dependsOrder": "parallel",
       "group": { "kind": "build", "isDefault": true },
       "problemMatcher": []

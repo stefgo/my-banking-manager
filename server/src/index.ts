@@ -10,7 +10,7 @@ const logger = pino(
     {
         level: config.logLevel,
         // Never log credentials or bank data
-        redact: { paths: ["req.headers.cookie", "req.headers.authorization", "*.password", "*.recoveryKey", "*.pin", "*.code"], remove: true },
+        redact: { paths: ["req.headers.cookie", "req.headers.authorization", "*.password", "*.recoveryKey", "*.pin", "*.code", "*.privateKey", "*.credentials", "*.state", "*.sessionId"], remove: true },
     },
     prettyOutput,
 );

@@ -14,6 +14,7 @@ import { foreignKeyIndexes } from "./0011-foreign-key-indexes.js";
 import { bookingGuards } from "./0012-booking-guards.js";
 import { accountKind } from "./0013-account-kind.js";
 import { transferChecks } from "./0014-transfer-checks.js";
+import { psd2Connections } from "./0015-psd2-connections.js";
 import { applyMigration, migrations, type Migration } from "./index.js";
 
 const columns = (db: Database.Database, table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
@@ -540,5 +541,65 @@ describe("0014-transfer-checks", () => {
         expect(() => applyMigration(db, transferChecks)).toThrow("2 transfer rows do not fit their kind (ids 2, 5)");
         expect(columns(db, "transfers")).toContain("previous");
         db.close();
+    });
+});
+
+describe("0015-psd2-connections", () => {
+    let db: Database.Database;
+
+    beforeEach(() => {
+        db = before(psd2Connections);
+        db.exec(`
+            INSERT INTO users (id, name, created_at) VALUES (1, 'Anna', '${T0}'), (2, 'Ben', '${T0}');
+            INSERT INTO bank_connections (id, name, bank_name, blz, bic, fints_url, icon, color, created_at) VALUES (1, 'Sparkasse', 'Sparkasse Musterstadt', '70054306', 'BYLADEM1001', 'https://x.invalid', 'landmark', 'red', '${T0}');
+            INSERT INTO bank_logins (id, connection_id, user_id, login_hint, sealed_credentials, sealed_connector_state, save_pin, tan_method, tan_method_name, tan_medium, status, last_sync_at, last_error, created_at)
+            VALUES (1, 1, 1, '••••7731', 'sealed', 'state', 0, '942', 'pushTAN', 'iPhone', 'ready', '${T0}', NULL, '${T0}'),
+                   (2, 1, 2, '••••0001', NULL, NULL, 1, NULL, NULL, NULL, 'credentials_lost', NULL, 'weg', '${T0}');
+            INSERT INTO accounts (id, connection_id, external_id, name, kind, icon, color, position, created_at) VALUES (1, 1, 'DE02', 'Giro', 'giro', 'landmark', 'blue', 0, '${T0}');
+            INSERT INTO bank_login_accounts (login_id, account_id, account_ref, allowed_operations) VALUES (1, 1, '{}', '{}');
+            INSERT INTO sync_runs (id, connection_id, login_id, user_id, account_id, started_at, trigger, result) VALUES (1, 1, 1, 1, 1, '${T0}', 'manual', 'ok');
+        `);
+        applyMigration(db, psd2Connections);
+    });
+    afterEach(() => db.close());
+
+    it("keeps the FinTS accesses and logins as they were", () => {
+        expect(db.prepare("SELECT id, connector, blz, bic, fints_url AS url, aspsp, country FROM bank_connections").all()).toEqual([
+            { id: 1, connector: "fints", blz: "70054306", bic: "BYLADEM1001", url: "https://x.invalid", aspsp: "", country: "" },
+        ]);
+        expect(db.prepare("SELECT id, login_hint AS hint, sealed_credentials AS c, sealed_connector_state AS s, save_pin AS p, tan_method AS m, tan_medium AS tm, status, last_error AS e, consent_until AS cu FROM bank_logins ORDER BY id").all()).toEqual([
+            { id: 1, hint: "••••7731", c: "sealed", s: "state", p: 0, m: "942", tm: "iPhone", status: "ready", e: null, cu: null },
+            { id: 2, hint: "••••0001", c: null, s: null, p: 1, m: null, tm: null, status: "credentials_lost", e: "weg", cu: null },
+        ]);
+    });
+
+    it("keeps the links of the other tables", () => {
+        for (const [table, from] of [["bank_logins", "connection_id"], ["accounts", "connection_id"], ["sync_runs", "connection_id"], ["bank_ignored_accounts", "connection_id"]] as const) {
+            expect((db.pragma(`foreign_key_list(${table})`) as { table: string; from: string }[]).filter((f) => f.from === from).map((f) => f.table)).toEqual(["bank_connections"]);
+        }
+        for (const table of ["bank_login_accounts", "sync_runs", "transfers"]) {
+            expect((db.pragma(`foreign_key_list(${table})`) as { table: string; from: string }[]).filter((f) => f.from === "login_id").map((f) => f.table)).toEqual(["bank_logins"]);
+        }
+        db.exec("DELETE FROM bank_logins WHERE id = 1");
+        expect(db.prepare("SELECT count(*) AS n FROM bank_login_accounts").get()).toEqual({ n: 0 });
+        expect(db.prepare("SELECT login_id AS l FROM sync_runs").get()).toEqual({ l: null });
+    });
+
+    it("takes PSD2 accesses, one per bank, and FinTS accesses once per bank code and address", () => {
+        const psd2 = (id: number, aspsp: string) => db.exec(`INSERT INTO bank_connections (id, name, connector, bank_name, blz, fints_url, icon, color, created_at, aspsp, country) VALUES (${id}, '${aspsp}', 'enablebanking', '${aspsp}', '', '', 'wallet', 'blue', '${T0}', '${aspsp}', 'DE')`);
+        psd2(2, "PayPal");
+        psd2(3, "N26");
+        expect(() => psd2(4, "PayPal")).toThrow();
+        expect(() => db.exec(`INSERT INTO bank_connections (name, bank_name, blz, fints_url, icon, color, created_at) VALUES ('x', 'x', '70054306', 'https://x.invalid', 'x', 'x', '${T0}')`)).toThrow();
+        // A kind gets the fields of its kind and only those
+        expect(() => db.exec(`INSERT INTO bank_connections (name, connector, bank_name, blz, fints_url, icon, color, created_at) VALUES ('x', 'enablebanking', 'x', '', '', 'x', 'x', '${T0}')`)).toThrow();
+        expect(() => db.exec(`INSERT INTO bank_connections (name, bank_name, blz, fints_url, icon, color, created_at, aspsp, country) VALUES ('x', 'x', '1', 'https://y.invalid', 'x', 'x', '${T0}', 'PayPal', 'DE')`)).toThrow();
+        expect(() => db.exec(`INSERT INTO bank_connections (name, connector, bank_name, blz, fints_url, icon, color, created_at) VALUES ('x', 'other', 'x', '1', 'https://y.invalid', 'x', 'x', '${T0}')`)).toThrow();
+    });
+
+    it("knows the status consent_needed and when an approval ends", () => {
+        db.exec("UPDATE bank_logins SET status = 'consent_needed', consent_until = '2027-05-25T10:00:00.000Z' WHERE id = 2");
+        expect(() => db.exec("UPDATE bank_logins SET status = 'expired' WHERE id = 2")).toThrow();
+        expect(() => db.exec(`INSERT INTO bank_logins (connection_id, user_id, login_hint, created_at) VALUES (1, 1, 'x', '${T0}')`)).toThrow();
     });
 });

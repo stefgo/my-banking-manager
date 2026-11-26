@@ -82,7 +82,7 @@ jobs:
             # bump: major.
             breaking: minor
             # The workspaces carry the version too: the FinTS connector reports its own as the
-            # product version to the bank. Their entries in package-lock.json follow with the
+            # product version to the bank, both connectors report theirs in /v1/info. Their entries in package-lock.json follow with the
             # next local npm install (npm ci accepts the difference).
-            version_files: shared/package.json server/package.json connectors/fints/package.json clients/web/package.json
+            version_files: shared/package.json server/package.json connectors/fints/package.json connectors/enablebanking/package.json clients/web/package.json
             build_workflow: build.yml

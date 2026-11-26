@@ -5,7 +5,7 @@ import websocket from "@fastify/websocket";
 import type { FastifyBaseLogger as Logger } from "fastify";
 import { AutoLock } from "./autolock.js";
 import { BankDirectory } from "./services/bankdirectory.js";
-import { ConnectorRegistry, type EmbeddedLoader } from "./connectors/client.js";
+import { ConnectorRegistry, type EmbeddableConnector, type EmbeddedLoader } from "./connectors/client.js";
 import { SyncManager } from "./services/sync.js";
 import { TransferManager } from "./services/transfers.js";
 import type { Config } from "./config.js";
@@ -27,8 +27,8 @@ export interface BuiltApp {
 }
 
 export interface AppOptions {
-    /** For tests: how an embedded connector is made (default: @mbm/connector-fints/embedded). */
-    loadEmbeddedConnector?: EmbeddedLoader;
+    /** For tests: how an embedded connector is made, by name (default: its package's /embedded). */
+    loadEmbeddedConnectors?: Partial<Record<EmbeddableConnector, EmbeddedLoader>>;
 }
 
 export async function buildApp(config: Config, vault: Vault, logger: Logger, opts: AppOptions = {}): Promise<BuiltApp> {
@@ -43,7 +43,7 @@ export async function buildApp(config: Config, vault: Vault, logger: Logger, opt
         config,
         vault,
         events,
-        connectors: new ConnectorRegistry(config, opts.loadEmbeddedConnector ? { loadEmbedded: opts.loadEmbeddedConnector } : {}),
+        connectors: new ConnectorRegistry(config, opts.loadEmbeddedConnectors ? { loadEmbedded: opts.loadEmbeddedConnectors } : {}),
         webClient: loadWebClient(config.webRoot),
     } as AppContext;
     await ctx.connectors.start(logger);

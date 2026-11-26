@@ -79,7 +79,7 @@ jobs:
                   HEAD_SHA: ${{ github.event.pull_request.head.sha }}
               run: npx commitlint --from "$BASE_SHA" --to "$HEAD_SHA" --verbose
 
-            # shared, server, FinTS connector and web client. First, because a build that fails
+            # shared, server, both connectors and web client. First, because a build that fails
             # is the cheapest thing to be told.
             - name: Build all workspaces
               run: npm run build
@@ -91,7 +91,7 @@ jobs:
             - name: Lint
               run: npm run lint
 
-            # Vitest for shared, server and web client: temporary data directories, never a real
+            # Vitest for shared, server, connectors and web client: temporary data directories, never a real
             # bank.
             - name: Test
               run: npm test

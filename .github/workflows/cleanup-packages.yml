@@ -34,7 +34,7 @@ jobs:
               with:
                   # **A new image has to be added here by hand** (ci.yml checks it). The action
                   # touches only the packages it is named.
-                  packages: mbm-server,mbm-fints,mbm-server-full
+                  packages: mbm-server,mbm-fints,mbm-enablebanking,mbm-server-full
 
                   # A child of a kept tag does not count as untagged here.
                   delete-untagged: true
@@ -100,7 +100,7 @@ jobs:
                       return "$bad"
                   }
 
-                  for image in mbm-server mbm-fints mbm-server-full; do
+                  for image in mbm-server mbm-fints mbm-enablebanking mbm-server-full; do
                       for tag in latest main dev; do
                           verify "$registry/$image:$tag" || rc=1
                       done

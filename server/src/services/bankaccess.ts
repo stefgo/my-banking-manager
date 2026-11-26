@@ -1,7 +1,7 @@
 // Bank accesses: connections (shared), logins (per user, sealed with the user key), and taking
 // over accounts. The bank directory is in bankdirectory.ts.
 
-import type { BankConnection, BankLogin, ConnectorAccount, ConnectorLogin } from "@mbm/shared";
+import type { BankConnection, BankLogin, ConnectorAccount, ConnectorLogin, Psd2Bank, Psd2Credentials, Psd2Login } from "@mbm/shared";
 import type { Db } from "../db/database.js";
 import { HttpError, notFound } from "../http/errors.js";
 import { deleteAccount, nextPosition, requireAccount, requireGroup } from "./accounts.js";
@@ -20,6 +20,9 @@ interface ConnectionRow {
     fints_url: string;
     icon: string;
     color: string;
+    /** PSD2 (connector "enablebanking"): the bank as Enable Banking names it; empty for FinTS. */
+    aspsp: string;
+    country: string;
 }
 
 export interface LoginRow {
@@ -36,6 +39,7 @@ export interface LoginRow {
     status: BankLogin["status"];
     last_sync_at: string | null;
     last_error: string | null;
+    consent_until: string | null;
 }
 
 export interface Credentials {
@@ -60,6 +64,7 @@ const toLogin = (r: LoginRow): BankLogin => ({
     savePin: r.save_pin === 1,
     lastSyncAt: r.last_sync_at,
     lastError: r.last_error,
+    consentUntil: r.consent_until,
 });
 
 export function requireConnection(db: Db, id: number): ConnectionRow {
@@ -75,11 +80,13 @@ export function getConnection(db: Db, id: number, userId: number): BankConnectio
     const accountCount = (db.prepare("SELECT count(*) AS n FROM accounts WHERE connection_id = ?").get(id) as { n: number }).n;
     return {
         id: c.id,
+        kind: isPsd2(c) ? "psd2" : "fints",
         name: c.name,
         bankName: c.bank_name,
         blz: c.blz,
         bic: c.bic,
         fintsUrl: c.fints_url,
+        psd2: isPsd2(c) ? psd2Bank(c) : null,
         icon: c.icon,
         color: c.color,
         myLogin: mine ? toLogin(mine) : null,
@@ -105,6 +112,69 @@ export function createConnection(
             .run(input.name ?? dir?.name ?? input.bankName, input.bankName, input.blz, dir?.bic || null, input.fintsUrl, input.icon ?? "landmark", input.color ?? "red", nowIso()).lastInsertRowid,
     );
     return { id, created: true };
+}
+
+// ---------- PSD2 through Enable Banking ----------
+
+export const PSD2_CONNECTOR = "enablebanking";
+export const isPsd2 = (c: Pick<ConnectionRow, "connector">): boolean => c.connector === PSD2_CONNECTOR;
+export const psd2Bank = (c: Pick<ConnectionRow, "aspsp" | "country">): Psd2Bank => ({ aspsp: c.aspsp, country: c.country });
+
+/** Creates the PSD2 access, or returns the existing one for the same bank. */
+export function createPsd2Connection(db: Db, input: Psd2Bank & { name?: string; icon?: string; color?: string }): { id: number; created: boolean } {
+    const existing = db.prepare("SELECT id FROM bank_connections WHERE connector = ? AND aspsp = ? AND country = ?").get(PSD2_CONNECTOR, input.aspsp, input.country) as { id: number } | undefined;
+    if (existing) return { id: existing.id, created: false };
+    const id = Number(
+        db
+            .prepare("INSERT INTO bank_connections (name, connector, bank_name, blz, bic, fints_url, icon, color, created_at, aspsp, country) VALUES (?, ?, ?, '', NULL, '', ?, ?, ?, ?, ?)")
+            .run(input.name ?? input.aspsp, PSD2_CONNECTOR, input.aspsp, input.icon ?? (/paypal/i.test(input.aspsp) ? "wallet" : "landmark"), input.color ?? "blue", nowIso(), input.aspsp, input.country).lastInsertRowid,
+    );
+    return { id, created: true };
+}
+
+const psd2Hint = (applicationId: string): string => `App ••••${applicationId.slice(-4)}`;
+
+/**
+ * Sets (or replaces) the user's Enable Banking application for this access. A new application
+ * needs a new approval: state and approval end are cleared.
+ */
+export function setPsd2Login(db: Db, connectionId: number, userId: number, userKey: Buffer, creds: Psd2Credentials): LoginRow {
+    const conn = requireConnection(db, connectionId);
+    if (!isPsd2(conn)) throw new HttpError(409, "not_psd2", "Dieser Bankzugang läuft über FinTS.");
+    let row = findLogin(db, connectionId, userId);
+    if (!row) {
+        db.prepare("INSERT INTO bank_logins (connection_id, user_id, login_hint, created_at) VALUES (?, ?, ?, ?)").run(connectionId, userId, psd2Hint(creds.applicationId), nowIso());
+        row = findLogin(db, connectionId, userId)!;
+    }
+    const sealed = sealForUser(userKey, JSON.stringify({ applicationId: creds.applicationId, privateKey: creds.privateKey }), credAad(row.id));
+    db.prepare(
+        "UPDATE bank_logins SET login_hint = ?, sealed_credentials = ?, sealed_connector_state = NULL, consent_until = NULL, save_pin = 1, tan_method = NULL, tan_method_name = NULL, tan_medium = NULL, status = 'setup', last_error = NULL WHERE id = ?",
+    ).run(psd2Hint(creds.applicationId), sealed, row.id);
+    return loginById(db, row.id);
+}
+
+export function readPsd2Credentials(row: LoginRow, userKey: Buffer): Psd2Credentials {
+    const lost = () => new HttpError(409, "credentials_lost", "Bitte Application-ID und Schlüssel für diesen Bankzugang neu eingeben.");
+    if (!row.sealed_credentials) throw lost();
+    try {
+        const c = JSON.parse(openForUser(userKey, row.sealed_credentials, credAad(row.id))) as Partial<Psd2Credentials>;
+        if (typeof c.applicationId !== "string" || typeof c.privateKey !== "string") throw new Error("not a PSD2 login");
+        return { applicationId: c.applicationId, privateKey: c.privateKey };
+    } catch {
+        throw lost();
+    }
+}
+
+/** What the connector needs for one PSD2 call: the application and the state of the approval. */
+export function psd2Login(row: LoginRow, userKey: Buffer): Psd2Login {
+    const state = readState(row, userKey);
+    return { ...readPsd2Credentials(row, userKey), ...(state === undefined ? {} : { state }) };
+}
+
+/** Stores a new approval: its state, when it ends; ready if the login already reaches accounts. */
+export function setConsent(db: Db, loginId: number, userKey: Buffer, state: string, validUntil: string): void {
+    const linked = db.prepare("SELECT 1 FROM bank_login_accounts WHERE login_id = ? LIMIT 1").get(loginId) !== undefined;
+    db.prepare("UPDATE bank_logins SET sealed_connector_state = ?, consent_until = ?, status = ?, last_error = NULL WHERE id = ?").run(sealForUser(userKey, state, stateAad(loginId)), validUntil, linked ? "ready" : "setup", loginId);
 }
 
 /** Removes the connection; its accounts become offline accounts (balance kept) or are deleted. */
@@ -193,22 +263,24 @@ export function connectorLogin(row: LoginRow, userKey: Buffer, pin?: string): Co
     const creds = readCredentials(row, userKey);
     const usePin = pin ?? creds.pin;
     if (!usePin) throw new HttpError(409, "pin_required", "Bitte die PIN eingeben.");
-    let state: string | undefined;
-    if (row.sealed_connector_state) {
-        try {
-            state = openForUser(userKey, row.sealed_connector_state, stateAad(row.id));
-        } catch {
-            state = undefined; // the connector synchronises again
-        }
-    }
     return {
         userId: creds.loginName,
         customerId: creds.customerId || undefined,
         pin: usePin,
-        state,
+        state: readState(row, userKey),
         tanMethod: row.tan_method ?? undefined,
         tanMedium: row.tan_medium ?? undefined,
     };
+}
+
+/** The connector state of a login; undefined if there is none or it cannot be opened (the connector starts afresh). */
+function readState(row: LoginRow, userKey: Buffer): string | undefined {
+    if (!row.sealed_connector_state) return undefined;
+    try {
+        return openForUser(userKey, row.sealed_connector_state, stateAad(row.id));
+    } catch {
+        return undefined;
+    }
 }
 
 export function saveConnectorState(db: Db, loginId: number, userKey: Buffer, state: string): void {
@@ -274,7 +346,7 @@ export function takeOverAccount(
                     choice.name ?? acc.name,
                     acc.currency,
                     acc.kind,
-                    choice.icon ?? ICONS[acc.kind] ?? "landmark",
+                    choice.icon ?? acc.icon ?? ICONS[acc.kind] ?? "landmark",
                     choice.color ?? conn.color,
                     choice.groupId,
                     nextPosition(db, choice.groupId),

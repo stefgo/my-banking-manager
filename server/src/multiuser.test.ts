@@ -48,7 +48,7 @@ async function start(sims: Record<string, PersonalBankOptions | "broken">) {
                 return httpTransport(target, { allowInsecure: true });
             },
         });
-    t = await createTestApp({ connectors: { fints: { embedded: true } }, bankPollMs: 20 }, { loadEmbeddedConnector });
+    t = await createTestApp({ connectors: { fints: { embedded: true } }, bankPollMs: 20 }, { loadEmbeddedConnectors: { fints: loadEmbeddedConnector } });
     const anna = await setUpSignedIn(t);
     const created = await anna.api<{ id: number }>("POST", "/api/users", { name: "Ben", password: "bens-langes-passwort", code: confirmCode(t, anna.secret) });
     expect(created.status).toBe(200);

@@ -19,6 +19,14 @@ Nothing inside an HTML comment is published.
   geht mit Empfängerüberprüfung und Freigabe wie eine Überweisung und nur so, wie deine Bank es für
   das Konto erlaubt. Danach ruft MBM die Aufträge neu ab; kam die Antwort der Bank nicht an, klärt
   der neue Bestand, ob der Auftrag angekommen ist.
+- **PayPal und weitere Banken über PSD2:** Unter „Konto hinzufügen → Bank über PSD2 (Enable
+  Banking)“ richtest du Banken ohne FinTS ein, allen voran PayPal. MBM ruft sie über die
+  PSD2-Schnittstelle ab, die jede Bank in der EU anbieten muss. Dazwischen steht der zugelassene
+  Dienst Enable Banking, durch dessen Server die Umsätze dieser Banken laufen. Du brauchst dafür
+  eine eigene, kostenlose Anwendung bei Enable Banking. Du gibst den Zugriff bei der Bank frei, und
+  danach ruft MBM Saldo und Umsätze wie bei jeder Bank ab, nur lesend. Der erste Abruf holt so weit
+  zurück, wie die Bank erlaubt (bei PayPal zwei Jahre). Die Freigabe gilt höchstens 180 Tage; zwei
+  Wochen vorher erinnert MBM daran, und „Freigabe erneuern“ verlängert sie.
 - **Hinweis auf eine neue Oberfläche:** Nach einem Update merkt ein offenes Browserfenster, dass der
   Server eine neue Version der Oberfläche ausliefert, und bietet **Neu laden** an. Vor der Anmeldung
   lädt es von selbst neu.
@@ -40,6 +48,15 @@ Nothing inside an HTML comment is published.
   Sollte eine Buchung doppelt gespeichert sein, bleiben beide stehen, und nur die jüngere verliert
   ihren Abgleich mit der Bank. Ein bereits gelöstes Konto mit Kartennummer wird wieder eine
   Kreditkarte, andere Offline-Konten bekommen die Kontoart „Sonstiges“.
+- Migration 0015 baut die Tabellen der Bankzugänge für PSD2 um. Bestehende FinTS-Zugänge bleiben,
+  wie sie sind.
+- **Getrennte Container (`compose.split.yaml`):** Neu ist der Dienst `enablebanking` mit dem Image
+  `mbm-enablebanking` (in der `.env`: `MBM_IMAGE_ENABLEBANKING`). Übernimm die neue
+  `compose.split.yaml`, oder lass den Dienst und `MBM_ENABLEBANKING_SOCKET` weg, wenn du kein PSD2
+  willst.
+- **Enable Banking abschalten:** Im Image `mbm-server-full` ist der Konnektor eingebaut; mit
+  `MBM_ENABLEBANKING_EMBEDDED=0` bietet MBM keine PSD2-Zugänge an und spricht nie mit Enable
+  Banking.
 - **API:** Die Kontoart `offline` gibt es nicht mehr. Ein Konto ist offline, wenn `connectionId`
   leer ist. Selbst angelegte Konten haben die neue Art `other`.
 

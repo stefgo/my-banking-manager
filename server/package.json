@@ -6,8 +6,8 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "MBM_FINTS_SOCKET=${MBM_FINTS_SOCKET:-../.run/fints.sock} tsx watch --tsconfig tsconfig.dev.json --conditions=development src/index.ts",
-    "dev:full": "MBM_FINTS_EMBEDDED=1 tsx watch --env-file-if-exists=../.env --tsconfig tsconfig.dev.json --conditions=development src/index.ts",
+    "dev": "MBM_FINTS_SOCKET=${MBM_FINTS_SOCKET:-../.run/fints.sock} MBM_ENABLEBANKING_SOCKET=${MBM_ENABLEBANKING_SOCKET:-../.run/enablebanking.sock} tsx watch --tsconfig tsconfig.dev.json --conditions=development src/index.ts",
+    "dev:full": "MBM_FINTS_EMBEDDED=1 MBM_ENABLEBANKING_EMBEDDED=1 tsx watch --env-file-if-exists=../.env --tsconfig tsconfig.dev.json --conditions=development src/index.ts",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit --customConditions development"
@@ -25,6 +25,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@mbm/connector-enablebanking": "*",
     "@mbm/connector-fints": "*",
     "@types/ws": "^8.18.2",
     "pino-pretty": "^13.2.0"

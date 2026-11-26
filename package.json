@@ -9,6 +9,7 @@
     "shared",
     "server",
     "connectors/fints",
+    "connectors/enablebanking",
     "clients/web"
   ],
   "engines": {
@@ -19,12 +20,13 @@
     "dev:server": "npm run dev -w server",
     "dev:web": "npm run dev -w clients/web",
     "dev:fints": "npm run dev -w connectors/fints",
+    "dev:enablebanking": "npm run dev -w connectors/enablebanking",
     "dev:full": "npm run dev:full -w server",
-    "build": "npm run build -w shared && npm run build -w server && npm run build -w connectors/fints && npm run build -w clients/web",
+    "build": "npm run build -w shared && npm run build -w server && npm run build -w connectors/fints && npm run build -w connectors/enablebanking && npm run build -w clients/web",
     "start": "npm run start -w server",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "npm run typecheck -w shared && npm run typecheck -w server && npm run typecheck -w connectors/fints && npm run typecheck -w clients/web",
+    "typecheck": "npm run typecheck -w shared && npm run typecheck -w server && npm run typecheck -w connectors/fints && npm run typecheck -w connectors/enablebanking && npm run typecheck -w clients/web",
     "lint": "eslint .",
     "contracts": "tsx --conditions=development scripts/contracts.ts",
     "contracts:check": "tsx --conditions=development scripts/contracts.ts --check",

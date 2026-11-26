@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { Check, ChevronRight, Folder, Info, Landmark } from "lucide-react";
+import { Check, ChevronRight, Folder, Globe, Info, Landmark } from "lucide-react";
 import { centsToInput, parseAmount, routes, type Account } from "@mbm/shared";
 import { call } from "../lib/api";
+import { useConnectorStatus } from "../lib/bank";
 import { useAccounts, useAction } from "../lib/queries";
 import { fieldProps, focusFirstError, hasErrors, type FieldErrors } from "../lib/fields";
 import { ui } from "../lib/ui";
@@ -23,6 +24,8 @@ export function AddAccountDialog({ offline = false }: { offline?: boolean }) {
     const groupItems = useMemo(() => [{ value: "top", label: "Oberste Ebene", top: true }, ...groups], [groups]);
     const action = useAction();
     const open = useOpenTransactions();
+    // Offered only where the installation has the Enable Banking connector
+    const psd2 = !!useConnectorStatus().data?.some((c) => c.name === "enablebanking");
 
     if (!type) {
         return (
@@ -37,6 +40,16 @@ export function AddAccountDialog({ offline = false }: { offline?: boolean }) {
                         </span>
                         <Ic icon={ChevronRight} size={16} />
                     </button>
+                    {psd2 && (
+                        <button className="bank-item" onClick={() => ui.open({ kind: "psd2Setup" })}>
+                            <span className="acc-ic"><Ic icon={Globe} size={16} /></span>
+                            <span>
+                                <b>Bank über PSD2 (Enable Banking)</b>
+                                <small>PayPal und andere Banken ohne FinTS: MBM ruft sie über den Dienst Enable Banking ab, durch dessen Server die Umsätze laufen</small>
+                            </span>
+                            <Ic icon={ChevronRight} size={16} />
+                        </button>
+                    )}
                     <button className="bank-item" onClick={() => setType("offline")} autoFocus>
                         <span className="acc-ic"><Sym name="banknote" size={16} /></span>
                         <span>

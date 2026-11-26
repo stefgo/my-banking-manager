@@ -2,8 +2,8 @@
 # started and answered their health checks. It creates no version number -- that is
 # release.yml alone, on request.
 #
-# Three images: mbm-server and mbm-fints run as two containers (compose.split.yaml), mbm-server-full
-# has the FinTS connector inside (compose.yaml).
+# Four images: mbm-server, mbm-fints and mbm-enablebanking run as separate containers
+# (compose.split.yaml), mbm-server-full has both connectors inside (compose.yaml).
 #
 # FinTS product registration number: only mbm-server-full of a version tag is official. It gets
 # the number from the repository secret FINTS_PRODUCT_ID as a build secret (never a build
@@ -57,6 +57,7 @@ jobs:
             official: ${{ steps.version.outputs.official }}
             server_image: ${{ steps.version.outputs.server_image }}
             fints_image: ${{ steps.version.outputs.fints_image }}
+            enablebanking_image: ${{ steps.version.outputs.enablebanking_image }}
             server-full_image: ${{ steps.version.outputs.server-full_image }}
         steps:
             - name: Determine version
@@ -66,6 +67,7 @@ jobs:
               run: |
                   echo "server_image=$REGISTRY/${OWNER,,}/mbm-server" >> "$GITHUB_OUTPUT"
                   echo "fints_image=$REGISTRY/${OWNER,,}/mbm-fints" >> "$GITHUB_OUTPUT"
+                  echo "enablebanking_image=$REGISTRY/${OWNER,,}/mbm-enablebanking" >> "$GITHUB_OUTPUT"
                   echo "server-full_image=$REGISTRY/${OWNER,,}/mbm-server-full" >> "$GITHUB_OUTPUT"
                   if [[ $GITHUB_REF == refs/tags/v* ]]; then
                     echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
@@ -87,7 +89,7 @@ jobs:
                     exit 1
                   fi
 
-    # All three images ship as multi-arch manifests. Each architecture is built on a native runner and
+    # All four images ship as multi-arch manifests. Each architecture is built on a native runner and
     # pushed **by digest and without a tag** -- tagging is the publish job's business, and that
     # one runs after the smoke test.
     build:
@@ -100,7 +102,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                image: [server, fints, server-full]
+                image: [server, fints, enablebanking, server-full]
                 arch: [amd64, arm64]
                 include:
                     - arch: amd64
@@ -138,12 +140,12 @@ jobs:
                   # The license label says MIT (from the repository); for mbm-server-full the
                   # description points to NOTICE: the FinTS product ID inside is not under MIT.
                   labels: |
-                      ${{ matrix.image == 'server-full' && 'org.opencontainers.image.description=My Banking Manager: Server, Web-Client und FinTS-Konnektor. MIT-Lizenz; die FinTS-Produkt-ID offizieller Images ist davon ausgenommen (siehe /app/NOTICE).' || '' }}
+                      ${{ matrix.image == 'server-full' && 'org.opencontainers.image.description=My Banking Manager: Server, Web-Client, FinTS- und Enable-Banking-Konnektor. MIT-Lizenz; die FinTS-Produkt-ID offizieller Images ist davon ausgenommen (siehe /app/NOTICE).' || '' }}
 
             # An official mbm-server-full build gets the secret and no cache at all: Docker leaves the
             # content of a secret out of the cache key, and a cached layer holding the number
             # would sit in the Actions cache. Every other build caches per image and
-            # architecture, or the six jobs would overwrite each other's layers.
+            # architecture, or the eight jobs would overwrite each other's layers.
             - name: Build and push by digest
               id: build
               uses: docker/build-push-action@v7
@@ -180,8 +182,8 @@ jobs:
 
     # Starts what was just built and asks it whether it is alive -- the only place in the
     # pipeline where the images are executed. It is a gate: nothing is tagged until it has
-    # passed. Both architectures run natively, each against exactly the digests of this run: the
-    # pair mbm-server + mbm-fints, then mbm-server-full on its own.
+    # passed. Both architectures run natively, each against exactly the digests of this run:
+    # mbm-server with mbm-fints and mbm-enablebanking, then mbm-server-full on its own.
     smoke:
         name: Smoke test
         needs: [prepare, build]
@@ -202,6 +204,7 @@ jobs:
         env:
             SERVER_IMAGE: ${{ needs.prepare.outputs.server_image }}
             FINTS_IMAGE: ${{ needs.prepare.outputs.fints_image }}
+            EB_IMAGE: ${{ needs.prepare.outputs.enablebanking_image }}
             FULL_IMAGE: ${{ needs.prepare.outputs.server-full_image }}
             OFFICIAL: ${{ needs.prepare.outputs.official }}
 
@@ -226,14 +229,16 @@ jobs:
               run: |
                   server=$(basename /tmp/digests/digests-server-"$ARCH"/*)
                   fints=$(basename /tmp/digests/digests-fints-"$ARCH"/*)
+                  eb=$(basename /tmp/digests/digests-enablebanking-"$ARCH"/*)
                   full=$(basename /tmp/digests/digests-server-full-"$ARCH"/*)
                   echo "SERVER_REF=$SERVER_IMAGE@sha256:$server" >> "$GITHUB_ENV"
                   echo "FINTS_REF=$FINTS_IMAGE@sha256:$fints" >> "$GITHUB_ENV"
+                  echo "EB_REF=$EB_IMAGE@sha256:$eb" >> "$GITHUB_ENV"
                   echo "FULL_REF=$FULL_IMAGE@sha256:$full" >> "$GITHUB_ENV"
 
             # Started the way compose.yaml starts them: read-only root file system, /tmp in
-            # memory, no new privileges, the socket in a tmpfs volume owned by uid 1000 that only
-            # these two mount, an empty data volume for the server. No download of the bank
+            # memory, no new privileges, the sockets in a tmpfs volume owned by uid 1000 that only
+            # these three mount, an empty data volume for the server. No download of the bank
             # directory from bundesbank.de in a test. An image that needs more fails here, before
             # anything is tagged. mbm-server-full runs next to them on its own port, with a data
             # volume of its own and no socket.
@@ -244,9 +249,13 @@ jobs:
                   docker run -d --name mbm-smoke-fints \
                     --read-only --tmpfs /tmp --security-opt no-new-privileges:true \
                     -v mbm-smoke-sockets:/run/mbm "$FINTS_REF"
+                  docker run -d --name mbm-smoke-eb \
+                    --read-only --tmpfs /tmp --security-opt no-new-privileges:true \
+                    -v mbm-smoke-sockets:/run/mbm "$EB_REF"
                   docker run -d --name mbm-smoke-server -p 127.0.0.1:3040:3040 \
                     --read-only --tmpfs /tmp --security-opt no-new-privileges:true \
-                    -e MBM_FINTS_SOCKET=/run/mbm/fints.sock -e MBM_BANK_DIRECTORY_UPDATE=false \
+                    -e MBM_FINTS_SOCKET=/run/mbm/fints.sock -e MBM_ENABLEBANKING_SOCKET=/run/mbm/enablebanking.sock \
+                    -e MBM_BANK_DIRECTORY_UPDATE=false \
                     -v /data -v mbm-smoke-sockets:/run/mbm "$SERVER_REF"
                   docker run -d --name mbm-smoke-full -p 127.0.0.1:3041:3040 \
                     --read-only --tmpfs /tmp --security-opt no-new-privileges:true \
@@ -279,8 +288,10 @@ jobs:
                   # permissions as well.
                   probe mbm-smoke-fints docker exec mbm-smoke-server node -e \
                     "require('http').get({socketPath:'/run/mbm/fints.sock',path:'/v1/info'},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
-                  # The embedded connector answers through the server: /api/connectors needs a
-                  # signed-in user, so the start line below shows that it was loaded.
+                  probe mbm-smoke-eb docker exec mbm-smoke-server node -e \
+                    "require('http').get({socketPath:'/run/mbm/enablebanking.sock',path:'/v1/info'},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+                  # The embedded connectors answer through the server: /api/connectors needs a
+                  # signed-in user, so the start lines below show that they were loaded.
                   probe mbm-smoke-full bash -c \
                     "curl -fsS http://127.0.0.1:3041/api/health | grep -q '\"ok\":true'"
 
@@ -306,17 +317,31 @@ jobs:
                     check mbm-smoke-full "embedded (no product ID: banks will not be contacted)"
                   fi
 
+            # The Enable Banking connector: on its socket in mbm-enablebanking, inside mbm-server-full.
+            - name: Enable Banking connector started
+              run: |
+                  for pair in "mbm-smoke-eb:listening on /run/mbm/enablebanking.sock" "mbm-smoke-full:embedded"; do
+                    name=${pair%%:*}; expected=${pair#*:}
+                    line=$(docker logs "$name" 2>&1 | grep -m1 "MBM Enable Banking connector" || true)
+                    if [[ "$line" != *"$expected"* ]]; then
+                      echo "::error::$name: the Enable Banking connector does not report '$expected'"
+                      exit 1
+                    fi
+                    echo "$name: $line"
+                  done
+
             - name: Container logs
               if: failure()
               run: |
                   echo "::group::server"; docker logs mbm-smoke-server 2>&1 | tail -50; echo "::endgroup::"
                   echo "::group::fints"; docker logs mbm-smoke-fints 2>&1 | tail -50; echo "::endgroup::"
+                  echo "::group::enablebanking"; docker logs mbm-smoke-eb 2>&1 | tail -50; echo "::endgroup::"
                   echo "::group::server-full"; docker logs mbm-smoke-full 2>&1 | tail -50; echo "::endgroup::"
 
             - name: Clean up
               if: always()
               run: |
-                  docker rm -fv mbm-smoke-server mbm-smoke-fints mbm-smoke-full 2>/dev/null || true
+                  docker rm -fv mbm-smoke-server mbm-smoke-fints mbm-smoke-eb mbm-smoke-full 2>/dev/null || true
                   docker volume rm mbm-smoke-sockets 2>/dev/null || true
 
     # Nothing above carries a tag: every job so far pushed by digest only. This is where a build
@@ -333,6 +358,7 @@ jobs:
         env:
             SERVER_IMAGE: ${{ needs.prepare.outputs.server_image }}
             FINTS_IMAGE: ${{ needs.prepare.outputs.fints_image }}
+            EB_IMAGE: ${{ needs.prepare.outputs.enablebanking_image }}
             FULL_IMAGE: ${{ needs.prepare.outputs.server-full_image }}
 
         steps:
@@ -361,6 +387,7 @@ jobs:
                   images: |
                       ${{ env.SERVER_IMAGE }}
                       ${{ env.FINTS_IMAGE }}
+                      ${{ env.EB_IMAGE }}
                       ${{ env.FULL_IMAGE }}
                   tags: |
                       # For a push to main or dev: the branch name plus the SHA
@@ -399,16 +426,18 @@ jobs:
                   # digests-server-{amd64,arm64} only: digests-server-* would take server-full too.
                   mapfile -t server < <(basename -a /tmp/digests/digests-server-amd64/* /tmp/digests/digests-server-arm64/*)
                   mapfile -t fints < <(basename -a /tmp/digests/digests-fints-*/*)
+                  mapfile -t eb < <(basename -a /tmp/digests/digests-enablebanking-*/*)
                   mapfile -t full < <(basename -a /tmp/digests/digests-server-full-*/*)
                   publish "$SERVER_IMAGE" "${server[@]}"
                   publish "$FINTS_IMAGE" "${fints[@]}"
+                  publish "$EB_IMAGE" "${eb[@]}"
                   publish "$FULL_IMAGE" "${full[@]}"
 
             - name: Inspect the published images
               env:
                   VERSION: ${{ steps.meta.outputs.version }}
               run: |
-                  for image in "$SERVER_IMAGE" "$FINTS_IMAGE" "$FULL_IMAGE"; do
+                  for image in "$SERVER_IMAGE" "$FINTS_IMAGE" "$EB_IMAGE" "$FULL_IMAGE"; do
                       echo "::group::$image"
                       docker buildx imagetools inspect "$image:$VERSION"
                       echo "::endgroup::"
