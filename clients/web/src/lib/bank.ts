@@ -2,7 +2,7 @@
 // and in the request that carries them; nothing of it goes into browser storage.
 
 import { useQuery } from "@tanstack/react-query";
-import { routes, type SyncRun } from "@mbm/shared";
+import { routes, type BankConnection, type SyncRun } from "@mbm/shared";
 import { ApiFailure, call, errorText } from "./api";
 import { invalidate, queryClient } from "./queries";
 import { plural } from "./format";
@@ -67,6 +67,7 @@ export function receiveSyncRuns(runs: SyncRun[]): void {
         // bank card and the fetch panel list them
         if (r.status !== "done") continue;
         if (r.ordersMessage) ui.toast(`${r.connectionName}: ${r.ordersMessage}`, "error");
+        if (r.foreignCurrency > 0) ui.toast(`${r.connectionName}: ${plural(r.foreignCurrency, "Umsatz", "Umsätze")} in Fremdwährung nicht übernommen`, "error");
         if (r.ordersOnly) ui.toast(`${r.connectionName}: Aufträge abgerufen`);
         else if (r.newTransactions > 0) ui.toast(`${r.connectionName}: ${plural(r.newTransactions, "neuer Umsatz", "neue Umsätze")}`);
     }
@@ -91,7 +92,7 @@ export async function startSync(target: { accountId?: number; connectionId?: num
                 title: "Keine eigene Anmeldung",
                 text: `${err.message} Abrufen kannst du nur über deine eigene Anmeldung.`,
                 confirm: "Anmeldung hinzufügen",
-                onConfirm: () => ui.open({ kind: "bankSetup", connectionId }),
+                onConfirm: () => openLoginSetup(connectionId),
             });
             return;
         }
@@ -102,6 +103,20 @@ export async function startSync(target: { accountId?: number; connectionId?: num
 function connectionOfAccount(accountId: number): number | undefined {
     const accounts = queryClient.getQueryData<{ id: number; connectionId: number | null }[]>(["accounts"]);
     return accounts?.find((a) => a.id === accountId)?.connectionId ?? undefined;
+}
+
+/** Whether the own login at an access can fetch: set up, and for PSD2 with a running approval. */
+export function canFetch(c: BankConnection): boolean {
+    const l = c.myLogin;
+    if (!l || l.status === "setup" || l.status === "credentials_lost") return false;
+    return c.kind !== "psd2" || (l.status !== "consent_needed" && !!l.consentUntil);
+}
+
+/** Sets up the own login at an access: FinTS or PSD2, by the kind of the access; a new FinTS access without one. */
+export function openLoginSetup(connectionId: number | undefined): void {
+    const conn = connectionId === undefined ? undefined : queryClient.getQueryData<BankConnection[]>(["connections"])?.find((c) => c.id === connectionId);
+    if (conn?.kind === "psd2") ui.open({ kind: "psd2Setup", connectionId });
+    else ui.open({ kind: "bankSetup", connectionId });
 }
 
 export const refreshBank = (): void => invalidate("connections", "accounts", "transactions", "orders");

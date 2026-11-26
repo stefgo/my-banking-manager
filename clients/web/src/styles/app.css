@@ -1394,6 +1394,12 @@ body { margin: 0; }
 .inp-icon > svg { position: absolute; left: 11px; color: var(--faint); pointer-events: none; }
 .inp-icon > .inp { padding-left: 34px; width: 100%; }
 .bank-results { max-height: 280px; overflow-y: auto; }
+/* PSD2 set-up: pasted key or address, and the redirect addresses to register */
+textarea.inp { height: auto; min-height: 96px; padding: 10px 14px; resize: vertical; font-family: var(--font-mono); font-size: 13px; line-height: 1.45; }
+.psd2-urls { display: grid; gap: 6px; }
+.psd2-url { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px 6px 6px 12px; border-radius: 10px; background: var(--surface-2); }
+.psd2-url code { font-family: var(--font-mono); font-size: 13px; overflow-wrap: anywhere; }
+.psd2-points { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--muted); }
 label.bank-item { cursor: pointer; grid-template-columns: 20px minmax(0, 1fr); }
 label.bank-item.disabled { cursor: default; opacity: 0.55; }
 /* Offered accounts only get the height left over, so title, group and button stay in the window;

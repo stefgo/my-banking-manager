@@ -11,7 +11,9 @@ export type Dialog =
     | { kind: "counterBooking"; txId: number }
     /** `offline`: straight to the offline account form, without the choice of kind. */
     | { kind: "addAccount"; offline?: boolean }
-    | { kind: "bankSetup"; connectionId?: number }
+    | { kind: "bankSetup"; connectionId?: number; start?: "accounts" }
+    /** PSD2 through Enable Banking: new access, own login at an access, new approval, or new application. */
+    | { kind: "psd2Setup"; connectionId?: number; mode?: "consent" | "credentials" }
     | { kind: "detachAccount"; accountId: number }
     | { kind: "sync" }
     | { kind: "openingBalance"; accountId: number }

@@ -85,24 +85,33 @@ export const CONNECTOR_TIMEOUT_MS = 10 * 60_000;
 
 export type EmbeddedLoader = () => Promise<EmbeddedConnector>;
 
+/** Connectors that can run inside the server's process, with their package and switch. */
+const EMBEDDABLE = {
+    fints: { specifier: "@mbm/connector-fints/embedded", env: "MBM_FINTS_EMBEDDED", label: "FinTS" },
+    enablebanking: { specifier: "@mbm/connector-enablebanking/embedded", env: "MBM_ENABLEBANKING_EMBEDDED", label: "Enable Banking" },
+} as const;
+export type EmbeddableConnector = keyof typeof EMBEDDABLE;
+
 /**
- * The FinTS connector of this installation, loaded only when it is configured as embedded. The
- * image mbm-server has no connector inside; there this fails with a clear message.
+ * A connector of this installation, loaded only when it is configured as embedded. The image
+ * mbm-server has no connector inside; there this fails with a clear message.
  */
-async function loadEmbeddedFints(): Promise<EmbeddedConnector> {
-    // A specifier TypeScript does not follow: the server builds without the connector.
-    const specifier = "@mbm/connector-fints/embedded";
+async function loadEmbedded(name: EmbeddableConnector): Promise<EmbeddedConnector> {
+    const { specifier, env, label } = EMBEDDABLE[name];
+    // A specifier TypeScript does not follow: the server builds without the connectors.
     let mod: { createEmbeddedConnector(env?: NodeJS.ProcessEnv): Promise<EmbeddedConnector> };
     try {
         mod = (await import(specifier)) as typeof mod;
     } catch (e) {
         if ((e as { code?: string }).code === "ERR_MODULE_NOT_FOUND") {
-            throw new Error("MBM_FINTS_EMBEDDED is set, but this installation has no FinTS connector inside (the image mbm-server-full has one).", { cause: e });
+            throw new Error(`${env} is set, but this installation has no ${label} connector inside (the image mbm-server-full has one).`, { cause: e });
         }
         throw e;
     }
     return mod.createEmbeddedConnector(process.env);
 }
+
+const isEmbeddable = (name: string): name is EmbeddableConnector => Object.hasOwn(EMBEDDABLE, name);
 
 export class ConnectorClient {
     constructor(
@@ -144,14 +153,17 @@ export class ConnectorRegistry {
 
     private readonly embedded = new Map<string, Promise<EmbeddedConnector>>();
 
-    constructor(config: Pick<Config, "connectors">, opts: { loadEmbedded?: EmbeddedLoader; timeoutMs?: number } = {}) {
+    /** `loadEmbedded`: for tests, how an embedded connector is made, by name. */
+    constructor(config: Pick<Config, "connectors">, opts: { loadEmbedded?: Partial<Record<EmbeddableConnector, EmbeddedLoader>>; timeoutMs?: number } = {}) {
         const timeoutMs = opts.timeoutMs ?? CONNECTOR_TIMEOUT_MS;
         for (const [name, c] of Object.entries(config.connectors)) {
             if ("socket" in c) {
                 this.clients.set(name, new ConnectorClient(name, socketExchange(c.socket, timeoutMs)));
                 continue;
             }
-            const loading = name === "fints" ? (opts.loadEmbedded ?? loadEmbeddedFints)() : Promise.reject(new Error(`Only the FinTS connector can be embedded, not "${name}".`));
+            const loading = isEmbeddable(name)
+                ? (opts.loadEmbedded?.[name] ?? (() => loadEmbedded(name)))()
+                : Promise.reject(new Error(`Only the FinTS and the Enable Banking connector can be embedded, not "${name}".`));
             // Reported by start(); until then no call is made
             loading.catch(() => undefined);
             this.embedded.set(name, loading);

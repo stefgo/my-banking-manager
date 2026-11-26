@@ -17,6 +17,8 @@ nichts von fremden Servern.
 - **Bankkonten über FinTS:** Kontostände und Umsätze direkt von der Bank abrufen, mit eigenem
   FinTS-Konnektor. Getestet mit der Sparkasse und S-pushTAN. Abgerufen wird nur, wenn du es
   auslöst.
+- **PayPal und andere Banken ohne FinTS** über PSD2, nur lesend. Dazwischen steht der zugelassene
+  Dienst Enable Banking, durch dessen Server die Umsätze dieser Banken laufen; abschaltbar.
 - **Offline-Konten** für Bargeld, Sparbuch, Depot und alles ohne Online-Zugang: Buchungen von Hand,
   Saldo abgleichen, Gegenbuchungen zu Abhebungen und Umbuchungen.
 - **Umsätze** mit Konten- und Kategorienbaum, Saldoverlauf, Filtern und einer Suche, die auch
@@ -62,14 +64,15 @@ Alle Bilder zeigen erfundene Beispieldaten.
 ## Wie MBM aufgebaut ist
 
 ```
-Browser (Web-Client) ──HTTPS──▶ Reverse Proxy ──▶ MBM-Server ──▶ FinTS-Konnektor ──▶ deine Bank
-                                                    │
+Browser (Web-Client) ──HTTPS──▶ Reverse Proxy ──▶ MBM-Server ──▶ FinTS-Konnektor ──────────▶ deine Bank
+                                                    │       └─▶ Enable-Banking-Konnektor ──▶ Enable Banking ──▶ PayPal …
                                                     └── verschlüsselte Datenbank (/data)
 ```
 
 - **Nur der Server speichert**, und zwar alles verschlüsselt.
-- **Nur der Konnektor spricht mit Banken.** Er läuft im selben Container wie der Server oder als
-  eigener Container ohne Netzwerk-Port.
+- **Nur die Konnektoren sprechen mit Banken.** Sie laufen im selben Container wie der Server oder
+  als eigene Container ohne Netzwerk-Port. Der Enable-Banking-Konnektor ist die einzige Ausnahme von
+  „keine Daten über Dritte“ und wird nur für PSD2-Zugänge genutzt.
 - **Der Browser spricht nur mit dem Server** und speichert keine Bankdaten.
 
 Weiter: [Schnellstart](schnellstart.md) · [Sicherheit](sicherheit.md) ·

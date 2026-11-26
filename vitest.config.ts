@@ -17,6 +17,11 @@ export default defineConfig({
             {
                 resolve: { conditions: ["development"] },
                 ssr: { resolve: { conditions: ["development"] } },
+                test: { name: "enablebanking", root: "connectors/enablebanking", include: ["src/**/*.test.ts"] },
+            },
+            {
+                resolve: { conditions: ["development"] },
+                ssr: { resolve: { conditions: ["development"] } },
                 test: { name: "web", root: "clients/web", include: ["src/**/*.test.ts"] },
             },
         ],

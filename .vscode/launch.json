@@ -12,7 +12,7 @@
       // for a compiled file via source maps and would start the stale build in server/dist.
       "runtimeArgs": ["--tsconfig", "tsconfig.dev.json", "--conditions=development", "src/index.ts"],
       "outFiles": [],
-      "env": { "MBM_HOST": "127.0.0.1", "MBM_FINTS_SOCKET": "../.run/fints.sock" },
+      "env": { "MBM_HOST": "127.0.0.1", "MBM_FINTS_SOCKET": "../.run/fints.sock", "MBM_ENABLEBANKING_SOCKET": "../.run/enablebanking.sock" },
       "console": "integratedTerminal",
       "skipFiles": ["<node_internals>/**", "${workspaceFolder}/node_modules/**"]
     },
@@ -30,6 +30,18 @@
       "skipFiles": ["<node_internals>/**", "${workspaceFolder}/node_modules/**"]
     },
     {
+      "name": "Enable-Banking-Konnektor debuggen",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/connectors/enablebanking",
+      "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
+      "runtimeArgs": ["--conditions=development", "src/index.ts"],
+      "outFiles": [],
+      "env": { "MBM_ENABLEBANKING_SOCKET": "../../.run/enablebanking.sock" },
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**", "${workspaceFolder}/node_modules/**"]
+    },
+    {
       "name": "Web in Chrome debuggen",
       "type": "chrome",
       "request": "launch",
@@ -41,7 +53,7 @@
   "compounds": [
     {
       "name": "Server + Web debuggen",
-      "configurations": ["Server debuggen", "FinTS-Konnektor debuggen", "Web in Chrome debuggen"],
+      "configurations": ["Server debuggen", "FinTS-Konnektor debuggen", "Enable-Banking-Konnektor debuggen", "Web in Chrome debuggen"],
       "stopAll": true
     }
   ]

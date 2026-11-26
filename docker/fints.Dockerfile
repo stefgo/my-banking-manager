@@ -6,6 +6,7 @@ COPY package.json package-lock.json tsconfig.base.json ./
 COPY shared/package.json shared/
 COPY server/package.json server/
 COPY connectors/fints/package.json connectors/fints/
+COPY connectors/enablebanking/package.json connectors/enablebanking/
 COPY clients/web/package.json clients/web/
 # No install scripts: better-sqlite3-multiple-ciphers ships prebuilt binaries (linux x64/arm64)
 # and loads them at run time; with scripts, npm would compile it with node-gyp (no Python here).
@@ -29,6 +30,7 @@ COPY package.json package-lock.json ./
 COPY shared/package.json shared/
 COPY server/package.json server/
 COPY connectors/fints/package.json connectors/fints/
+COPY connectors/enablebanking/package.json connectors/enablebanking/
 COPY clients/web/package.json clients/web/
 # Only what the connector needs at run time
 RUN npm ci --omit=dev --workspace=connectors/fints --workspace=shared && npm cache clean --force

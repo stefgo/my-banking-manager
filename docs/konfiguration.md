@@ -24,6 +24,7 @@ services:
 | `autoLockMinutes` | `MBM_AUTO_LOCK_MINUTES` | `10` | Der Server sperrt sich, wenn kein aktives Fenster mehr offen ist |
 | `transferConfirmMinutes` | `MBM_TRANSFER_CONFIRM_MINUTES` | `15` | Vor einer Überweisung fragt MBM das Passwort erneut, wenn es länger her ist |
 | `bankDirectoryUpdate` | `MBM_BANK_DIRECTORY_UPDATE` | `true` | BLZ-Verzeichnis täglich bei der Bundesbank prüfen |
+| `connectors.enablebanking` | `MBM_ENABLEBANKING_EMBEDDED` / `MBM_ENABLEBANKING_SOCKET` | im Image `mbm-server-full` eingebaut | PSD2 über Enable Banking (PayPal und andere Banken ohne FinTS). `MBM_ENABLEBANKING_EMBEDDED=0` schaltet es ab, siehe [Technische Details](operations.md#psd2-über-enable-banking) |
 | `logLevel` | `MBM_LOG_LEVEL` | `info` | Ausführlichkeit des Logs (`fatal` … `trace`); Bankdaten stehen nie darin |
 | `port` | `MBM_PORT` | `3040` | Port des Servers |
 | `sessionDays` | – | `30` | Eine Browser-Anmeldung endet nach so vielen Tagen ohne Nutzung |

@@ -84,7 +84,8 @@ interface AccountSeed {
 const ACCOUNT_SEEDS: AccountSeed[] = [
     { id: 1, kind: "giro", connectionId: 1, name: "Girokonto", icon: "landmark", color: "blue", groupId: 2, position: 0, iban: "DE02120300000000202051", cardNumber: null, start: 215000 },
     { id: 2, kind: "credit_card", connectionId: 1, name: "Kreditkarte", icon: "credit-card", color: "violet", groupId: 2, position: 1, iban: null, cardNumber: "4910 •••• •••• 1234", start: 0 },
-    { id: 4, kind: "other", connectionId: null, name: "Bargeld", icon: "banknote", color: "green", groupId: 2, position: 2, iban: null, cardNumber: null, start: 15000 },
+    { id: 6, kind: "giro", connectionId: 2, name: "PayPal", icon: "wallet", color: "sky", groupId: 2, position: 2, iban: null, cardNumber: null, start: 12000 },
+    { id: 4, kind: "other", connectionId: null, name: "Bargeld", icon: "banknote", color: "green", groupId: 2, position: 3, iban: null, cardNumber: null, start: 15000 },
     { id: 3, kind: "savings", connectionId: 1, name: "Tagesgeld", icon: "piggy-bank", color: "teal", groupId: 3, position: 0, iban: "DE89370400440532013000", cardNumber: null, start: 1200000 },
     { id: 5, kind: "other", connectionId: null, name: "Urlaubskasse", icon: "tree-palm", color: "amber", groupId: 3, position: 1, iban: null, cardNumber: null, start: 60000 },
 ];
@@ -94,6 +95,7 @@ export const CARD = 2;
 export const SAVINGS = 3;
 export const CASH = 4;
 export const HOLIDAY = 5;
+export const PAYPAL = 6;
 
 // ---------- Bank access ----------
 
@@ -102,11 +104,13 @@ const LAST_SYNC = at(TODAY, "09:29:12");
 export const connections: BankConnection[] = [
     {
         id: 1,
+        kind: "fints",
         name: "Sparkasse",
         bankName: "Sparkasse Musterstadt",
         blz: "12030000",
         bic: "BYLADEM1001",
         fintsUrl: "https://banking.example.org/fints",
+        psd2: null,
         icon: "landmark",
         color: "red",
         myLogin: {
@@ -118,13 +122,42 @@ export const connections: BankConnection[] = [
             savePin: true,
             lastSyncAt: LAST_SYNC,
             lastError: null,
+            consentUntil: null,
         },
         otherLogins: [{ userName: "Sam", status: "ready" }],
         accountCount: 3,
     },
+    {
+        id: 2,
+        kind: "psd2",
+        name: "PayPal",
+        bankName: "PayPal",
+        blz: "",
+        bic: null,
+        fintsUrl: "",
+        psd2: { aspsp: "PayPal", country: "DE" },
+        icon: "wallet",
+        color: "sky",
+        myLogin: {
+            id: 2,
+            loginHint: "App ••••5d6e",
+            status: "ready",
+            tanMethod: null,
+            tanMedium: null,
+            savePin: true,
+            lastSyncAt: LAST_SYNC,
+            lastError: null,
+            consentUntil: "2027-05-14T09:31:00.000Z",
+        },
+        otherLogins: [],
+        accountCount: 1,
+    },
 ];
 
-export const connectorStatus = [{ name: "fints", reachable: true, version: null as string | null, productConfigured: true }];
+export const connectorStatus = [
+    { name: "fints", reachable: true, version: null as string | null, productConfigured: true },
+    { name: "enablebanking", reachable: true, version: null as string | null, productConfigured: true },
+];
 
 export const bankDirectory = {
     banks: 3412,
@@ -306,6 +339,14 @@ book({
     refs: { reference: "RT-4711-11-0042", customerReference: "GUTSCHRIFT-2026-11", bankReference: "2026111700381" },
 });
 book({ account: GIRO, date: "2026-11-19", amount: -1890, name: "Pizzeria Da Marco", remittance: "Kartenzahlung", category: "Freizeit" });
+// PayPal over PSD2: no purpose, the counterparty's e-mail in its place, the PayPal transaction number as bank reference
+const paypal = (date: string, amount: number, name: string, email: string, category: string, bookingText: string, ref: string) =>
+    book({ account: PAYPAL, date, amount, name, remittance: email, category, bookingText, refs: { bankReference: ref } });
+paypal("2026-08-14", -1999, "Spielwerkstatt Holzwurm", "verkauf@holzwurm.example", "Online-Handel", "Zahlung", "1AB23456CD789012E");
+paypal("2026-09-03", -4590, "Kartenhaus Tickets", "tickets@kartenhaus.example", "Konzerte & Events", "Zahlung", "2BC34567DE890123F");
+paypal("2026-10-12", -2750, "Gartenwelt Online", "shop@gartenwelt.example", "Online-Handel", "Zahlung", "3CD45678EF901234G");
+paypal("2026-10-20", 2750, "Gartenwelt Online", "shop@gartenwelt.example", "Erstattungen", "Erstattung", "4DE56789FA012345H");
+paypal("2026-11-15", -1290, "Rösterei Bohnenglück", "hallo@bohnenglueck.example", "Freizeit", "Zahlung", "5EF67890AB123456J");
 book({ account: GIRO, date: "2026-11-20", amount: -2499, name: "Buchhandlung Seitenweise", remittance: "Kartenzahlung", category: null });
 book({ account: GIRO, date: "2026-11-20", amount: -3745, name: "Frischemarkt Sonnenhof", remittance: "Kartenzahlung", category: "Supermarkt", pending: true });
 
@@ -878,6 +919,14 @@ export const offeredAccounts = {
     ],
     fetchedAt: at("2026-05-02", "17:25:00"),
 };
+/** The account list of the PayPal access (PSD2). */
+export const paypalOfferedAccounts = {
+    accounts: [
+        { externalId: "PAYPALACCOUNT00000000000001", name: "PayPal", iban: null, cardNumber: null, owner: "Alex Beispiel", currency: "EUR", kind: "giro" as const, supported: true, capabilities: caps(false), accountId: PAYPAL, linked: true, ignored: false },
+    ],
+    fetchedAt: at("2026-11-15", "09:31:00"),
+};
+
 
 // Every IBAN above has to pass the client's own check, or a form in a screenshot shows an error
 {

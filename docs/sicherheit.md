@@ -7,11 +7,26 @@ Wichtigste in Kürze; alle Einzelheiten stehen unter [Technische Details](operat
 ## Keine Daten über Dritte
 
 - MBM verbindet sich **selbst und direkt mit deiner Bank** (FinTS). Kein fremder Dienstleister
-  ruft deine Konten ab, keiner bekommt deine Zugangsdaten.
+  ruft diese Konten ab, keiner bekommt deine Zugangsdaten.
 - MBM lädt **nichts von fremden Servern**: keine Schriften, keine Skripte, keine Statistik. Es
   sendet keine Nutzungsdaten.
-- Einzige Verbindung außer zur Bank: das öffentliche **BLZ-Verzeichnis** der Bundesbank, einmal am
-  Tag geprüft. Das lässt sich abschalten (`MBM_BANK_DIRECTORY_UPDATE=false`).
+- Verbindung außer zur Bank: das öffentliche **BLZ-Verzeichnis** der Bundesbank, einmal am Tag
+  geprüft. Das lässt sich abschalten (`MBM_BANK_DIRECTORY_UPDATE=false`).
+- **Ausnahme: Banken über PSD2** (PayPal und andere ohne FinTS). Die erreicht MBM nur über den
+  zugelassenen Dienst **Enable Banking**, und das nur, wenn du einen solchen Zugang einrichtest.
+  Dann gilt:
+    - Saldo und Umsätze dieser Bank laufen durch die Server von Enable Banking (in der Google
+      Cloud, Belgien). Enable Banking sieht sie. Nach eigener Aussage speichert es nur, was der
+      Zugang technisch braucht, nicht die Umsätze.
+    - Du nutzt deine **eigene Anwendung** bei Enable Banking. Ihr privater Schlüssel liegt
+      verschlüsselt in MBM, Enable Banking hat keine Kopie. Jede Anfrage signiert MBM damit neu.
+    - Der Zugriff kann **nur lesen**. Er endet nach höchstens 180 Tagen von selbst, und du kannst
+      ihn jederzeit bei der Bank oder in MBM beenden.
+    - Beim Abruf nennt MBM der Bank deine IP-Adresse und deinen Browser, damit sie den Abruf als von
+      dir ausgelöst zählt.
+    - Ohne PSD2-Zugang spricht MBM nie mit Enable Banking. Ganz abschalten lässt es sich mit
+      `MBM_ENABLEBANKING_EMBEDDED=0` (Image `mbm-server-full`) bzw. ohne den Container
+      `mbm-enablebanking`.
 
 ## Verschlüsselt gespeichert
 

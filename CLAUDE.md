@@ -6,7 +6,11 @@ Maßgeblich für das Design ist der Web-Client selbst. Antworten an den Nutzer a
 ## Grundregeln
 
 - **Keine Daten über Dritte.** Keine CDNs, keine externen Schriften oder Dienste, keine Telemetrie.
-  Ausnahme: Der Server lädt das BLZ-Verzeichnis von bundesbank.de (abschaltbar).
+  Ausnahmen: Der Server lädt das BLZ-Verzeichnis von bundesbank.de (abschaltbar). PSD2-Zugänge
+  (PayPal und andere Banken ohne FinTS) laufen über Enable Banking: nur der Konnektor
+  `enablebanking` spricht mit `api.enablebanking.com`, nur für Benutzer, die einen PSD2-Zugang
+  einrichten, mit ihrer eigenen Anwendung; abschaltbar (`MBM_ENABLEBANKING_EMBEDDED=0` bzw. ohne
+  Konnektor). Sonst kein weiterer Dienst.
 - **Alle lokal gespeicherten Daten sind verschlüsselt.** Nichts Unverschlüsseltes auf die Platte,
   keine Bankdaten oder Geheimnisse in Logs. Clients speichern keine Bankdaten (auch nicht im
   Browser-Speicher). Einzige Ausnahme: reine Ansichtswerte ohne Bank- oder Personenbezug (IDs, feste

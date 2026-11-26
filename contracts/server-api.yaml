@@ -9661,6 +9661,11 @@ paths:
                       type: integer
                       exclusiveMinimum: 0
                       maximum: 9007199254740991
+                    kind:
+                      type: string
+                      enum:
+                        - fints
+                        - psd2
                     name:
                       type: string
                     bankName:
@@ -9673,6 +9678,22 @@ paths:
                         - "null"
                     fintsUrl:
                       type: string
+                    psd2:
+                      anyOf:
+                        - type: object
+                          properties:
+                            aspsp:
+                              type: string
+                              minLength: 1
+                              maxLength: 100
+                            country:
+                              type: string
+                              pattern: ^[A-Z]{2}$
+                          required:
+                            - aspsp
+                            - country
+                          additionalProperties: false
+                        - type: "null"
                     icon:
                       type: string
                       enum:
@@ -9784,6 +9805,7 @@ paths:
                                 - credentials_lost
                                 - pin_wrong
                                 - error
+                                - consent_needed
                             tanMethod:
                               anyOf:
                                 - type: object
@@ -9812,6 +9834,11 @@ paths:
                               type:
                                 - string
                                 - "null"
+                            consentUntil:
+                              anyOf:
+                                - type: string
+                                  description: ISO 8601 date and time
+                                - type: "null"
                           required:
                             - id
                             - loginHint
@@ -9821,6 +9848,7 @@ paths:
                             - savePin
                             - lastSyncAt
                             - lastError
+                            - consentUntil
                           additionalProperties: false
                         - type: "null"
                     otherLogins:
@@ -9838,6 +9866,7 @@ paths:
                               - credentials_lost
                               - pin_wrong
                               - error
+                              - consent_needed
                         required:
                           - userName
                           - status
@@ -9848,11 +9877,13 @@ paths:
                       maximum: 9007199254740991
                   required:
                     - id
+                    - kind
                     - name
                     - bankName
                     - blz
                     - bic
                     - fintsUrl
+                    - psd2
                     - icon
                     - color
                     - myLogin
@@ -10000,6 +10031,11 @@ paths:
                     type: integer
                     exclusiveMinimum: 0
                     maximum: 9007199254740991
+                  kind:
+                    type: string
+                    enum:
+                      - fints
+                      - psd2
                   name:
                     type: string
                   bankName:
@@ -10012,6 +10048,22 @@ paths:
                       - "null"
                   fintsUrl:
                     type: string
+                  psd2:
+                    anyOf:
+                      - type: object
+                        properties:
+                          aspsp:
+                            type: string
+                            minLength: 1
+                            maxLength: 100
+                          country:
+                            type: string
+                            pattern: ^[A-Z]{2}$
+                        required:
+                          - aspsp
+                          - country
+                        additionalProperties: false
+                      - type: "null"
                   icon:
                     type: string
                     enum:
@@ -10123,6 +10175,7 @@ paths:
                               - credentials_lost
                               - pin_wrong
                               - error
+                              - consent_needed
                           tanMethod:
                             anyOf:
                               - type: object
@@ -10151,6 +10204,11 @@ paths:
                             type:
                               - string
                               - "null"
+                          consentUntil:
+                            anyOf:
+                              - type: string
+                                description: ISO 8601 date and time
+                              - type: "null"
                         required:
                           - id
                           - loginHint
@@ -10160,6 +10218,7 @@ paths:
                           - savePin
                           - lastSyncAt
                           - lastError
+                          - consentUntil
                         additionalProperties: false
                       - type: "null"
                   otherLogins:
@@ -10177,6 +10236,7 @@ paths:
                             - credentials_lost
                             - pin_wrong
                             - error
+                            - consent_needed
                       required:
                         - userName
                         - status
@@ -10187,11 +10247,13 @@ paths:
                     maximum: 9007199254740991
                 required:
                   - id
+                  - kind
                   - name
                   - bankName
                   - blz
                   - bic
                   - fintsUrl
+                  - psd2
                   - icon
                   - color
                   - myLogin
@@ -10315,6 +10377,7 @@ paths:
                           - credentials_lost
                           - pin_wrong
                           - error
+                          - consent_needed
                       tanMethod:
                         anyOf:
                           - type: object
@@ -10343,6 +10406,11 @@ paths:
                         type:
                           - string
                           - "null"
+                      consentUntil:
+                        anyOf:
+                          - type: string
+                            description: ISO 8601 date and time
+                          - type: "null"
                     required:
                       - id
                       - loginHint
@@ -10352,6 +10420,7 @@ paths:
                       - savePin
                       - lastSyncAt
                       - lastError
+                      - consentUntil
                     additionalProperties: false
                   tanMethods:
                     type: array
@@ -10435,6 +10504,7 @@ paths:
                       - credentials_lost
                       - pin_wrong
                       - error
+                      - consent_needed
                   tanMethod:
                     anyOf:
                       - type: object
@@ -10463,6 +10533,11 @@ paths:
                     type:
                       - string
                       - "null"
+                  consentUntil:
+                    anyOf:
+                      - type: string
+                        description: ISO 8601 date and time
+                      - type: "null"
                 required:
                   - id
                   - loginHint
@@ -10472,6 +10547,7 @@ paths:
                   - savePin
                   - lastSyncAt
                   - lastError
+                  - consentUntil
                 additionalProperties: false
         default:
           description: Error
@@ -10569,6 +10645,7 @@ paths:
                       - credentials_lost
                       - pin_wrong
                       - error
+                      - consent_needed
                   tanMethod:
                     anyOf:
                       - type: object
@@ -10597,6 +10674,11 @@ paths:
                     type:
                       - string
                       - "null"
+                  consentUntil:
+                    anyOf:
+                      - type: string
+                        description: ISO 8601 date and time
+                      - type: "null"
                 required:
                   - id
                   - loginHint
@@ -10606,6 +10688,7 @@ paths:
                   - savePin
                   - lastSyncAt
                   - lastError
+                  - consentUntil
                 additionalProperties: false
         default:
           description: Error
@@ -11952,6 +12035,10 @@ paths:
                       type:
                         - string
                         - "null"
+                    foreignCurrency:
+                      type: integer
+                      minimum: -9007199254740991
+                      maximum: 9007199254740991
                     error:
                       type:
                         - string
@@ -11980,6 +12067,7 @@ paths:
                     - missingAccounts
                     - ordersOnly
                     - ordersMessage
+                    - foreignCurrency
                     - error
                     - message
                     - startedAt
@@ -12072,6 +12160,10 @@ paths:
                       type:
                         - string
                         - "null"
+                    foreignCurrency:
+                      type: integer
+                      minimum: -9007199254740991
+                      maximum: 9007199254740991
                     error:
                       type:
                         - string
@@ -12100,6 +12192,7 @@ paths:
                     - missingAccounts
                     - ordersOnly
                     - ordersMessage
+                    - foreignCurrency
                     - error
                     - message
                     - startedAt
@@ -12212,6 +12305,10 @@ paths:
                     type:
                       - string
                       - "null"
+                  foreignCurrency:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
                   error:
                     type:
                       - string
@@ -12240,6 +12337,7 @@ paths:
                   - missingAccounts
                   - ordersOnly
                   - ordersMessage
+                  - foreignCurrency
                   - error
                   - message
                   - startedAt
@@ -12738,6 +12836,10 @@ paths:
                       type:
                         - string
                         - "null"
+                    foreignCurrency:
+                      type: integer
+                      minimum: -9007199254740991
+                      maximum: 9007199254740991
                     error:
                       type:
                         - string
@@ -12766,11 +12868,902 @@ paths:
                     - missingAccounts
                     - ordersOnly
                     - ordersMessage
+                    - foreignCurrency
                     - error
                     - message
                     - startedAt
                     - finishedAt
                   additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/psd2/banks:
+    post:
+      operationId: psd2Banks
+      summary: "PSD2: banks of a country that Enable Banking offers; the credentials are checked on the way and not stored"
+      tags:
+        - Banks
+      security:
+        - session: []
+        - device: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                country:
+                  type: string
+                  pattern: ^[A-Z]{2}$
+                credentials:
+                  type: object
+                  properties:
+                    applicationId:
+                      type: string
+                      pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+                    privateKey:
+                      type: string
+                      minLength: 100
+                      maxLength: 20000
+                  required:
+                    - applicationId
+                    - privateKey
+                fromConnection:
+                  type: integer
+                  exclusiveMinimum: 0
+                  maximum: 9007199254740991
+              required:
+                - country
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  banks:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        country:
+                          type: string
+                        beta:
+                          type: boolean
+                        maxConsentDays:
+                          type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        psuTypes:
+                          type: array
+                          items:
+                            type: string
+                            enum:
+                              - personal
+                              - business
+                      required:
+                        - name
+                        - country
+                        - beta
+                        - maxConsentDays
+                        - psuTypes
+                      additionalProperties: false
+                required:
+                  - banks
+                additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/psd2/connections:
+    post:
+      operationId: createPsd2Connection
+      summary: "PSD2: add a bank access through Enable Banking; an existing one for the same bank is returned"
+      tags:
+        - Banks
+      security:
+        - session: []
+        - device: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                aspsp:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                country:
+                  type: string
+                  pattern: ^[A-Z]{2}$
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 80
+                icon:
+                  type: string
+                  enum:
+                    - wallet
+                    - wallet-cards
+                    - credit-card
+                    - banknote
+                    - coins
+                    - piggy-bank
+                    - landmark
+                    - hand-coins
+                    - percent
+                    - receipt
+                    - briefcase
+                    - euro
+                    - chart-line
+                    - arrow-left-right
+                    - undo-2
+                    - house
+                    - key-round
+                    - zap
+                    - flame
+                    - droplets
+                    - sofa
+                    - lamp
+                    - wrench
+                    - shield-check
+                    - wifi
+                    - smartphone
+                    - tv
+                    - shopping-cart
+                    - shopping-basket
+                    - croissant
+                    - utensils
+                    - coffee
+                    - pizza
+                    - wine
+                    - apple
+                    - car
+                    - car-front
+                    - fuel
+                    - train-front
+                    - bus
+                    - bike
+                    - plane
+                    - square-parking
+                    - ticket
+                    - circle-play
+                    - music
+                    - tree-palm
+                    - gift
+                    - dumbbell
+                    - book-open
+                    - gamepad-2
+                    - camera
+                    - party-popper
+                    - shopping-bag
+                    - package
+                    - shirt
+                    - pill-bottle
+                    - scissors
+                    - calendar-clock
+                    - store
+                    - heart-pulse
+                    - stethoscope
+                    - pill
+                    - users
+                    - user
+                    - baby
+                    - dog
+                    - cat
+                    - graduation-cap
+                    - folder
+                    - layers
+                    - tag
+                    - star
+                    - heart
+                color:
+                  type: string
+                  enum:
+                    - violet
+                    - indigo
+                    - blue
+                    - sky
+                    - teal
+                    - green
+                    - lime
+                    - amber
+                    - orange
+                    - red
+                    - pink
+                    - magenta
+                    - neutral
+              required:
+                - aspsp
+                - country
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 9007199254740991
+                  kind:
+                    type: string
+                    enum:
+                      - fints
+                      - psd2
+                  name:
+                    type: string
+                  bankName:
+                    type: string
+                  blz:
+                    type: string
+                  bic:
+                    type:
+                      - string
+                      - "null"
+                  fintsUrl:
+                    type: string
+                  psd2:
+                    anyOf:
+                      - type: object
+                        properties:
+                          aspsp:
+                            type: string
+                            minLength: 1
+                            maxLength: 100
+                          country:
+                            type: string
+                            pattern: ^[A-Z]{2}$
+                        required:
+                          - aspsp
+                          - country
+                        additionalProperties: false
+                      - type: "null"
+                  icon:
+                    type: string
+                    enum:
+                      - wallet
+                      - wallet-cards
+                      - credit-card
+                      - banknote
+                      - coins
+                      - piggy-bank
+                      - landmark
+                      - hand-coins
+                      - percent
+                      - receipt
+                      - briefcase
+                      - euro
+                      - chart-line
+                      - arrow-left-right
+                      - undo-2
+                      - house
+                      - key-round
+                      - zap
+                      - flame
+                      - droplets
+                      - sofa
+                      - lamp
+                      - wrench
+                      - shield-check
+                      - wifi
+                      - smartphone
+                      - tv
+                      - shopping-cart
+                      - shopping-basket
+                      - croissant
+                      - utensils
+                      - coffee
+                      - pizza
+                      - wine
+                      - apple
+                      - car
+                      - car-front
+                      - fuel
+                      - train-front
+                      - bus
+                      - bike
+                      - plane
+                      - square-parking
+                      - ticket
+                      - circle-play
+                      - music
+                      - tree-palm
+                      - gift
+                      - dumbbell
+                      - book-open
+                      - gamepad-2
+                      - camera
+                      - party-popper
+                      - shopping-bag
+                      - package
+                      - shirt
+                      - pill-bottle
+                      - scissors
+                      - calendar-clock
+                      - store
+                      - heart-pulse
+                      - stethoscope
+                      - pill
+                      - users
+                      - user
+                      - baby
+                      - dog
+                      - cat
+                      - graduation-cap
+                      - folder
+                      - layers
+                      - tag
+                      - star
+                      - heart
+                  color:
+                    type: string
+                    enum:
+                      - violet
+                      - indigo
+                      - blue
+                      - sky
+                      - teal
+                      - green
+                      - lime
+                      - amber
+                      - orange
+                      - red
+                      - pink
+                      - magenta
+                      - neutral
+                  myLogin:
+                    anyOf:
+                      - type: object
+                        properties:
+                          id:
+                            type: integer
+                            exclusiveMinimum: 0
+                            maximum: 9007199254740991
+                          loginHint:
+                            type: string
+                          status:
+                            type: string
+                            enum:
+                              - setup
+                              - ready
+                              - credentials_lost
+                              - pin_wrong
+                              - error
+                              - consent_needed
+                          tanMethod:
+                            anyOf:
+                              - type: object
+                                properties:
+                                  id:
+                                    type: string
+                                  name:
+                                    type: string
+                                required:
+                                  - id
+                                  - name
+                                additionalProperties: false
+                              - type: "null"
+                          tanMedium:
+                            type:
+                              - string
+                              - "null"
+                          savePin:
+                            type: boolean
+                          lastSyncAt:
+                            anyOf:
+                              - type: string
+                                description: ISO 8601 date and time
+                              - type: "null"
+                          lastError:
+                            type:
+                              - string
+                              - "null"
+                          consentUntil:
+                            anyOf:
+                              - type: string
+                                description: ISO 8601 date and time
+                              - type: "null"
+                        required:
+                          - id
+                          - loginHint
+                          - status
+                          - tanMethod
+                          - tanMedium
+                          - savePin
+                          - lastSyncAt
+                          - lastError
+                          - consentUntil
+                        additionalProperties: false
+                      - type: "null"
+                  otherLogins:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        userName:
+                          type: string
+                        status:
+                          type: string
+                          enum:
+                            - setup
+                            - ready
+                            - credentials_lost
+                            - pin_wrong
+                            - error
+                            - consent_needed
+                      required:
+                        - userName
+                        - status
+                      additionalProperties: false
+                  accountCount:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                required:
+                  - id
+                  - kind
+                  - name
+                  - bankName
+                  - blz
+                  - bic
+                  - fintsUrl
+                  - psd2
+                  - icon
+                  - color
+                  - myLogin
+                  - otherLogins
+                  - accountCount
+                additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/bank-connections/{id}/psd2-login:
+    put:
+      operationId: setPsd2Login
+      summary: "PSD2: set the own Enable Banking application (typed in or from another own PSD2 login) and check it"
+      tags:
+        - Banks
+      security:
+        - session: []
+        - device: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            exclusiveMinimum: 0
+            maximum: 9007199254740991
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                credentials:
+                  type: object
+                  properties:
+                    applicationId:
+                      type: string
+                      pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+                    privateKey:
+                      type: string
+                      minLength: 100
+                      maxLength: 20000
+                  required:
+                    - applicationId
+                    - privateKey
+                fromConnection:
+                  type: integer
+                  exclusiveMinimum: 0
+                  maximum: 9007199254740991
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 9007199254740991
+                  loginHint:
+                    type: string
+                  status:
+                    type: string
+                    enum:
+                      - setup
+                      - ready
+                      - credentials_lost
+                      - pin_wrong
+                      - error
+                      - consent_needed
+                  tanMethod:
+                    anyOf:
+                      - type: object
+                        properties:
+                          id:
+                            type: string
+                          name:
+                            type: string
+                        required:
+                          - id
+                          - name
+                        additionalProperties: false
+                      - type: "null"
+                  tanMedium:
+                    type:
+                      - string
+                      - "null"
+                  savePin:
+                    type: boolean
+                  lastSyncAt:
+                    anyOf:
+                      - type: string
+                        description: ISO 8601 date and time
+                      - type: "null"
+                  lastError:
+                    type:
+                      - string
+                      - "null"
+                  consentUntil:
+                    anyOf:
+                      - type: string
+                        description: ISO 8601 date and time
+                      - type: "null"
+                required:
+                  - id
+                  - loginHint
+                  - status
+                  - tanMethod
+                  - tanMedium
+                  - savePin
+                  - lastSyncAt
+                  - lastError
+                  - consentUntil
+                additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/bank-connections/{id}/consent:
+    post:
+      operationId: startConsent
+      summary: "PSD2: start the approval at the bank for the own login; answers with the address to open"
+      tags:
+        - Banks
+      security:
+        - session: []
+        - device: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            exclusiveMinimum: 0
+            maximum: 9007199254740991
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                redirectUrl:
+                  type: string
+                  maxLength: 500
+                  format: uri
+              required:
+                - redirectUrl
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                required:
+                  - url
+                additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/psd2/consent:
+    post:
+      operationId: completeConsent
+      summary: "PSD2: finish an approval of the signed-in user with what the bank's redirect brought back"
+      tags:
+        - Banks
+      security:
+        - session: []
+        - device: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                state:
+                  type: string
+                  pattern: ^[A-Za-z0-9_-]{16,128}$
+                code:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+              required:
+                - state
+                - code
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 9007199254740991
+                  kind:
+                    type: string
+                    enum:
+                      - fints
+                      - psd2
+                  name:
+                    type: string
+                  bankName:
+                    type: string
+                  blz:
+                    type: string
+                  bic:
+                    type:
+                      - string
+                      - "null"
+                  fintsUrl:
+                    type: string
+                  psd2:
+                    anyOf:
+                      - type: object
+                        properties:
+                          aspsp:
+                            type: string
+                            minLength: 1
+                            maxLength: 100
+                          country:
+                            type: string
+                            pattern: ^[A-Z]{2}$
+                        required:
+                          - aspsp
+                          - country
+                        additionalProperties: false
+                      - type: "null"
+                  icon:
+                    type: string
+                    enum:
+                      - wallet
+                      - wallet-cards
+                      - credit-card
+                      - banknote
+                      - coins
+                      - piggy-bank
+                      - landmark
+                      - hand-coins
+                      - percent
+                      - receipt
+                      - briefcase
+                      - euro
+                      - chart-line
+                      - arrow-left-right
+                      - undo-2
+                      - house
+                      - key-round
+                      - zap
+                      - flame
+                      - droplets
+                      - sofa
+                      - lamp
+                      - wrench
+                      - shield-check
+                      - wifi
+                      - smartphone
+                      - tv
+                      - shopping-cart
+                      - shopping-basket
+                      - croissant
+                      - utensils
+                      - coffee
+                      - pizza
+                      - wine
+                      - apple
+                      - car
+                      - car-front
+                      - fuel
+                      - train-front
+                      - bus
+                      - bike
+                      - plane
+                      - square-parking
+                      - ticket
+                      - circle-play
+                      - music
+                      - tree-palm
+                      - gift
+                      - dumbbell
+                      - book-open
+                      - gamepad-2
+                      - camera
+                      - party-popper
+                      - shopping-bag
+                      - package
+                      - shirt
+                      - pill-bottle
+                      - scissors
+                      - calendar-clock
+                      - store
+                      - heart-pulse
+                      - stethoscope
+                      - pill
+                      - users
+                      - user
+                      - baby
+                      - dog
+                      - cat
+                      - graduation-cap
+                      - folder
+                      - layers
+                      - tag
+                      - star
+                      - heart
+                  color:
+                    type: string
+                    enum:
+                      - violet
+                      - indigo
+                      - blue
+                      - sky
+                      - teal
+                      - green
+                      - lime
+                      - amber
+                      - orange
+                      - red
+                      - pink
+                      - magenta
+                      - neutral
+                  myLogin:
+                    anyOf:
+                      - type: object
+                        properties:
+                          id:
+                            type: integer
+                            exclusiveMinimum: 0
+                            maximum: 9007199254740991
+                          loginHint:
+                            type: string
+                          status:
+                            type: string
+                            enum:
+                              - setup
+                              - ready
+                              - credentials_lost
+                              - pin_wrong
+                              - error
+                              - consent_needed
+                          tanMethod:
+                            anyOf:
+                              - type: object
+                                properties:
+                                  id:
+                                    type: string
+                                  name:
+                                    type: string
+                                required:
+                                  - id
+                                  - name
+                                additionalProperties: false
+                              - type: "null"
+                          tanMedium:
+                            type:
+                              - string
+                              - "null"
+                          savePin:
+                            type: boolean
+                          lastSyncAt:
+                            anyOf:
+                              - type: string
+                                description: ISO 8601 date and time
+                              - type: "null"
+                          lastError:
+                            type:
+                              - string
+                              - "null"
+                          consentUntil:
+                            anyOf:
+                              - type: string
+                                description: ISO 8601 date and time
+                              - type: "null"
+                        required:
+                          - id
+                          - loginHint
+                          - status
+                          - tanMethod
+                          - tanMedium
+                          - savePin
+                          - lastSyncAt
+                          - lastError
+                          - consentUntil
+                        additionalProperties: false
+                      - type: "null"
+                  otherLogins:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        userName:
+                          type: string
+                        status:
+                          type: string
+                          enum:
+                            - setup
+                            - ready
+                            - credentials_lost
+                            - pin_wrong
+                            - error
+                            - consent_needed
+                      required:
+                        - userName
+                        - status
+                      additionalProperties: false
+                  accountCount:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                required:
+                  - id
+                  - kind
+                  - name
+                  - bankName
+                  - blz
+                  - bic
+                  - fintsUrl
+                  - psd2
+                  - icon
+                  - color
+                  - myLogin
+                  - otherLogins
+                  - accountCount
+                additionalProperties: false
         default:
           description: Error
           content:

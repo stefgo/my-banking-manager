@@ -4,7 +4,7 @@
 
 import { z } from "zod";
 import { ColorKeySchema, IconKeySchema, Id, IsoDate, Name, Timestamp } from "./common.js";
-import { Blz, ConnectorAccountCapabilities, ConnectorChallenge } from "./connector.js";
+import { Blz, ConnectorAccountCapabilities, ConnectorChallenge, CountryCode, Psd2Bank, Psd2BankInfo, Psd2Credentials, Psd2RedirectUrl } from "./connector.js";
 
 export const BankSearchQuery = z.object({ q: z.string().trim().min(2, "Mindestens zwei Zeichen").max(60) });
 export const BankDirectoryEntry = z.object({ blz: z.string(), name: z.string(), place: z.string(), bic: z.string() });
@@ -24,7 +24,8 @@ export type BankDirectoryStatus = z.infer<typeof BankDirectoryStatus>;
 
 export const FintsUrl = z.string().trim().url("Bitte eine Adresse wie https://… eingeben").startsWith("https://", "Die FinTS-Adresse muss mit https:// beginnen").max(300);
 
-export const BankLoginStatus = z.enum(["setup", "ready", "credentials_lost", "pin_wrong", "error"]);
+/** consent_needed: PSD2 approval missing, ended or revoked; the user approves again at the bank. */
+export const BankLoginStatus = z.enum(["setup", "ready", "credentials_lost", "pin_wrong", "error", "consent_needed"]);
 
 export const BankLogin = z.object({
     id: Id,
@@ -35,16 +36,25 @@ export const BankLogin = z.object({
     savePin: z.boolean(),
     lastSyncAt: Timestamp.nullable(),
     lastError: z.string().nullable(),
+    /** PSD2: when the approval at the bank ends; null for FinTS and before the first approval. */
+    consentUntil: Timestamp.nullable(),
 });
 export type BankLogin = z.infer<typeof BankLogin>;
 
+/** fints: FinTS with login name and PIN; psd2: through Enable Banking with an approval at the bank. */
+export const BankConnectionKind = z.enum(["fints", "psd2"]);
+export type BankConnectionKind = z.infer<typeof BankConnectionKind>;
+
 export const BankConnection = z.object({
     id: Id,
+    kind: BankConnectionKind,
     name: z.string(),
     bankName: z.string(),
     blz: z.string(),
     bic: z.string().nullable(),
     fintsUrl: z.string(),
+    /** PSD2: the bank as Enable Banking names it; null for FinTS (blz and fintsUrl are then empty for PSD2). */
+    psd2: Psd2Bank.nullable(),
     icon: IconKeySchema,
     color: ColorKeySchema,
     /** The signed-in user's login; null if they have none yet. */
@@ -144,6 +154,37 @@ export const DetachAccountRequest = z.object({
     mode: z.enum(["keep", "delete"]),
 });
 
+// ---------- PSD2 through Enable Banking ----------
+
+/** Banks of a country; with credentials typed in (used for this request only) or those of the own login at another PSD2 access (by connection id). */
+export const Psd2BankSearchRequest = z
+    .object({ country: CountryCode, credentials: Psd2Credentials.optional(), fromConnection: Id.optional() })
+    .refine((r) => (r.credentials === undefined) !== (r.fromConnection === undefined), "Entweder Zugangsdaten oder einen eigenen PSD2-Zugang angeben");
+export const Psd2BankSearchResponse = z.object({ banks: z.array(Psd2BankInfo) });
+
+export const CreatePsd2ConnectionRequest = Psd2Bank.extend({
+    name: Name.optional(),
+    icon: IconKeySchema.optional(),
+    color: ColorKeySchema.optional(),
+});
+
+/** The own Enable Banking application: typed in, or taken from another own PSD2 login (by connection id). */
+export const SetPsd2LoginRequest = z
+    .object({ credentials: Psd2Credentials.optional(), fromConnection: Id.optional() })
+    .refine((r) => (r.credentials === undefined) !== (r.fromConnection === undefined), "Entweder Zugangsdaten oder einen eigenen PSD2-Zugang angeben");
+
+export const StartConsentRequest = z.object({
+    /** The client's own address plus /bank-callback; must be registered in the application. */
+    redirectUrl: Psd2RedirectUrl,
+});
+export const StartConsentResponse = z.object({ url: z.string() });
+
+/** What the bank's redirect brought back to /bank-callback (or the address pasted by hand). */
+export const CompleteConsentRequest = z.object({
+    state: z.string().regex(/^[A-Za-z0-9_-]{16,128}$/, "Die Adresse gehört zu keiner Freigabe"),
+    code: z.string().min(1).max(2_000),
+});
+
 export const BankOperationParam = z.object({ id: z.string().uuid() });
 export const BankTanRequest = z.object({ tan: z.string().trim().min(1).max(64) });
 
@@ -182,7 +223,9 @@ export const SyncRun = z.object({
     ordersOnly: z.boolean(),
     /** Set when bookings arrived but the orders could not be fetched; the run still counts as done. */
     ordersMessage: z.string().nullable(),
-    /** Error code ("pin_required", "pin_wrong", "bank_error", …) and text, if the run failed. */
+    /** PSD2: bookings left out because their currency differs from the account's. */
+    foreignCurrency: z.number().int(),
+    /** Error code ("pin_required", "pin_wrong", "consent_expired", "bank_error", …) and text, if the run failed. */
     error: z.string().nullable(),
     message: z.string().nullable(),
     startedAt: Timestamp,

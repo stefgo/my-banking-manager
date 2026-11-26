@@ -5,7 +5,8 @@
 // transfers come along, unless the bank wants an approval for them every time: then only a run
 // for the orders alone fetches them. Progress goes to the user's
 // clients as a "sync" event. The user key and a PIN that is not stored live in memory only,
-// for as long as the run does.
+// for as long as the run does. PSD2 logins (Enable Banking) fetch the same way over their own
+// connector routes, with the user's browser named to the bank (PSU), and without approvals.
 
 import { randomUUID } from "node:crypto";
 import { ConnectorTransaction, type ConnectorAccount, type ConnectorAccountRef, type ConnectorBalance, type ConnectorChallenge, type ConnectorLogin, type ConnectorScheduledTransfer, type ConnectorStandingOrder, type SyncRun } from "@mbm/shared";
@@ -34,6 +35,8 @@ interface Run {
     tanWaiter: { operationId: string; resolve: (o: Outcome) => void; reject: (e: unknown) => void } | null;
     /** Operation the connector holds while the run waits, to cancel it. */
     operationId: string | null;
+    /** PSD2: the browser of the user who started the run, so the bank counts the fetch as attended. */
+    psu: { ipAddress: string; userAgent: string } | undefined;
 }
 
 class Cancelled extends Error {}
@@ -75,7 +78,12 @@ export class SyncManager {
     }
 
     /** Starts runs for the logins the request covers; a login with a run going on keeps it. */
-    start(db: Db, user: { id: number; name: string }, userKey: Buffer, req: { accountId?: number; connectionId?: number; groupId?: number; pins?: Record<string, string>; ordersOnly?: boolean }): SyncRun[] {
+    start(
+        db: Db,
+        user: { id: number; name: string },
+        userKey: Buffer,
+        req: { accountId?: number; connectionId?: number; groupId?: number; pins?: Record<string, string>; ordersOnly?: boolean; psu?: { ipAddress: string; userAgent: string } },
+    ): SyncRun[] {
         const targets = this.targets(db, user.id, req);
         return targets.map(({ login, accountIds }) => {
             const going = [...this.runs.values()].find((r) => r.loginId === login.id && (r.api.status === "running" || r.api.status === "approval"));
@@ -84,7 +92,7 @@ export class SyncManager {
             const run: Run = {
                 api: {
                     id: randomUUID(), connectionId: conn.id, connectionName: conn.name, status: "running", challenge: null, accountIds,
-                    newTransactions: 0, newAccounts: [], missingAccounts: [], ordersOnly: req.ordersOnly === true, ordersMessage: null, error: null, message: null, startedAt: new Date().toISOString(), finishedAt: null,
+                    newTransactions: 0, newAccounts: [], missingAccounts: [], ordersOnly: req.ordersOnly === true, ordersMessage: null, foreignCurrency: 0, error: null, message: null, startedAt: new Date().toISOString(), finishedAt: null,
                 },
                 userId: user.id,
                 userName: user.name,
@@ -94,6 +102,7 @@ export class SyncManager {
                 cancelled: false,
                 tanWaiter: null,
                 operationId: null,
+                psu: req.psu,
             };
             this.runs.set(run.api.id, run);
             void this.execute(run);
@@ -136,6 +145,14 @@ export class SyncManager {
         return this.ctx.connectors.get(bank.requireConnection(db, run.api.connectionId).connector);
     }
 
+    private isPsd2(run: Run): boolean {
+        try {
+            return bank.isPsd2(bank.requireConnection(this.ctx.vault.database, run.api.connectionId));
+        } catch {
+            return false;
+        }
+    }
+
     private emit(run: Run): void {
         this.ctx.events.toUser(run.userId, { type: "sync", runs: this.list(run.userId) });
     }
@@ -158,7 +175,14 @@ export class SyncManager {
         const logins =
             req.connectionId !== undefined
                 ? [bank.requireLogin(db, req.connectionId, userId)]
-                : (db.prepare("SELECT * FROM bank_logins WHERE user_id = ? AND tan_method IS NOT NULL AND status != 'credentials_lost' ORDER BY id").all(userId) as bank.LoginRow[]);
+                : (db
+                      .prepare(
+                          `SELECT l.* FROM bank_logins l JOIN bank_connections c ON c.id = l.connection_id
+                           WHERE l.user_id = ? AND l.status != 'credentials_lost'
+                             AND (l.tan_method IS NOT NULL OR (c.connector = '${bank.PSD2_CONNECTOR}' AND l.consent_until IS NOT NULL))
+                           ORDER BY l.id`,
+                      )
+                      .all(userId) as bank.LoginRow[]);
         // A group narrows each login to its accounts in the group; bank accounts without an own login stay out
         let inGroup: (id: number) => boolean = () => true;
         if (req.groupId !== undefined && req.connectionId === undefined) {
@@ -174,17 +198,19 @@ export class SyncManager {
         try {
             await this.fetch(run);
         } catch (e) {
-            failed = e instanceof Cancelled || run.cancelled ? { code: "cancelled", message: "Abgebrochen." } : errorOf(e);
+            failed = e instanceof Cancelled || run.cancelled ? { code: "cancelled", message: "Abgebrochen." } : errorOf(e, this.isPsd2(run));
         }
         run.key.fill(0);
         run.pin = undefined;
+        run.psu = undefined;
         run.tanWaiter = null;
         run.operationId = null;
         Object.assign(run.api, { status: failed ? "error" : "done", challenge: null, error: failed?.code ?? null, message: failed?.message ?? null, finishedAt: new Date().toISOString() });
         try {
             const db = this.ctx.vault.database;
             if (failed && failed.code !== "cancelled") {
-                bank.setLoginStatus(db, run.loginId, failed.code === "pin_wrong" ? "pin_wrong" : failed.code === "pin_required" ? bank.loginById(db, run.loginId).status : "error", failed.message.slice(0, 300));
+                const status = failed.code === "pin_wrong" ? "pin_wrong" : failed.code === "consent_expired" ? "consent_needed" : failed.code === "pin_required" ? bank.loginById(db, run.loginId).status : "error";
+                bank.setLoginStatus(db, run.loginId, status, failed.message.slice(0, 300));
             }
             db.prepare("INSERT INTO sync_runs (connection_id, login_id, user_id, account_id, started_at, finished_at, trigger, result, new_transactions, details) VALUES (?, ?, ?, ?, ?, ?, 'manual', ?, ?, ?)").run(
                 run.api.connectionId, run.loginId, run.userId, run.api.accountIds.length === 1 ? run.api.accountIds[0] : null,
@@ -202,17 +228,29 @@ export class SyncManager {
         const db = () => this.ctx.vault.database;
         const conn = bank.requireConnection(db(), run.api.connectionId);
         const client = this.ctx.connectors.get(conn.connector);
-        const bankRef = { blz: conn.blz, url: conn.fints_url };
-        const login = (): ConnectorLogin => {
+        const psd2 = bank.isPsd2(conn);
+        if (psd2) {
+            // An approval past its end: no need to ask Enable Banking
+            const until = bank.loginById(db(), run.loginId).consent_until;
+            if (!until || Date.parse(until) <= Date.now()) throw new HttpError(409, "consent_expired", `Die Freigabe bei ${conn.name} ist abgelaufen. Bitte neu freigeben.`);
+        }
+        const bankRef = psd2 ? bank.psd2Bank(conn) : { blz: conn.blz, url: conn.fints_url };
+        const login = (): ConnectorLogin | ReturnType<typeof bank.psd2Login> => {
             const row = bank.loginById(db(), run.loginId);
+            if (psd2) return bank.psd2Login(row, run.key);
             if (row.save_pin === 0 && !run.pin) throw new HttpError(409, "pin_required", "Bitte die PIN eingeben.");
             return bank.connectorLogin(row, run.key, run.pin);
         };
+        /** PSD2 has its own routes for the same data, and no card or order routes. */
+        const PSD2_ROUTE = { accounts: "psd2Accounts", balances: "psd2Balances", transactions: "psd2Transactions" } as const;
 
         /** One connector call; waits through approvals; stores the state it returns. */
         const call = async <T>(route: "accounts" | "balances" | "transactions" | "cardTransactions" | "standingOrders" | "scheduledTransfers", extra: object): Promise<T> => {
             if (run.cancelled) throw new Cancelled();
-            let out = (await client.call(route, { body: { bank: bankRef, login: login(), ...extra } as never })) as Outcome;
+            if (psd2 && !(route in PSD2_ROUTE)) throw new HttpError(502, "connector_error", "Über PSD2 gibt es diesen Abruf nicht.");
+            const target = psd2 ? PSD2_ROUTE[route as keyof typeof PSD2_ROUTE] : route;
+            const body = { bank: bankRef, login: login(), ...(psd2 && run.psu ? { psu: run.psu } : {}), ...extra };
+            let out = (await client.call(target, { body: body as never })) as Outcome;
             while (out.status === "approval") out = await this.approval(run, client, out);
             if (out.status === "confirm") throw new HttpError(502, "connector_error", "Der Konnektor wartet unerwartet auf eine Bestätigung.");
             bank.saveConnectorState(db(), run.loginId, run.key, out.state);
@@ -249,7 +287,8 @@ export class SyncManager {
             .filter((t): t is NonNullable<typeof t> => t !== null);
 
         // Balances of all accounts in one call
-        const withBalance = run.api.ordersOnly ? [] : targets.filter((t) => t.kind !== "credit_card" && t.caps.balance);
+        // A credit card whose bookings come with their own balance (FinTS card transactions) needs no call here
+        const withBalance = run.api.ordersOnly ? [] : targets.filter((t) => t.caps.balance && !(t.kind === "credit_card" && t.caps.cardTransactions));
         const balances = withBalance.length ? (await call<{ balances: ConnectorBalance[] }>("balances", { accounts: withBalance.map((t) => t.ref) })).balances : [];
 
         for (const t of run.api.ordersOnly ? [] : targets) {
@@ -264,7 +303,9 @@ export class SyncManager {
                 txs = r.transactions;
                 balance = r.balance;
             } else if (t.caps.transactions) {
-                txs = (await call<{ transactions: ConnectorTransaction[] }>("transactions", { account: t.ref, ...(from ? { from } : {}) })).transactions;
+                const r = await call<{ transactions: ConnectorTransaction[]; foreignCurrency?: number }>("transactions", { account: t.ref, ...(from ? { from } : {}) });
+                txs = r.transactions;
+                run.api.foreignCurrency += r.foreignCurrency ?? 0;
             }
             // Data that comes after an approval has not been checked against the contract yet
             const checked = ConnectorTransaction.array().safeParse(txs);
@@ -339,11 +380,11 @@ export class SyncManager {
     }
 }
 
-function errorOf(e: unknown): { code: string; message: string } {
+function errorOf(e: unknown, psd2 = false): { code: string; message: string } {
     if (e instanceof HttpError) return { code: e.code, message: e.message };
     if (e instanceof ConnectorCallError) {
         const bankText = e.bankCodes.length ? ` (${e.bankCodes.map((c) => `${c.code} ${c.text}`).join("; ")})` : "";
-        if (e.code === "pin_wrong") return { code: "pin_wrong", message: `Die Bank hat die PIN abgelehnt oder den Zugang gesperrt${bankText}.` };
+        if (e.code === "pin_wrong") return { code: "pin_wrong", message: psd2 ? e.message : `Die Bank hat die PIN abgelehnt oder den Zugang gesperrt${bankText}.` };
         if (e.code === "operation_unknown") return { code: "expired", message: "Die Freigabe ist abgelaufen." };
         return { code: e.code, message: e.message };
     }

@@ -3,7 +3,7 @@
 // state the connector returns. Amounts in cents, dates as JJJJ-MM-TT.
 
 import { z } from "zod";
-import { Cents, IsoDate } from "./common.js";
+import { Cents, IconKeySchema, IsoDate, Timestamp } from "./common.js";
 import { SEPA_NAME_MAX, SEPA_REMITTANCE_MAX, TRANSFER_MAX_CENTS } from "../sepa.js";
 
 export const Blz = z.string().regex(/^\d{8}$/, "Bankleitzahl mit 8 Ziffern");
@@ -124,6 +124,8 @@ export const ConnectorAccount = ConnectorAccountRef.extend({
     currency: z.string(),
     kind: ConnectorAccountKind,
     capabilities: ConnectorAccountCapabilities,
+    /** Symbol the connector suggests for a new account (e.g. "wallet" for PayPal); else the symbol of its kind. */
+    icon: IconKeySchema.optional(),
 });
 export type ConnectorAccount = z.infer<typeof ConnectorAccount>;
 
@@ -395,17 +397,108 @@ export type OrderWriteData = z.infer<typeof OrderWriteData>;
 export const TanRequest = z.object({ tan: z.string().trim().min(1).max(64) });
 export const OperationParam = z.object({ id: z.string().uuid() });
 
+// ---------- PSD2 through Enable Banking ----------
+// Own routes under /v1/psd2: the connector signs every request to Enable Banking with the user's
+// application key. The session of an approval lives in the opaque state, like the FinTS state.
+
+export const CountryCode = z.string().regex(/^[A-Z]{2}$/, "Land als zweistelliger Code, z. B. DE");
+
+/** A bank as Enable Banking names it (bank_connections of kind psd2). */
+export const Psd2Bank = z.object({ aspsp: z.string().trim().min(1).max(100), country: CountryCode });
+export type Psd2Bank = z.infer<typeof Psd2Bank>;
+
+/** The user's Enable Banking application: ID and private key (PEM), unsealed for this call only. */
+export const Psd2Credentials = z.object({
+    applicationId: z
+        .string()
+        .trim()
+        .regex(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/, "Application-ID, wie sie im Control Panel steht"),
+    privateKey: z.string().trim().min(100, "Bitte den privaten Schlüssel im PEM-Format angeben").max(20_000),
+});
+export type Psd2Credentials = z.infer<typeof Psd2Credentials>;
+
+export const Psd2Login = Psd2Credentials.extend({
+    /** Opaque state from the session call; absent before the first approval. */
+    state: z.string().max(200_000).optional(),
+});
+export type Psd2Login = z.infer<typeof Psd2Login>;
+
+/** The user's browser, for calls the user started: the bank then counts them as attended. */
+export const Psd2Psu = z.object({ ipAddress: z.string().max(45), userAgent: z.string().max(500) });
+
+export const Psd2Request = z.object({ bank: Psd2Bank, login: Psd2Login, psu: Psd2Psu.optional() });
+
+export const Psd2PsuType = z.enum(["personal", "business"]);
+
+export const Psd2BankInfo = z.object({
+    name: z.string(),
+    country: z.string(),
+    /** Enable Banking marks the bank as beta. */
+    beta: z.boolean(),
+    /** Longest approval the bank gives, in days. */
+    maxConsentDays: z.number().int().min(0),
+    psuTypes: z.array(Psd2PsuType),
+});
+export type Psd2BankInfo = z.infer<typeof Psd2BankInfo>;
+
+export const Psd2BanksRequest = z.object({ credentials: Psd2Credentials, country: CountryCode });
+export const Psd2BanksData = z.object({ banks: z.array(Psd2BankInfo) });
+
+/** Address the bank sends the browser back to; registered in the Enable Banking application. */
+export const Psd2RedirectUrl = z
+    .string()
+    .trim()
+    .url("Bitte eine Adresse wie https://… angeben")
+    .max(500)
+    .refine((u) => /^https?:\/\//.test(u), "Die Adresse muss mit https:// oder http:// beginnen");
+
+export const Psd2ConsentRequest = z.object({
+    bank: Psd2Bank,
+    login: Psd2Credentials,
+    redirectUrl: Psd2RedirectUrl,
+    /** Random value of the server; comes back with the redirect. */
+    state: z.string().regex(/^[A-Za-z0-9_-]{16,128}$/),
+    psuType: Psd2PsuType.default("personal"),
+});
+export const Psd2ConsentData = z.object({
+    /** Approval page to send the user's browser to. */
+    url: z.string().url().startsWith("https://"),
+});
+
+export const Psd2SessionRequest = z.object({ bank: Psd2Bank, login: Psd2Credentials, code: z.string().min(1).max(2_000) });
+export const Psd2SessionData = z.object({
+    /** Opaque state for all later calls of this approval. */
+    state: z.string(),
+    /** When the approval ends; then the user approves again. */
+    validUntil: Timestamp,
+});
+
+export const Psd2CloseRequest = z.object({ login: Psd2Login });
+
+export const Psd2BalancesRequest = Psd2Request.extend({ accounts: z.array(ConnectorAccountRef).min(1).max(100) });
+
+export const Psd2TransactionsRequest = Psd2Request.extend({
+    account: ConnectorAccountRef,
+    /** Absent: as far back as the bank allows (first fetch after an approval). */
+    from: IsoDate.optional(),
+});
+export const Psd2TransactionsData = TransactionsData.extend({
+    /** Bookings left out because their currency differs from the account's. */
+    foreignCurrency: z.number().int().min(0).default(0),
+});
+
 export const ConnectorInfo = z.object({
     name: z.string(),
     version: z.string(),
-    /** False while no FinTS product ID is configured: the connector then refuses to contact banks. */
+    /** FinTS: false while no product ID is configured, the connector then refuses to contact banks. Other connectors: always true. */
     productConfigured: z.boolean(),
-    capabilities: z.array(z.enum(["accounts", "balances", "transactions", "card-transactions", "tan-media", "standing-orders", "scheduled-transfers", "transfers", "order-writes"])),
+    capabilities: z.array(z.enum(["accounts", "balances", "transactions", "card-transactions", "tan-media", "standing-orders", "scheduled-transfers", "transfers", "order-writes", "psd2"])),
 });
 
 export const ConnectorErrorCode = z.enum([
     "invalid", // request does not match the contract
-    "pin_wrong", // wrong PIN or access blocked; do not retry with the same PIN
+    "pin_wrong", // wrong PIN or access blocked, or (PSD2) application ID or key refused; do not retry with the same credentials
+    "consent_expired", // PSD2: the approval at the bank has ended or was revoked; the user approves again
     "bank_error", // the bank refused; see bankCodes
     "unreachable", // network error
     "timeout", // the bank did not answer in time

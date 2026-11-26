@@ -669,7 +669,8 @@ function ContextHeader({
     const pendingSum = ids.reduce((s, a) => s + a.pendingSum, 0);
     const node = account ?? group;
     const offline = !!account && isOffline(account);
-    const bankName = account?.connectionId != null ? connections?.find((c) => c.id === account.connectionId)?.bankName : undefined;
+    const connection = account?.connectionId != null ? connections?.find((c) => c.id === account.connectionId) : undefined;
+    const bankName = connection?.bankName;
     // A group is fetched when it holds at least one bank account, in it or in a subgroup
     const bankIds = account ? (offline ? [] : [account.id]) : group ? ids.filter((a) => !isOffline(a)).map((a) => a.id) : [];
     const syncing = (syncRuns ?? []).some((r) => isActive(r) && r.accountIds.some((id) => bankIds.includes(id)));
@@ -710,7 +711,7 @@ function ContextHeader({
                     <h1>{scopeName(scope, groups, accounts)}</h1>
                     {account && !offline ? (
                         <>
-                            <p className="iban-line">{account.kind === "credit_card" ? (account.cardNumber ? groupCardNumber(account.cardNumber) : "Kreditkarte") : account.iban ? groupIban(account.iban) : "Ohne IBAN"}</p>
+                            <p className="iban-line">{account.kind === "credit_card" ? (account.cardNumber ? groupCardNumber(account.cardNumber) : "Kreditkarte") : account.iban ? groupIban(account.iban) : connection?.kind === "psd2" ? "PSD2 über Enable Banking" : "Ohne IBAN"}</p>
                             {bankName && <p className="bank-line">{bankName}</p>}
                         </>
                     ) : (

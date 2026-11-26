@@ -10,6 +10,7 @@ import { AccountsPage } from "./pages/Accounts";
 import { ImportPage } from "./pages/Import";
 import { ImportFormatPage } from "./pages/ImportFormat";
 import { RunRulesPage } from "./pages/RunRules";
+import { BankCallbackPage } from "./pages/BankCallback";
 import { registerImportNavigation } from "./lib/importNav";
 import { registerRuleNavigation } from "./lib/rules";
 import { compactTxSearch, parseTxSearch } from "./lib/search";
@@ -63,8 +64,11 @@ export const runRulesRoute = createRoute({
     component: RunRulesPage,
 });
 
+// The bank sends the browser back here after a PSD2 approval (code and state in the address)
+const bankCallback = createRoute({ getParentRoute: () => root, path: "/bank-callback", component: BankCallbackPage });
+
 export const router = createRouter({
-    routeTree: root.addChildren([overview, transactionsRoute, accountsPage, transfer, orders, settingsRoute, importRoute, importFormatRoute, runRulesRoute]),
+    routeTree: root.addChildren([overview, transactionsRoute, accountsPage, transfer, orders, settingsRoute, importRoute, importFormatRoute, runRulesRoute, bankCallback]),
     defaultPreload: false,
     scrollRestoration: true,
 });
@@ -92,4 +96,5 @@ export const ROUTE_TITLES: Record<string, string> = {
     "/import": "Importieren",
     "/import-format": "Importformat",
     "/rules/run": "Regeln ausführen",
+    "/bank-callback": "Freigabe",
 };

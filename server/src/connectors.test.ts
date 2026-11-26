@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { createEmbeddedConnector } from "@mbm/connector-fints/embedded";
+import { createEmbeddedConnector as createEnableBankingConnector } from "@mbm/connector-enablebanking/embedded";
 import { ConnectorClient, ConnectorRegistry, embeddedExchange, type EmbeddedConnector, type EmbeddedLoader } from "./connectors/client.js";
 import { loadConfig } from "./config.js";
 
@@ -47,9 +48,9 @@ describe("embedded connector calls", () => {
     it("stop the start when the embedded connector is missing, and log its start line", async () => {
         const missing: EmbeddedLoader = () => Promise.reject(new Error("no connector inside"));
         const lines: string[] = [];
-        await expect(new ConnectorRegistry({ connectors: { fints: { embedded: true } } }, { loadEmbedded: missing }).start({ info: (m) => lines.push(m) })).rejects.toThrow("no connector inside");
+        await expect(new ConnectorRegistry({ connectors: { fints: { embedded: true } } }, { loadEmbedded: { fints: missing } }).start({ info: (m) => lines.push(m) })).rejects.toThrow("no connector inside");
 
-        const registry = new ConnectorRegistry({ connectors: { fints: { embedded: true } } }, { loadEmbedded: () => createEmbeddedConnector({ MBM_VERSION: "1.2.3" }, { productId: null }) });
+        const registry = new ConnectorRegistry({ connectors: { fints: { embedded: true } } }, { loadEmbedded: { fints: () => createEmbeddedConnector({ MBM_VERSION: "1.2.3" }, { productId: null }) } });
         await registry.start({ info: (m) => lines.push(m) });
         expect(lines).toEqual(["MBM FinTS connector 1.2.3 embedded (no product ID: banks will not be contacted)"]);
         await registry.refresh();
@@ -57,9 +58,27 @@ describe("embedded connector calls", () => {
         await registry.close();
     });
 
-    it("only for the FinTS connector", async () => {
+    it("only for the FinTS and the Enable Banking connector", async () => {
         const registry = new ConnectorRegistry({ connectors: { other: { embedded: true } } });
-        await expect(registry.start({ info: () => undefined })).rejects.toThrow("Only the FinTS connector can be embedded");
+        await expect(registry.start({ info: () => undefined })).rejects.toThrow("Only the FinTS and the Enable Banking connector can be embedded");
+    });
+
+    it("embed the Enable Banking connector next to FinTS", async () => {
+        const lines: string[] = [];
+        const registry = new ConnectorRegistry(
+            { connectors: { fints: { embedded: true }, enablebanking: { embedded: true } } },
+            {
+                loadEmbedded: {
+                    fints: () => createEmbeddedConnector({ MBM_VERSION: "1.2.3" }, { productId: null }),
+                    enablebanking: () => createEnableBankingConnector({ MBM_VERSION: "1.2.3" }),
+                },
+            },
+        );
+        await registry.start({ info: (m) => lines.push(m) });
+        expect(lines).toContain("MBM Enable Banking connector 1.2.3 embedded");
+        await registry.refresh();
+        expect(registry.status()).toContainEqual({ name: "enablebanking", reachable: true, version: "1.2.3", productConfigured: true });
+        await registry.close();
     });
 });
 
@@ -72,6 +91,15 @@ describe("connector configuration", () => {
         expect(loadConfig({ MBM_FINTS_EMBEDDED: "1" }, cwd).connectors).toEqual({ fints: { embedded: true } });
         expect(loadConfig({ MBM_FINTS_EMBEDDED: "true" }, cwd).connectors).toEqual({ fints: { embedded: true } });
         expect(loadConfig({ MBM_FINTS_EMBEDDED: "0" }, cwd).connectors).toEqual({});
+    });
+
+    it("takes the Enable Banking connector from the environment, and lets it be switched off", () => {
+        expect(loadConfig({ MBM_ENABLEBANKING_SOCKET: "/run/mbm/enablebanking.sock" }, cwd).connectors).toEqual({ enablebanking: { socket: "/run/mbm/enablebanking.sock" } });
+        expect(loadConfig({ MBM_FINTS_EMBEDDED: "1", MBM_ENABLEBANKING_EMBEDDED: "1" }, cwd).connectors).toEqual({ fints: { embedded: true }, enablebanking: { embedded: true } });
+        const file = path.join(cwd, "eb.yaml");
+        writeFileSync(file, "connectors:\n  fints:\n    socket: /run/mbm/fints.sock\n  enablebanking:\n    embedded: true\n");
+        expect(loadConfig({ MBM_CONFIG: file, MBM_ENABLEBANKING_EMBEDDED: "0", MBM_FINTS_EMBEDDED: "0" }, cwd).connectors).toEqual({ fints: { socket: "/run/mbm/fints.sock" } });
+        expect(() => loadConfig({ MBM_ENABLEBANKING_EMBEDDED: "1", MBM_ENABLEBANKING_SOCKET: "/x.sock" }, cwd)).toThrow("Enable Banking connector is either embedded or on its socket");
     });
 
     it("refuses both at once", () => {

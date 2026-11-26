@@ -17,6 +17,7 @@ import { openImport } from "../lib/importNav";
 import { InfoDialog } from "../dialogs/InfoDialog";
 import { AddAccountDialog, OpeningBalanceDialog } from "../dialogs/AddAccount";
 import { BankSetupDialog } from "../dialogs/BankSetup";
+import { Psd2SetupDialog } from "../dialogs/Psd2Setup";
 import { SyncDialog } from "../dialogs/Sync";
 import { DetachAccountDialog } from "../dialogs/DetachAccount";
 import { ConfirmSecretDialog } from "../dialogs/ConfirmSecret";
@@ -51,7 +52,9 @@ export function DialogHost() {
         case "addAccount":
             return <AddAccountDialog offline={d.offline} />;
         case "bankSetup":
-            return <BankSetupDialog connectionId={d.connectionId} />;
+            return <BankSetupDialog connectionId={d.connectionId} start={d.start} />;
+        case "psd2Setup":
+            return <Psd2SetupDialog connectionId={d.connectionId} mode={d.mode} />;
         case "detachAccount":
             return <DetachAccountDialog accountId={d.accountId} />;
         case "sync":

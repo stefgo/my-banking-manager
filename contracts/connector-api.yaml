@@ -14,6 +14,7 @@ components:
           enum:
             - invalid
             - pin_wrong
+            - consent_expired
             - bank_error
             - unreachable
             - timeout
@@ -77,6 +78,7 @@ paths:
                         - scheduled-transfers
                         - transfers
                         - order-writes
+                        - psd2
                 required:
                   - name
                   - version
@@ -815,6 +817,83 @@ paths:
                                     - deleteStandingOrder
                                     - orderRules
                                   additionalProperties: false
+                                icon:
+                                  type: string
+                                  enum:
+                                    - wallet
+                                    - wallet-cards
+                                    - credit-card
+                                    - banknote
+                                    - coins
+                                    - piggy-bank
+                                    - landmark
+                                    - hand-coins
+                                    - percent
+                                    - receipt
+                                    - briefcase
+                                    - euro
+                                    - chart-line
+                                    - arrow-left-right
+                                    - undo-2
+                                    - house
+                                    - key-round
+                                    - zap
+                                    - flame
+                                    - droplets
+                                    - sofa
+                                    - lamp
+                                    - wrench
+                                    - shield-check
+                                    - wifi
+                                    - smartphone
+                                    - tv
+                                    - shopping-cart
+                                    - shopping-basket
+                                    - croissant
+                                    - utensils
+                                    - coffee
+                                    - pizza
+                                    - wine
+                                    - apple
+                                    - car
+                                    - car-front
+                                    - fuel
+                                    - train-front
+                                    - bus
+                                    - bike
+                                    - plane
+                                    - square-parking
+                                    - ticket
+                                    - circle-play
+                                    - music
+                                    - tree-palm
+                                    - gift
+                                    - dumbbell
+                                    - book-open
+                                    - gamepad-2
+                                    - camera
+                                    - party-popper
+                                    - shopping-bag
+                                    - package
+                                    - shirt
+                                    - pill-bottle
+                                    - scissors
+                                    - calendar-clock
+                                    - store
+                                    - heart-pulse
+                                    - stethoscope
+                                    - pill
+                                    - users
+                                    - user
+                                    - baby
+                                    - dog
+                                    - cat
+                                    - graduation-cap
+                                    - folder
+                                    - layers
+                                    - tag
+                                    - star
+                                    - heart
                               required:
                                 - accountNumber
                                 - subAccount
@@ -4811,6 +4890,1309 @@ paths:
                       - status
                       - operationId
                       - vop
+                    additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectorError"
+  /v1/psd2/banks:
+    post:
+      operationId: psd2Banks
+      summary: "PSD2: banks of a country that Enable Banking offers; checks application ID and key on the way"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                credentials:
+                  type: object
+                  properties:
+                    applicationId:
+                      type: string
+                      pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+                    privateKey:
+                      type: string
+                      minLength: 100
+                      maxLength: 20000
+                  required:
+                    - applicationId
+                    - privateKey
+                country:
+                  type: string
+                  pattern: ^[A-Z]{2}$
+              required:
+                - credentials
+                - country
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  banks:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        country:
+                          type: string
+                        beta:
+                          type: boolean
+                        maxConsentDays:
+                          type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        psuTypes:
+                          type: array
+                          items:
+                            type: string
+                            enum:
+                              - personal
+                              - business
+                      required:
+                        - name
+                        - country
+                        - beta
+                        - maxConsentDays
+                        - psuTypes
+                      additionalProperties: false
+                required:
+                  - banks
+                additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectorError"
+  /v1/psd2/consents:
+    post:
+      operationId: psd2Consent
+      summary: "PSD2: start the approval at the bank; answers with the address to send the user's browser to"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bank:
+                  type: object
+                  properties:
+                    aspsp:
+                      type: string
+                      minLength: 1
+                      maxLength: 100
+                    country:
+                      type: string
+                      pattern: ^[A-Z]{2}$
+                  required:
+                    - aspsp
+                    - country
+                login:
+                  type: object
+                  properties:
+                    applicationId:
+                      type: string
+                      pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+                    privateKey:
+                      type: string
+                      minLength: 100
+                      maxLength: 20000
+                  required:
+                    - applicationId
+                    - privateKey
+                redirectUrl:
+                  type: string
+                  maxLength: 500
+                  format: uri
+                state:
+                  type: string
+                  pattern: ^[A-Za-z0-9_-]{16,128}$
+                psuType:
+                  default: personal
+                  type: string
+                  enum:
+                    - personal
+                    - business
+              required:
+                - bank
+                - login
+                - redirectUrl
+                - state
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: starts_with
+                    pattern: ^https:\/\/.*
+                required:
+                  - url
+                additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectorError"
+  /v1/psd2/sessions:
+    post:
+      operationId: psd2Session
+      summary: "PSD2: finish the approval with the code from the redirect; answers with the state for later calls"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bank:
+                  type: object
+                  properties:
+                    aspsp:
+                      type: string
+                      minLength: 1
+                      maxLength: 100
+                    country:
+                      type: string
+                      pattern: ^[A-Z]{2}$
+                  required:
+                    - aspsp
+                    - country
+                login:
+                  type: object
+                  properties:
+                    applicationId:
+                      type: string
+                      pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+                    privateKey:
+                      type: string
+                      minLength: 100
+                      maxLength: 20000
+                  required:
+                    - applicationId
+                    - privateKey
+                code:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+              required:
+                - bank
+                - login
+                - code
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  state:
+                    type: string
+                  validUntil:
+                    type: string
+                    description: ISO 8601 date and time
+                required:
+                  - state
+                  - validUntil
+                additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectorError"
+  /v1/psd2/sessions/close:
+    post:
+      operationId: psd2CloseSession
+      summary: "PSD2: end the session at Enable Banking; the approval at the bank ends with it where the bank allows"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                login:
+                  type: object
+                  properties:
+                    applicationId:
+                      type: string
+                      pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+                    privateKey:
+                      type: string
+                      minLength: 100
+                      maxLength: 20000
+                    state:
+                      type: string
+                      maxLength: 200000
+                  required:
+                    - applicationId
+                    - privateKey
+              required:
+                - login
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                required:
+                  - ok
+                additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectorError"
+  /v1/psd2/accounts:
+    post:
+      operationId: psd2Accounts
+      summary: "PSD2: accounts of the approval"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bank:
+                  type: object
+                  properties:
+                    aspsp:
+                      type: string
+                      minLength: 1
+                      maxLength: 100
+                    country:
+                      type: string
+                      pattern: ^[A-Z]{2}$
+                  required:
+                    - aspsp
+                    - country
+                login:
+                  type: object
+                  properties:
+                    applicationId:
+                      type: string
+                      pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+                    privateKey:
+                      type: string
+                      minLength: 100
+                      maxLength: 20000
+                    state:
+                      type: string
+                      maxLength: 200000
+                  required:
+                    - applicationId
+                    - privateKey
+                psu:
+                  type: object
+                  properties:
+                    ipAddress:
+                      type: string
+                      maxLength: 45
+                    userAgent:
+                      type: string
+                      maxLength: 500
+                  required:
+                    - ipAddress
+                    - userAgent
+              required:
+                - bank
+                - login
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        const: done
+                      data:
+                        type: object
+                        properties:
+                          accounts:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                accountNumber:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 35
+                                subAccount:
+                                  default: ""
+                                  type: string
+                                  maxLength: 30
+                                iban:
+                                  default: null
+                                  anyOf:
+                                    - type: string
+                                      maxLength: 34
+                                    - type: "null"
+                                bic:
+                                  default: null
+                                  anyOf:
+                                    - type: string
+                                      maxLength: 11
+                                    - type: "null"
+                                externalId:
+                                  type: string
+                                name:
+                                  type: string
+                                owner:
+                                  type: string
+                                currency:
+                                  type: string
+                                kind:
+                                  type: string
+                                  enum:
+                                    - giro
+                                    - savings
+                                    - credit_card
+                                    - loan
+                                    - depot
+                                    - other
+                                capabilities:
+                                  type: object
+                                  properties:
+                                    balance:
+                                      type: boolean
+                                    transactions:
+                                      type: boolean
+                                    cardTransactions:
+                                      type: boolean
+                                    transfer:
+                                      type: boolean
+                                    instantTransfer:
+                                      type: boolean
+                                    standingOrders:
+                                      type: boolean
+                                    scheduledTransfers:
+                                      type: boolean
+                                    standingOrdersTan:
+                                      default: false
+                                      type: boolean
+                                    scheduledTransfersTan:
+                                      default: false
+                                      type: boolean
+                                    payeeVerification:
+                                      default: false
+                                      type: boolean
+                                    createScheduledTransfer:
+                                      default: false
+                                      type: boolean
+                                    changeScheduledTransfer:
+                                      default: false
+                                      type: boolean
+                                    deleteScheduledTransfer:
+                                      default: false
+                                      type: boolean
+                                    createStandingOrder:
+                                      default: false
+                                      type: boolean
+                                    changeStandingOrder:
+                                      default: false
+                                      type: boolean
+                                    deleteStandingOrder:
+                                      default: false
+                                      type: boolean
+                                    orderRules:
+                                      default: null
+                                      anyOf:
+                                        - type: object
+                                          properties:
+                                            scheduled:
+                                              anyOf:
+                                                - type: object
+                                                  properties:
+                                                    minDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                    maxDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                  required:
+                                                    - minDays
+                                                    - maxDays
+                                                  additionalProperties: false
+                                                - type: "null"
+                                            scheduledChange:
+                                              anyOf:
+                                                - type: object
+                                                  properties:
+                                                    minDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                    maxDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                  required:
+                                                    - minDays
+                                                    - maxDays
+                                                  additionalProperties: false
+                                                - type: "null"
+                                            standing:
+                                              anyOf:
+                                                - type: object
+                                                  properties:
+                                                    minDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                    maxDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                    months:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                    monthDays:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                    weeks:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                    weekDays:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                  required:
+                                                    - minDays
+                                                    - maxDays
+                                                    - months
+                                                    - monthDays
+                                                    - weeks
+                                                    - weekDays
+                                                  additionalProperties: false
+                                                - type: "null"
+                                            standingChange:
+                                              anyOf:
+                                                - type: object
+                                                  properties:
+                                                    minDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                    maxDays:
+                                                      type: integer
+                                                      minimum: 0
+                                                      maximum: 9007199254740991
+                                                    months:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                    monthDays:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                    weeks:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                    weekDays:
+                                                      type: array
+                                                      items:
+                                                        type: integer
+                                                        minimum: -9007199254740991
+                                                        maximum: 9007199254740991
+                                                    changeable:
+                                                      type: object
+                                                      properties:
+                                                        payeeAccount:
+                                                          type: boolean
+                                                        payeeName:
+                                                          type: boolean
+                                                        amount:
+                                                          type: boolean
+                                                        remittance:
+                                                          type: boolean
+                                                        firstDate:
+                                                          type: boolean
+                                                        unit:
+                                                          type: boolean
+                                                        every:
+                                                          type: boolean
+                                                        executionDay:
+                                                          type: boolean
+                                                        lastDate:
+                                                          type: boolean
+                                                      required:
+                                                        - payeeAccount
+                                                        - payeeName
+                                                        - amount
+                                                        - remittance
+                                                        - firstDate
+                                                        - unit
+                                                        - every
+                                                        - executionDay
+                                                        - lastDate
+                                                      additionalProperties: false
+                                                  required:
+                                                    - minDays
+                                                    - maxDays
+                                                    - months
+                                                    - monthDays
+                                                    - weeks
+                                                    - weekDays
+                                                    - changeable
+                                                  additionalProperties: false
+                                                - type: "null"
+                                          required:
+                                            - scheduled
+                                            - scheduledChange
+                                            - standing
+                                            - standingChange
+                                          additionalProperties: false
+                                        - type: "null"
+                                  required:
+                                    - balance
+                                    - transactions
+                                    - cardTransactions
+                                    - transfer
+                                    - instantTransfer
+                                    - standingOrders
+                                    - scheduledTransfers
+                                    - standingOrdersTan
+                                    - scheduledTransfersTan
+                                    - payeeVerification
+                                    - createScheduledTransfer
+                                    - changeScheduledTransfer
+                                    - deleteScheduledTransfer
+                                    - createStandingOrder
+                                    - changeStandingOrder
+                                    - deleteStandingOrder
+                                    - orderRules
+                                  additionalProperties: false
+                                icon:
+                                  type: string
+                                  enum:
+                                    - wallet
+                                    - wallet-cards
+                                    - credit-card
+                                    - banknote
+                                    - coins
+                                    - piggy-bank
+                                    - landmark
+                                    - hand-coins
+                                    - percent
+                                    - receipt
+                                    - briefcase
+                                    - euro
+                                    - chart-line
+                                    - arrow-left-right
+                                    - undo-2
+                                    - house
+                                    - key-round
+                                    - zap
+                                    - flame
+                                    - droplets
+                                    - sofa
+                                    - lamp
+                                    - wrench
+                                    - shield-check
+                                    - wifi
+                                    - smartphone
+                                    - tv
+                                    - shopping-cart
+                                    - shopping-basket
+                                    - croissant
+                                    - utensils
+                                    - coffee
+                                    - pizza
+                                    - wine
+                                    - apple
+                                    - car
+                                    - car-front
+                                    - fuel
+                                    - train-front
+                                    - bus
+                                    - bike
+                                    - plane
+                                    - square-parking
+                                    - ticket
+                                    - circle-play
+                                    - music
+                                    - tree-palm
+                                    - gift
+                                    - dumbbell
+                                    - book-open
+                                    - gamepad-2
+                                    - camera
+                                    - party-popper
+                                    - shopping-bag
+                                    - package
+                                    - shirt
+                                    - pill-bottle
+                                    - scissors
+                                    - calendar-clock
+                                    - store
+                                    - heart-pulse
+                                    - stethoscope
+                                    - pill
+                                    - users
+                                    - user
+                                    - baby
+                                    - dog
+                                    - cat
+                                    - graduation-cap
+                                    - folder
+                                    - layers
+                                    - tag
+                                    - star
+                                    - heart
+                              required:
+                                - accountNumber
+                                - subAccount
+                                - iban
+                                - bic
+                                - externalId
+                                - name
+                                - owner
+                                - currency
+                                - kind
+                                - capabilities
+                              additionalProperties: false
+                        required:
+                          - accounts
+                        additionalProperties: false
+                      state:
+                        type: string
+                    required:
+                      - status
+                      - data
+                      - state
+                    additionalProperties: false
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        const: approval
+                      operationId:
+                        type: string
+                      challenge:
+                        type: object
+                        properties:
+                          decoupled:
+                            type: boolean
+                          text:
+                            type: string
+                          medium:
+                            type: string
+                          validUntil:
+                            type: string
+                          methodName:
+                            type: string
+                        required:
+                          - decoupled
+                          - text
+                          - medium
+                          - validUntil
+                          - methodName
+                        additionalProperties: false
+                      vop:
+                        type: object
+                        properties:
+                          result:
+                            type: string
+                            enum:
+                              - match
+                              - close_match
+                              - no_match
+                              - not_applicable
+                              - pending
+                              - none
+                          payeeName:
+                            type:
+                              - string
+                              - "null"
+                          reason:
+                            type:
+                              - string
+                              - "null"
+                          explanation:
+                            type: string
+                          structured:
+                            type: boolean
+                        required:
+                          - result
+                          - payeeName
+                          - reason
+                          - explanation
+                          - structured
+                        additionalProperties: false
+                    required:
+                      - status
+                      - operationId
+                      - challenge
+                    additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectorError"
+  /v1/psd2/balances:
+    post:
+      operationId: psd2Balances
+      summary: "PSD2: balances of accounts"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bank:
+                  type: object
+                  properties:
+                    aspsp:
+                      type: string
+                      minLength: 1
+                      maxLength: 100
+                    country:
+                      type: string
+                      pattern: ^[A-Z]{2}$
+                  required:
+                    - aspsp
+                    - country
+                login:
+                  type: object
+                  properties:
+                    applicationId:
+                      type: string
+                      pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+                    privateKey:
+                      type: string
+                      minLength: 100
+                      maxLength: 20000
+                    state:
+                      type: string
+                      maxLength: 200000
+                  required:
+                    - applicationId
+                    - privateKey
+                psu:
+                  type: object
+                  properties:
+                    ipAddress:
+                      type: string
+                      maxLength: 45
+                    userAgent:
+                      type: string
+                      maxLength: 500
+                  required:
+                    - ipAddress
+                    - userAgent
+                accounts:
+                  minItems: 1
+                  maxItems: 100
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      accountNumber:
+                        type: string
+                        minLength: 1
+                        maxLength: 35
+                      subAccount:
+                        default: ""
+                        type: string
+                        maxLength: 30
+                      iban:
+                        default: null
+                        anyOf:
+                          - type: string
+                            maxLength: 34
+                          - type: "null"
+                      bic:
+                        default: null
+                        anyOf:
+                          - type: string
+                            maxLength: 11
+                          - type: "null"
+                    required:
+                      - accountNumber
+              required:
+                - bank
+                - login
+                - accounts
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        const: done
+                      data:
+                        type: object
+                        properties:
+                          balances:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                externalId:
+                                  type: string
+                                booked:
+                                  type: integer
+                                  minimum: -9007199254740991
+                                  maximum: 9007199254740991
+                                currency:
+                                  type: string
+                                date:
+                                  type:
+                                    - string
+                                    - "null"
+                                pending:
+                                  anyOf:
+                                    - type: integer
+                                      minimum: -9007199254740991
+                                      maximum: 9007199254740991
+                                    - type: "null"
+                                available:
+                                  anyOf:
+                                    - type: integer
+                                      minimum: -9007199254740991
+                                      maximum: 9007199254740991
+                                    - type: "null"
+                                creditLine:
+                                  anyOf:
+                                    - type: integer
+                                      minimum: -9007199254740991
+                                      maximum: 9007199254740991
+                                    - type: "null"
+                              required:
+                                - externalId
+                                - booked
+                                - currency
+                                - date
+                                - pending
+                                - available
+                                - creditLine
+                              additionalProperties: false
+                        required:
+                          - balances
+                        additionalProperties: false
+                      state:
+                        type: string
+                    required:
+                      - status
+                      - data
+                      - state
+                    additionalProperties: false
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        const: approval
+                      operationId:
+                        type: string
+                      challenge:
+                        type: object
+                        properties:
+                          decoupled:
+                            type: boolean
+                          text:
+                            type: string
+                          medium:
+                            type: string
+                          validUntil:
+                            type: string
+                          methodName:
+                            type: string
+                        required:
+                          - decoupled
+                          - text
+                          - medium
+                          - validUntil
+                          - methodName
+                        additionalProperties: false
+                      vop:
+                        type: object
+                        properties:
+                          result:
+                            type: string
+                            enum:
+                              - match
+                              - close_match
+                              - no_match
+                              - not_applicable
+                              - pending
+                              - none
+                          payeeName:
+                            type:
+                              - string
+                              - "null"
+                          reason:
+                            type:
+                              - string
+                              - "null"
+                          explanation:
+                            type: string
+                          structured:
+                            type: boolean
+                        required:
+                          - result
+                          - payeeName
+                          - reason
+                          - explanation
+                          - structured
+                        additionalProperties: false
+                    required:
+                      - status
+                      - operationId
+                      - challenge
+                    additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectorError"
+  /v1/psd2/transactions:
+    post:
+      operationId: psd2Transactions
+      summary: "PSD2: booked and pending transactions of an account; without a start date as far back as the bank allows"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bank:
+                  type: object
+                  properties:
+                    aspsp:
+                      type: string
+                      minLength: 1
+                      maxLength: 100
+                    country:
+                      type: string
+                      pattern: ^[A-Z]{2}$
+                  required:
+                    - aspsp
+                    - country
+                login:
+                  type: object
+                  properties:
+                    applicationId:
+                      type: string
+                      pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+                    privateKey:
+                      type: string
+                      minLength: 100
+                      maxLength: 20000
+                    state:
+                      type: string
+                      maxLength: 200000
+                  required:
+                    - applicationId
+                    - privateKey
+                psu:
+                  type: object
+                  properties:
+                    ipAddress:
+                      type: string
+                      maxLength: 45
+                    userAgent:
+                      type: string
+                      maxLength: 500
+                  required:
+                    - ipAddress
+                    - userAgent
+                account:
+                  type: object
+                  properties:
+                    accountNumber:
+                      type: string
+                      minLength: 1
+                      maxLength: 35
+                    subAccount:
+                      default: ""
+                      type: string
+                      maxLength: 30
+                    iban:
+                      default: null
+                      anyOf:
+                        - type: string
+                          maxLength: 34
+                        - type: "null"
+                    bic:
+                      default: null
+                      anyOf:
+                        - type: string
+                          maxLength: 11
+                        - type: "null"
+                  required:
+                    - accountNumber
+                from:
+                  type: string
+              required:
+                - bank
+                - login
+                - account
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        const: done
+                      data:
+                        type: object
+                        properties:
+                          transactions:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                bookingDate:
+                                  type: string
+                                valueDate:
+                                  type:
+                                    - string
+                                    - "null"
+                                amount:
+                                  type: integer
+                                  minimum: -9007199254740991
+                                  maximum: 9007199254740991
+                                currency:
+                                  type: string
+                                status:
+                                  type: string
+                                  enum:
+                                    - booked
+                                    - pending
+                                counterpartyName:
+                                  type: string
+                                ultimateParty:
+                                  default: ""
+                                  type: string
+                                counterpartyIban:
+                                  type:
+                                    - string
+                                    - "null"
+                                counterpartyBic:
+                                  type:
+                                    - string
+                                    - "null"
+                                counterpartyAccount:
+                                  default: ""
+                                  type: string
+                                counterpartyBankCode:
+                                  default: ""
+                                  type: string
+                                remittance:
+                                  type: string
+                                endToEndId:
+                                  type:
+                                    - string
+                                    - "null"
+                                customerReference:
+                                  default: null
+                                  type:
+                                    - string
+                                    - "null"
+                                mandateId:
+                                  type:
+                                    - string
+                                    - "null"
+                                creditorId:
+                                  type:
+                                    - string
+                                    - "null"
+                                bookingText:
+                                  type: string
+                                bankReference:
+                                  type:
+                                    - string
+                                    - "null"
+                                isReturn:
+                                  default: false
+                                  type: boolean
+                                returnReason:
+                                  default: ""
+                                  type: string
+                                replaces:
+                                  default: null
+                                  anyOf:
+                                    - type: object
+                                      properties:
+                                        counterpartyIban:
+                                          type:
+                                            - string
+                                            - "null"
+                                        remittance:
+                                          type: string
+                                        endToEndId:
+                                          type:
+                                            - string
+                                            - "null"
+                                      required:
+                                        - counterpartyIban
+                                        - remittance
+                                        - endToEndId
+                                      additionalProperties: false
+                                    - type: "null"
+                              required:
+                                - bookingDate
+                                - valueDate
+                                - amount
+                                - currency
+                                - status
+                                - counterpartyName
+                                - ultimateParty
+                                - counterpartyIban
+                                - counterpartyBic
+                                - counterpartyAccount
+                                - counterpartyBankCode
+                                - remittance
+                                - endToEndId
+                                - customerReference
+                                - mandateId
+                                - creditorId
+                                - bookingText
+                                - bankReference
+                                - isReturn
+                                - returnReason
+                                - replaces
+                              additionalProperties: false
+                          foreignCurrency:
+                            default: 0
+                            type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                        required:
+                          - transactions
+                          - foreignCurrency
+                        additionalProperties: false
+                      state:
+                        type: string
+                    required:
+                      - status
+                      - data
+                      - state
+                    additionalProperties: false
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        const: approval
+                      operationId:
+                        type: string
+                      challenge:
+                        type: object
+                        properties:
+                          decoupled:
+                            type: boolean
+                          text:
+                            type: string
+                          medium:
+                            type: string
+                          validUntil:
+                            type: string
+                          methodName:
+                            type: string
+                        required:
+                          - decoupled
+                          - text
+                          - medium
+                          - validUntil
+                          - methodName
+                        additionalProperties: false
+                      vop:
+                        type: object
+                        properties:
+                          result:
+                            type: string
+                            enum:
+                              - match
+                              - close_match
+                              - no_match
+                              - not_applicable
+                              - pending
+                              - none
+                          payeeName:
+                            type:
+                              - string
+                              - "null"
+                          reason:
+                            type:
+                              - string
+                              - "null"
+                          explanation:
+                            type: string
+                          structured:
+                            type: boolean
+                        required:
+                          - result
+                          - payeeName
+                          - reason
+                          - explanation
+                          - structured
+                        additionalProperties: false
+                    required:
+                      - status
+                      - operationId
+                      - challenge
                     additionalProperties: false
         default:
           description: Error

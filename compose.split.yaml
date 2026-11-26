@@ -1,6 +1,10 @@
-# My Banking Manager in two containers: server with web client (image mbm-server) and FinTS connector
-# (image mbm-fints). Behind your reverse proxy (HTTPS), reachable only in the home network.
+# My Banking Manager in separate containers: server with web client (image mbm-server), FinTS
+# connector (image mbm-fints) and Enable Banking connector (image mbm-enablebanking, PSD2: PayPal and
+# other banks without FinTS). Behind your reverse proxy (HTTPS), reachable only in the home network.
 # Start: docker compose -f compose.split.yaml up -d. One container instead: compose.yaml.
+#
+# Without PSD2 (no data through Enable Banking): remove the service "enablebanking" and
+# MBM_ENABLEBANKING_SOCKET below; MBM then offers no PSD2 access.
 #
 # The image mbm-fints never carries a FinTS product registration number: set your own as
 # MBM_FINTS_PRODUCT_ID in .env (see .env.example), or no bank is contacted.
@@ -9,8 +13,9 @@ services:
     build:
       context: .
       dockerfile: docker/server.Dockerfile
-    # Official images instead of building yourself: set MBM_IMAGE_SERVER and MBM_IMAGE_FINTS in
-    # .env (see .env.example), then `docker compose -f compose.split.yaml pull` and `up -d`.
+    # Official images instead of building yourself: set MBM_IMAGE_SERVER, MBM_IMAGE_FINTS and
+    # MBM_IMAGE_ENABLEBANKING in .env (see .env.example), then `docker compose -f compose.split.yaml
+    # pull` and `up -d`.
     image: ${MBM_IMAGE_SERVER:-mbm-server:local}
     restart: unless-stopped
     ports:
@@ -21,6 +26,7 @@ services:
     #   MBM_TRUST_PROXY: "172.16.0.0/12"
     environment:
       MBM_FINTS_SOCKET: /run/mbm/fints.sock
+      MBM_ENABLEBANKING_SOCKET: /run/mbm/enablebanking.sock
     volumes:
       - mbm-data:/data
       - mbm-sockets:/run/mbm
@@ -43,6 +49,23 @@ services:
       # FinTS product registration number (fints.org): required, this image carries none.
       # Register your own and put it into .env next to this file. Without it, no bank is contacted.
       MBM_FINTS_PRODUCT_ID: ${MBM_FINTS_PRODUCT_ID:-}
+    volumes:
+      - mbm-sockets:/run/mbm
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  # Enable Banking connector (PSD2). Like the FinTS connector: no port, nothing kept, the socket in
+  # the same tmpfs volume. It reaches out only to api.enablebanking.com, and only for users who set
+  # up a PSD2 access; their application ID and key come with each call from the server.
+  enablebanking:
+    build:
+      context: .
+      dockerfile: docker/enablebanking.Dockerfile
+    image: ${MBM_IMAGE_ENABLEBANKING:-mbm-enablebanking:local}
+    restart: unless-stopped
     volumes:
       - mbm-sockets:/run/mbm
     read_only: true

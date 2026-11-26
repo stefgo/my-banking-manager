@@ -1,4 +1,5 @@
-# My Banking Manager in one container: server, web client and FinTS connector (image mbm-server-full).
+# My Banking Manager in one container: server, web client, FinTS connector and Enable Banking
+# connector (image mbm-server-full).
 # Behind your reverse proxy (HTTPS), reachable only in the home network.
 # Server and FinTS connector in two containers instead: compose.split.yaml.
 services:
@@ -20,6 +21,9 @@ services:
       # Behind your reverse proxy: trust its X-Forwarded-* headers (its address or network,
       # see docs/operations.md). Without it, HTTPS is not recognized and the cookie lacks "Secure".
       # MBM_TRUST_PROXY: "172.16.0.0/12"
+      # PSD2 through Enable Banking (PayPal and other banks without FinTS) is built in. "0" leaves it
+      # out: MBM then offers no PSD2 access and never talks to Enable Banking.
+      # MBM_ENABLEBANKING_EMBEDDED: "0"
     volumes:
       - mbm-data:/data
     read_only: true

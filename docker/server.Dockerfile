@@ -1,11 +1,13 @@
 # My Banking Manager: server with the built web client (image mbm-server). Reaches the FinTS
-# connector (image mbm-fints) over its Unix socket; mbm-server-full has the connector inside.
+# connector (image mbm-fints) and the Enable Banking connector (image mbm-enablebanking) over their
+# Unix sockets; mbm-server-full has both inside.
 FROM node:26-trixie-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY shared/package.json shared/
 COPY server/package.json server/
 COPY connectors/fints/package.json connectors/fints/
+COPY connectors/enablebanking/package.json connectors/enablebanking/
 COPY clients/web/package.json clients/web/
 # No install scripts: better-sqlite3-multiple-ciphers ships prebuilt binaries (linux x64/arm64)
 # and loads them at run time; with scripts, npm would compile it with node-gyp (no Python here).
