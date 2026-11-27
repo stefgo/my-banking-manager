@@ -116,9 +116,29 @@ du ausgeblendete Umsätze wieder, **Wiederherstellen** in ihren Details holt sie
 
 Über der Liste stehen vier Filter: **Kategorien**, **Eingänge und Ausgaben**, **Zeitraum**
 (dieser Monat, Vormonat, 30, 90 oder 365 Tage, alle) und **Gelöschte**. Der letzte zeigt nur
-die gelöschten Umsätze und bleibt nicht für das Konto gespeichert. **Verlauf** im Kopf blendet den
-Saldoverlauf des gewählten Kontos ein.
+die gelöschten Umsätze und bleibt nicht für das Konto gespeichert.
 Scrollst du die Liste, bleiben Suchfeld und Filter am oberen Rand stehen.
+
+## Verlauf
+
+**Verlauf** im Kopf blendet ein Diagramm für das gewählte Konto oder die Gruppe ein. Es deckt den
+Zeitraum des Filters ab, bei einer Datumsbedingung in der Suche deren Tage. Rechts daneben wählst du
+die Darstellung und gruppierst nach **T**ag, **M**onat, **Q**uartal oder **J**ahr:
+
+- **Balken** und **Linie** zeigen den Kontostand: je Tag den Stand am Abend, je Monat, Quartal oder
+  Jahr den Durchschnitt (Ø) der Tage.
+- **Eingänge und Ausgaben** zeigt je Zeitraum die Summe der Eingänge als grünen Balken nach oben
+  und die Summe der Ausgaben als roten Balken nach unten. Die Linie ist der Saldo des Zeitraums,
+  also Eingänge minus Ausgaben. Gezählt wird wie bei der Karte „Eingänge und Ausgaben“ der
+  Übersicht: ohne Umbuchungen und andere Kategorien, die [nicht in Auswertungen](kategorien-regeln.md) zählen, ohne
+  zurückgegebene Lastschriften, eine aufgeteilte Buchung mit jedem Anteil.
+
+Ein Zeitraum, den der Filter anschneidet (etwa der laufende Monat), ist blasser. Fährst du über
+einen Wert, zeigt MBM die Beträge.
+
+![Eingänge und Ausgaben des Girokontos je Monat, mit dem Saldo als Linie](../assets/screenshots/umsaetze-verlauf-dark.png)
+
+*Eingänge und Ausgaben der letzten zwölf Monate; der laufende November ist blasser.*
 
 ## Suche
 

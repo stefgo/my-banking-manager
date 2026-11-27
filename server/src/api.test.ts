@@ -1105,6 +1105,32 @@ describe("transaction search", () => {
         expect(long).toHaveLength(730);
         expect((await api<Series>("GET", `/api/stats/series?scope=account:${cash.id}&from=2026-04-01&to=2026-03-31`)).body.points).toEqual([]);
     });
+
+    it("sums income and expenses per day over the days of the balance series, without own transfers", async () => {
+        const { api } = await setUpSignedIn(t);
+        const transfer = (await api<CategoryList>("GET", "/api/categories")).body.items.find((c) => c.name === "Umbuchung")!;
+        const cash = (await api<Account>("POST", "/api/accounts", { name: "Bargeld", openingBalance: 10000 })).body;
+        const book = (bookingDate: string, amount: number, categoryId: number | null = null) =>
+            api("POST", `/api/accounts/${cash.id}/transactions`, { bookingDate, amount, counterpartyName: "X", categoryId });
+        await book("2026-03-02", 250000);
+        await book("2026-03-02", -4000);
+        await book("2026-03-02", -1500);
+        await book("2026-03-05", -80000);
+        await book("2026-03-05", 50000, transfer.id);
+        type Flows = { points: { date: string; income: number; expenses: number }[] };
+        const march = (await api<Flows>("GET", `/api/stats/flows?scope=account:${cash.id}&from=2026-03-01&to=2026-03-31`)).body.points;
+        expect(march).toHaveLength(31);
+        expect(march[0]).toEqual({ date: "2026-03-01", income: 0, expenses: 0 });
+        expect(march[1]).toEqual({ date: "2026-03-02", income: 250000, expenses: -5500 });
+        expect(march[4]).toEqual({ date: "2026-03-05", income: 0, expenses: -80000 });
+        // Same days as the balance series, same sums as the cashflow
+        const series = (await api<{ points: { date: string }[] }>("GET", `/api/stats/series?scope=account:${cash.id}&to=2026-03-12`)).body.points;
+        const open = (await api<Flows>("GET", `/api/stats/flows?scope=account:${cash.id}&to=2026-03-12`)).body.points;
+        expect(open.map((p) => p.date)).toEqual(series.map((p) => p.date));
+        const flow = (await api<{ income: number; expenses: number }>("GET", `/api/stats/cashflow?scope=account:${cash.id}&from=2026-03-01&to=2026-03-31`)).body;
+        expect(flow).toMatchObject({ income: march.reduce((s, p) => s + p.income, 0), expenses: march.reduce((s, p) => s + p.expenses, 0) });
+        expect((await api<Flows>("GET", `/api/stats/flows?scope=account:${cash.id}&from=2026-04-01&to=2026-03-31`)).body.points).toEqual([]);
+    });
 });
 
 describe("figures", () => {

@@ -1336,6 +1336,10 @@ body { margin: 0; }
 .chart-axis { position: absolute; top: 0; right: 0; width: 64px; }
 .chart-tip { padding: 7px 10px; border-radius: 10px; background: var(--surface-3); border: 1px solid var(--line); box-shadow: var(--shadow); font-size: 12px; }
 .chart-tip b { display: block; font-size: 13px; font-weight: 600; }
+.chart-tip-rows { display: grid; grid-template-columns: auto auto; gap: 2px 16px; margin: 4px 0 0; font-size: 12.5px; }
+.chart-tip-rows dt { color: var(--muted); }
+.chart-tip-rows dd { margin: 0; text-align: right; }
+.chart-tip-rows dd b { display: inline; }
 .menu-content { min-width: 220px; padding: 6px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); z-index: 90; animation: pop 0.14s ease; }
 .menu-content [role="menuitem"] { display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 0 10px; border-radius: 9px; font-size: 13.5px; color: var(--fg); outline: none; cursor: pointer; user-select: none; }
 .menu-content [role="menuitem"][data-highlighted] { background: var(--surface-2); }

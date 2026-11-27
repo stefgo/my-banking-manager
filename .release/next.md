@@ -49,6 +49,10 @@ Nothing inside an HTML comment is published.
 - **Import: nach Datum suchen:** Im Schritt „Prüfen“ findet die Suche Zeilen auch nach dem
   Buchungsdatum, mit derselben Schreibweise wie die Umsatzliste: `datum>=1.3.2026`,
   `datum<1.4.2026`, `datum:3.2026` oder `datum:vormonat`, auch zusammen mit Suchtext.
+- **Verlauf: Eingänge und Ausgaben:** Der Verlauf im Kopf der Umsatzliste hat eine dritte
+  Darstellung. Sie zeigt je Tag, Monat, Quartal oder Jahr die Summe der Eingänge als grünen und die
+  der Ausgaben als roten Balken, dazu den Saldo des Zeitraums als Linie. Umbuchungen zählen wie bei
+  der Karte „Eingänge und Ausgaben“ der Übersicht nicht mit.
 - **Hinweis auf eine neue Oberfläche:** Nach einem Update merkt ein offenes Browserfenster, dass der
   Server eine neue Version der Oberfläche ausliefert, und bietet **Neu laden** an. Vor der Anmeldung
   lädt es von selbst neu.
@@ -93,6 +97,8 @@ Nothing inside an HTML comment is published.
 - **Enable Banking abschalten:** Im Image `mbm-server-full` ist der Konnektor eingebaut; mit
   `MBM_ENABLEBANKING_EMBEDDED=0` bietet MBM keine PSD2-Zugänge an und spricht nie mit Enable
   Banking.
+- **API:** Neu ist `GET /api/stats/flows`: Eingänge und Ausgaben je Tag über dieselben Tage wie
+  `GET /api/stats/series`, ohne Umbuchungen.
 - **API:** Die Kontoart `offline` gibt es nicht mehr. Ein Konto ist offline, wenn `connectionId`
   leer ist. Selbst angelegte Konten haben die neue Art `other`.
 

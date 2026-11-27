@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowDownUp, BarChart3, CalendarDays, ChartColumn, ChartLine, Check, CheckCheck, CircleDot, Folder, Landmark, Plus, RefreshCw, Search, Send, Tag, Trash2, Wand2, X } from "lucide-react";
+import { ArrowDownUp, BarChart3, CalendarDays, ChartColumn, ChartLine, ChartNoAxesCombined, Check, CheckCheck, CircleDot, Folder, Landmark, Plus, RefreshCw, Search, Send, Tag, Trash2, Wand2, X } from "lucide-react";
 import { isActive, startSync, useConnections, useSyncRuns } from "../lib/bank";
 import { addDaysIso, dateBounds, groupCardNumber, groupIban, isOffline, isValidIsoDate, parseTxQuery, routes, todayIso, TxRange, type AccountScope, type Transaction, type TxDateBounds } from "@mbm/shared";
 import { transactionsRoute } from "../router";
@@ -20,7 +20,7 @@ import { Ic, Sym } from "../components/icons";
 import { Choice, Picker, PickerButton, StylePicker } from "../components/pickers";
 import { useCategoryItems, useScopeItems } from "../components/pickItems";
 import { BalanceChart } from "../components/BalanceChart";
-import { CHART_STYLE_IDS, CHART_STYLES, SERIES_GROUP_IDS, SERIES_GROUPS } from "../lib/seriesGroups";
+import { CHART_STYLE_IDS, CHART_STYLES, SERIES_GROUP_IDS, SERIES_GROUPS, type ChartStyle } from "../lib/seriesGroups";
 import { InfoPanel, InfoToggle } from "../components/InfoPanel";
 import { QueryHelp } from "../components/QueryHelp";
 import { SuggestList } from "../components/SuggestList";
@@ -802,7 +802,7 @@ function ContextHeader({
                         <div className="seg" role="group" aria-label="Verlauf darstellen">
                             {CHART_STYLE_IDS.map((s) => (
                                 <button key={s} className="seg-icon" aria-pressed={chartStyle === s} aria-label={CHART_STYLES[s]} title={CHART_STYLES[s]} onClick={() => writeLocalSetting("balanceChartStyle", s)}>
-                                    <Ic icon={s === "bar" ? ChartColumn : ChartLine} size={15} />
+                                    <Ic icon={STYLE_ICON[s]} size={15} />
                                 </button>
                             ))}
                         </div>
@@ -822,6 +822,9 @@ function ContextHeader({
     );
 }
 
+
+/** Symbol of each way to draw the chart in the switch above it. */
+const STYLE_ICON: Record<ChartStyle, typeof ChartLine> = { bar: ChartColumn, line: ChartLine, flow: ChartNoAxesCombined };
 
 /** A set filter with × to remove it; unset filters show the picker alone. */
 function Removable({ label, onClear, children }: { label: string; onClear?: () => void; children: React.ReactNode }) {

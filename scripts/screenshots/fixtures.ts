@@ -616,6 +616,18 @@ export function cashflow(q: { scope: string; from: string; to: string }) {
     return { income: sumOf(rows.filter((t) => t.amount > 0)), expenses: sumOf(rows.filter((t) => t.amount < 0)), count: rows.length };
 }
 
+/** Income and expenses per day over the days of the balance series, counted like the cashflow. */
+export function flows(q: { scope: string; days: number; range?: TxRange; from?: string; to?: string }) {
+    const ids = new Set(accountsInScope(q.scope));
+    const rows = transactions.filter((t) => ids.has(t.accountId) && counts(t));
+    return {
+        points: series({ ...q, forecastDays: 0 }).points.map(({ date }) => {
+            const day = rows.filter((t) => t.bookingDate === date);
+            return { date, income: sumOf(day.filter((t) => t.amount > 0)), expenses: sumOf(day.filter((t) => t.amount < 0)) };
+        }),
+    };
+}
+
 export function categorySums(q: { scope: string; from: string; to: string }) {
     const ids = new Set(accountsInScope(q.scope));
     const per = new Map<number | null, { amount: number; count: number }>();

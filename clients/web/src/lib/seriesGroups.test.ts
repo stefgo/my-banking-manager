@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { addDaysIso } from "@mbm/shared";
-import { axisLayout, groupPointLabel, groupSeries, niceScale, periodOf } from "./seriesGroups";
+import { axisLayout, groupFlows, groupPointLabel, groupSeries, niceScale, periodLabel, periodOf } from "./seriesGroups";
 
 /** Daily points from `from` to `to` with the balance given per day (default: day index × 100). */
 function days(from: string, to: string, balance: (i: number, date: string) => number = (i) => i * 100) {
@@ -63,6 +63,38 @@ describe("groupPointLabel", () => {
         expect(groupPointLabel(cut!, "quarter")).toBe("Ø Q4 2026 (01.10.–18.11.2026)");
         const [one] = groupSeries(days("2026-01-05", "2026-01-05"), "year");
         expect(groupPointLabel(one!, "year")).toBe("Ø 2026 (05.01.2026)");
+    });
+});
+
+describe("groupFlows", () => {
+    // 30.10. … 02.12.: income on the 1st of each month, an expense every day
+    const flows = days("2026-10-30", "2026-12-02").map((p) => ({ date: p.date, income: p.date.endsWith("-01") ? 250000 : 0, expenses: -1000 }));
+
+    it("keeps each day with its total", () => {
+        expect(groupFlows(flows.slice(2, 4), "day")).toEqual([
+            { date: "2026-11-01", from: "2026-11-01", to: "2026-11-01", partial: false, income: 250000, expenses: -1000, net: 249000 },
+            { date: "2026-11-02", from: "2026-11-02", to: "2026-11-02", partial: false, income: 0, expenses: -1000, net: -1000 },
+        ]);
+    });
+
+    it("sums the days of each month and marks cut months", () => {
+        expect(groupFlows(flows, "month")).toEqual([
+            { date: "2026-10-01", from: "2026-10-30", to: "2026-10-31", partial: true, income: 0, expenses: -2000, net: -2000 },
+            { date: "2026-11-01", from: "2026-11-01", to: "2026-11-30", partial: false, income: 250000, expenses: -30000, net: 220000 },
+            { date: "2026-12-01", from: "2026-12-01", to: "2026-12-02", partial: true, income: 250000, expenses: -2000, net: 248000 },
+        ]);
+    });
+
+    it("sums a quarter and a year", () => {
+        expect(groupFlows(flows, "quarter").map((p) => [p.date, p.net])).toEqual([["2026-10-01", 466000]]);
+        expect(groupFlows(flows, "year")).toHaveLength(1);
+        expect(groupFlows([], "month")).toEqual([]);
+    });
+
+    it("names the period without the average sign", () => {
+        const [, whole, cut] = groupFlows(flows, "month");
+        expect(periodLabel(whole!, "month")).toBe("November 2026");
+        expect(periodLabel(cut!, "month")).toBe("Dezember 2026 (01.12.–02.12.2026)");
     });
 });
 

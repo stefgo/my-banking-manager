@@ -1,11 +1,11 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { AccountScope, TxDateBounds, TxRange } from "@mbm/shared";
-import { useSeries } from "../lib/queries";
+import { useFlows, useSeries } from "../lib/queries";
 import { dateText, dayLabel, fmt, monthYear, shortDate, shortEuro } from "../lib/format";
-import { axisLayout, groupPointLabel, groupSeries, niceScale, type ChartStyle, type GroupPoint, type SeriesGroup } from "../lib/seriesGroups";
+import { axisLayout, groupFlows, groupPointLabel, groupSeries, niceScale, periodLabel, type ChartStyle, type FlowGroupPoint, type GroupPoint, type SeriesGroup } from "../lib/seriesGroups";
 
-type ChartPoint = { date: string; balance?: number; forecast?: number; group?: GroupPoint };
+type ChartPoint = { date: string; balance?: number; forecast?: number; group?: GroupPoint; income?: number; expenses?: number; net?: number; flow?: FlowGroupPoint };
 
 const AXIS_WIDTH = 64;
 const MARGIN = { top: 8, right: 0, bottom: 0, left: 0 };
@@ -17,8 +17,38 @@ const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").match
  * `height: "fill"` takes the room left in a flex column (a card of fixed height).
  * With `group` every value has its own place, as a bar or a point of the line (`chartStyle`): daily balances
  * or averages per month, quarter or year; when they do not fit, the plot scrolls sideways under a fixed amount axis.
+ * `chartStyle` "flow" shows instead the income and expenses of each period as bars, their total as a line.
  */
-export function BalanceChart({
+export function BalanceChart(props: {
+    scope: AccountScope;
+    days?: number;
+    range?: TxRange;
+    span?: TxDateBounds;
+    height?: number | "fill";
+    forecastDays?: number;
+    group?: SeriesGroup;
+    chartStyle?: ChartStyle;
+}) {
+    return props.chartStyle === "flow" ? <FlowChart {...props} group={props.group ?? "day"} /> : <BalanceSeriesChart {...props} />;
+}
+
+/** Income and expenses per period as bars up and down, the total of each period as a line; own transfers left out. */
+function FlowChart({ scope, days = 90, range, span, height = 210, group }: { scope: AccountScope; days?: number; range?: TxRange; span?: TxDateBounds; height?: number | "fill"; group: SeriesGroup }) {
+    const flows = useFlows(scope, days, range, span);
+    const id = useId().replace(/:/g, "");
+    const points = useMemo<ChartPoint[]>(
+        () => groupFlows(flows.data?.points ?? [], group).map((f) => ({ date: f.date, income: f.income, expenses: f.expenses, net: f.net, flow: f })),
+        [flows.data, group],
+    );
+    const style = height === "fill" ? undefined : ({ "--ch": `${height}px` } as React.CSSProperties);
+    return (
+        <div className="chart-wrap amt" style={style}>
+            {points.length > 0 && <ScrollingChart id={id} points={points} group={group} chartStyle="flow" hasForecast={false} />}
+        </div>
+    );
+}
+
+function BalanceSeriesChart({
     scope,
     days = 90,
     range,
@@ -101,9 +131,9 @@ function ScrollingChart({ id, points, group, chartStyle, hasForecast }: { id: st
     const radius: [number, number, number, number] = sparse ? [2, 2, 0, 0] : [4, 4, 0, 0];
     const width = Math.max(box.width, points.length * slot + 2 * edge);
     const scale = useMemo(() => {
-        const values = points.flatMap((p) => [p.balance, p.forecast]).filter((v): v is number => v !== undefined);
+        const values = points.flatMap((p) => [p.balance, p.forecast, p.income, p.expenses, p.net]).filter((v): v is number => v !== undefined);
         // Bars stand on zero: their scale always holds it
-        return chartStyle === "bar" ? niceScale(Math.min(0, ...values), Math.max(0, ...values)) : niceScale(Math.min(...values), Math.max(...values));
+        return chartStyle === "line" ? niceScale(Math.min(...values), Math.max(...values)) : niceScale(Math.min(0, ...values), Math.max(0, ...values));
     }, [points, chartStyle]);
 
     // Show the newest values whenever the grouping or the period changes
@@ -117,7 +147,7 @@ function ScrollingChart({ id, points, group, chartStyle, hasForecast }: { id: st
     const chartHeight = Math.max(0, box.height);
     const size = { width, height: chartHeight, data: points, margin: MARGIN, accessibilityLayer: false };
     // Bars fill their band; points of the line sit in the middle of their room
-    const pad = chartStyle === "bar" ? edge : edge + slot / 2;
+    const pad = chartStyle === "line" ? edge + slot / 2 : edge;
     const xAxis = <XAxis dataKey="date" tickFormatter={tickText} tickLine={false} axisLine={false} interval={0} padding={{ left: pad, right: pad }} tick={TICK} />;
     const yAxis = <YAxis hide domain={scale.domain} ticks={scale.ticks} allowDataOverflow />;
     // Thin dim lines at the values of the amount axis, behind the values
@@ -137,6 +167,33 @@ function ScrollingChart({ id, points, group, chartStyle, hasForecast }: { id: st
                         {balanceArea(id, group)}
                         {hasForecast && forecastArea()}
                     </AreaChart>
+                )}
+                {ready && chartHeight > 0 && chartStyle === "flow" && (
+                    <ComposedChart {...size} barCategoryGap="10%" maxBarSize={47} stackOffset="sign">
+                        {chartDefs(id)}
+                        {xAxis}
+                        {yAxis}
+                        {grid}
+                        {flowTooltip(group)}
+                        {zero}
+                        {(["income", "expenses"] as const).map((key) => (
+                            <Bar key={key} dataKey={key} stackId="f" radius={radius} fill={key === "income" ? "var(--pos)" : "var(--neg)"} isAnimationActive={!reducedMotion()}>
+                                {points.map((p) => (
+                                    // A period cut by the range (the running month) paler
+                                    <Cell key={p.date} fillOpacity={p.flow?.partial ? 0.45 : 0.85} />
+                                ))}
+                            </Bar>
+                        ))}
+                        <Line
+                            type="monotone"
+                            dataKey="net"
+                            stroke={`url(#s${id})`}
+                            strokeWidth={2.4}
+                            isAnimationActive={!reducedMotion()}
+                            dot={false}
+                            activeDot={{ r: 5, fill: "var(--glacier)", stroke: "var(--surface)", strokeWidth: 2 }}
+                        />
+                    </ComposedChart>
                 )}
                 {ready && chartHeight > 0 && chartStyle === "bar" && (
                     <BarChart {...size} barCategoryGap="10%" maxBarSize={47}>
@@ -164,7 +221,7 @@ function ScrollingChart({ id, points, group, chartStyle, hasForecast }: { id: st
                     <BarChart width={AXIS_WIDTH} height={chartHeight} data={points} margin={MARGIN} accessibilityLayer={false}>
                         <XAxis dataKey="date" tick={false} tickLine={false} axisLine={false} />
                         <YAxis orientation="right" tickFormatter={shortEuro} tickLine={false} axisLine={false} width={AXIS_WIDTH} domain={scale.domain} ticks={scale.ticks} tick={TICK} />
-                        <Bar dataKey="balance" fill="none" isAnimationActive={false} />
+                        <Bar dataKey={chartStyle === "flow" ? "net" : "balance"} fill="none" isAnimationActive={false} />
                     </BarChart>
                 )}
             </div>
@@ -202,6 +259,33 @@ function chartTooltip(group: SeriesGroup, cursor: React.SVGProps<SVGElement>) {
                     <div className="chart-tip">
                         <span className="muted">{label}</span>
                         <b className="amt">{fmt(p.balance ?? p.forecast ?? 0)}</b>
+                    </div>
+                );
+            }}
+        />
+    );
+}
+
+function flowTooltip(group: SeriesGroup) {
+    return (
+        <Tooltip
+            cursor={{ fill: "var(--hover)" }}
+            content={({ active, payload }) => {
+                const f = active ? (payload?.[0]?.payload as ChartPoint | undefined)?.flow : undefined;
+                if (!f) return null;
+                return (
+                    <div className="chart-tip">
+                        <span className="muted">{group === "day" ? dayLabel(f.date) : periodLabel(f, group)}</span>
+                        <dl className="chart-tip-rows">
+                            <dt>Eingänge</dt>
+                            <dd className="pos">{fmt(f.income)}</dd>
+                            <dt>Ausgaben</dt>
+                            <dd className="neg">{fmt(f.expenses)}</dd>
+                            <dt>Saldo</dt>
+                            <dd className={f.net < 0 ? "neg" : undefined}>
+                                <b>{fmt(f.net)}</b>
+                            </dd>
+                        </dl>
                     </div>
                 );
             }}

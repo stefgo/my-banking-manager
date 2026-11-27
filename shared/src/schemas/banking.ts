@@ -294,6 +294,14 @@ export const SeriesResponse = z.object({
     forecast: z.array(SeriesPoint),
 });
 
+/** The days of a balance series, without a forecast. */
+export const FlowsQuery = SeriesQuery.omit({ forecastDays: true });
+export const FlowPoint = z.object({ date: IsoDate, income: Cents, expenses: Cents.describe("Negative or zero") });
+export const FlowsResponse = z.object({
+    /** One point per day of the series, days without bookings with zero; own transfers left out as in the cashflow. */
+    points: z.array(FlowPoint),
+});
+
 export const StatsQuery = z.object({
     scope: AccountScope.default("all"),
     from: IsoDate,
