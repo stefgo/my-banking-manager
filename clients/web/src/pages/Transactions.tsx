@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowDownUp, BarChart3, CalendarDays, ChartColumn, ChartLine, Check, CheckCheck, CircleDot, Folder, Landmark, Plus, RefreshCw, Search, Send, Tag, Trash2, Wand2, X } from "lucide-react";
+import { ArrowDownUp, BarChart3, CalendarDays, ChartColumn, ChartLine, ChartNoAxesCombined, Check, CheckCheck, ChevronDown, CircleDot, Folder, Landmark, Plus, RefreshCw, Search, Send, Tag, Trash2, Wand2, X } from "lucide-react";
 import { isActive, startSync, useConnections, useSyncRuns } from "../lib/bank";
 import { addDaysIso, dateBounds, groupCardNumber, groupIban, isOffline, isValidIsoDate, parseTxQuery, routes, todayIso, TxRange, type AccountScope, type Transaction, type TxDateBounds } from "@mbm/shared";
 import { transactionsRoute } from "../router";
@@ -19,11 +19,12 @@ import { Field } from "../components/form";
 import { Ic, Sym } from "../components/icons";
 import { Choice, Picker, PickerButton, StylePicker } from "../components/pickers";
 import { useCategoryItems, useScopeItems } from "../components/pickItems";
-import { BalanceChart } from "../components/BalanceChart";
-import { CHART_STYLE_IDS, CHART_STYLES, SERIES_GROUP_IDS, SERIES_GROUPS } from "../lib/seriesGroups";
+import { BalanceChart, type ChartPeriod } from "../components/BalanceChart";
+import { CHART_STYLE_IDS, CHART_STYLES, SERIES_GROUP_IDS, SERIES_GROUPS, type ChartStyle } from "../lib/seriesGroups";
 import { InfoPanel, InfoToggle } from "../components/InfoPanel";
 import { QueryHelp } from "../components/QueryHelp";
 import { SuggestList } from "../components/SuggestList";
+import { usePeekHead } from "../lib/usePeekHead";
 import { useStackedHead } from "../lib/useStackedHead";
 import { useStickyBar } from "../lib/useStickyBar";
 import { useSuggest } from "../lib/useSuggest";
@@ -231,6 +232,15 @@ function TransactionList() {
     // view they stay: a counter booking is not in the list, and a booking that just left it by a
     // new category still shows the offer of a rule.
     const listView = JSON.stringify([search.scope, search.cat, validQ, search.dir, search.deleted, listRange]);
+
+    // A period clicked in the chart scrolls the list to its newest day; a new view does not scroll again
+    const [jump, setJump] = useState<{ to: string; n: number } | null>(null);
+    const [jumpView, setJumpView] = useState(listView);
+    if (jumpView !== listView) {
+        setJumpView(listView);
+        setJump(null);
+    }
+    const jumpToPeriod = useCallback((p: ChartPeriod) => setJump((j) => ({ to: p.to, n: (j?.n ?? 0) + 1 })), []);
     const checkedView = useRef(listView);
     useEffect(() => {
         if (!list.data || list.isPlaceholderData || checkedView.current === listView) return;
@@ -343,7 +353,14 @@ function TransactionList() {
 
     return (
         <>
-            <ContextHeader search={search} range={range} span={span} rangeLabel={dateInSearch ? "Zeitraum aus Suche" : RANGE_LABELS[range]} total={list.data?.total ?? 0} />
+            <ContextHeader
+                search={search}
+                range={range}
+                span={span}
+                rangeLabel={dateInSearch ? "Zeitraum aus Suche" : RANGE_LABELS[range]}
+                total={list.data?.total ?? 0}
+                onPickPeriod={jumpToPeriod}
+            />
             <div className="toolbar" ref={toolbar}>
                 <label className="search">
                     <Ic icon={Search} />
@@ -463,6 +480,7 @@ function TransactionList() {
                         onCatOpen={setCatFor}
                         onClick={onRowClick}
                         onLongPress={onLongPress}
+                        jumpTo={jump}
                     />
                 ) : list.isPending ? (
                     <SkeletonRows />
@@ -589,12 +607,14 @@ function ContextHeader({
     span,
     rangeLabel,
     total,
+    onPickPeriod,
 }: {
     search: TxSearch;
     range: TxRange;
     span?: TxDateBounds;
     rangeLabel: string;
     total: number;
+    onPickPeriod: (period: ChartPeriod) => void;
 }) {
     const groups = useGroups().data ?? [];
     const accounts = useAccounts().data ?? [];
@@ -615,6 +635,7 @@ function ContextHeader({
     const startTransfer = useStartTransfer();
     const unreadOf = useUnreadByAccount();
     const stackedHead = useStackedHead();
+    const peekHead = usePeekHead();
 
     // The view of one category; the filter of several always shows the account view
     if (isCategoryView(search)) {
@@ -627,7 +648,14 @@ function ContextHeader({
         const color = c ? categoryColor(index, c.id) : "neutral";
         const kindName = top ? "Kategorie" : `Unterkategorie von ${categoryPath(index, c!.parentId)}`;
         return (
-            <section className="hero ctx">
+            <section className="hero ctx peek" ref={peekHead}>
+                <HeadPeek
+                    icon={c ? <Sym name={c.icon} size={13} /> : "?"}
+                    color={c ? color : undefined}
+                    name={none ? "Ohne Kategorie" : (c?.name ?? "")}
+                >
+                    <Amt cents={total} signed />
+                </HeadPeek>
                 <div className="ctx-top">
                     {c ? (
                         <StylePicker
@@ -693,7 +721,10 @@ function ContextHeader({
     const syncing = (syncRuns ?? []).some((r) => isActive(r) && r.accountIds.some((id) => bankIds.includes(id)));
 
     return (
-        <section className="hero ctx">
+        <section className="hero ctx peek" ref={peekHead}>
+            <HeadPeek icon={node ? <Sym name={node.icon} size={13} /> : <Ic icon={Folder} size={13} />} color={node?.color} name={scopeName(scope, groups, accounts)}>
+                <Amt cents={sumBalance(ids)} />
+            </HeadPeek>
             <div className="ctx-top" ref={stackedHead}>
                 {node ? (
                     <StylePicker
@@ -762,8 +793,8 @@ function ContextHeader({
                 </div>
             </div>
             <div className="ctx-actions">
-                {account && (
-                    <button className={`btn btn-sm ${offline ? "btn-primary" : ""}`} onClick={() => openBooking(account.id)}>
+                {account && offline && (
+                    <button className="btn btn-sm btn-primary" onClick={() => openBooking(account.id)}>
                         <Ic icon={Plus} size={14} />
                         Buchung erfassen
                         <Kbd>B</Kbd>
@@ -802,7 +833,7 @@ function ContextHeader({
                         <div className="seg" role="group" aria-label="Verlauf darstellen">
                             {CHART_STYLE_IDS.map((s) => (
                                 <button key={s} className="seg-icon" aria-pressed={chartStyle === s} aria-label={CHART_STYLES[s]} title={CHART_STYLES[s]} onClick={() => writeLocalSetting("balanceChartStyle", s)}>
-                                    <Ic icon={s === "bar" ? ChartColumn : ChartLine} size={15} />
+                                    <Ic icon={STYLE_ICON[s]} size={15} />
                                 </button>
                             ))}
                         </div>
@@ -814,7 +845,7 @@ function ContextHeader({
                             ))}
                         </div>
                     </div>
-                    <BalanceChart scope={scope} range={range} span={span} group={chartGroup} chartStyle={chartStyle} />
+                    <BalanceChart scope={scope} range={range} span={span} group={chartGroup} chartStyle={chartStyle} onPick={onPickPeriod} />
                 </div>
             )}
             {node && infoOpen && <InfoPanel info={node.info} onEdit={() => ui.open({ kind: "info", target: account ? "account" : "group", id: node.id })} />}
@@ -822,6 +853,27 @@ function ContextHeader({
     );
 }
 
+/**
+ * The slim bar the head leaves at the top once it has scrolled away (usePeekHead): small symbol,
+ * name and figure. Hovering or tapping it brings the whole head in.
+ */
+function HeadPeek({ icon, color, name, children }: { icon: React.ReactNode; color?: string; name: string; children: React.ReactNode }) {
+    return (
+        <button type="button" className="ctx-peek" title="Kopf einblenden">
+            <span className="ctx-peek-bar">
+                <span className={color ? `ctx-peek-ic tone k-${color}` : "ctx-peek-ic"} aria-hidden="true">
+                    {icon}
+                </span>
+                <span className="ctx-peek-name">{name}</span>
+                <span className="ctx-peek-fig">{children}</span>
+                <Ic icon={ChevronDown} size={14} />
+            </span>
+        </button>
+    );
+}
+
+/** Symbol of each way to draw the chart in the switch above it. */
+const STYLE_ICON: Record<ChartStyle, typeof ChartLine> = { bar: ChartColumn, line: ChartLine, flow: ChartNoAxesCombined };
 
 /** A set filter with × to remove it; unset filters show the picker alone. */
 function Removable({ label, onClear, children }: { label: string; onClear?: () => void; children: React.ReactNode }) {

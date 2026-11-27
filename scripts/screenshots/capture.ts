@@ -77,6 +77,16 @@ const SHOTS: Shot[] = [
             await page.getByText("Versandhaus Nordlicht").first().click();
         },
     },
+    {
+        name: "umsaetze-verlauf",
+        route: `/transactions?scope=account:${fx.GIRO}&range=365`,
+        themes: ["dark"],
+        prepare: async (page) => {
+            await page.getByRole("button", { name: "Verlauf" }).click();
+            await page.getByRole("button", { name: "Eingänge und Ausgaben", exact: true }).click();
+            await page.getByRole("button", { name: "Monat", exact: true }).click();
+        },
+    },
     { name: "kategorien", route: `/transactions?ctx=cat&cat=${LEBENSMITTEL}`, themes: ["dark"] },
     { name: "suche", route: `/transactions`, themes: ["dark"], prepare: (page) => search(page, "gegenseite:Frischemarkt betrag:>50") },
     { name: "bargeld", route: `/transactions?scope=account:${fx.CASH}`, themes: ["dark"] },
@@ -205,6 +215,7 @@ const ANSWERS: Partial<Record<keyof typeof routes, Answer>> = {
     markRead: () => ({ changed: 0 }),
     series: (r) => fx.series(r.query as Parameters<typeof fx.series>[0]),
     cashflow: (r) => fx.cashflow(r.query as Parameters<typeof fx.cashflow>[0]),
+    flows: (r) => fx.flows(r.query as Parameters<typeof fx.flows>[0]),
     categorySums: (r) => fx.categorySums(r.query as Parameters<typeof fx.categorySums>[0]),
     payees: () => fx.payees(),
     listOrders: (r) => fx.ordersInScope(String(r.query.scope)),

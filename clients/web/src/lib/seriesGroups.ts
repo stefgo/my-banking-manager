@@ -6,9 +6,9 @@ export const SERIES_GROUP_IDS = ["day", "month", "quarter", "year"] as const;
 export type SeriesGroup = (typeof SERIES_GROUP_IDS)[number];
 
 /** How the grouped balance chart draws its values, with the name of each choice. */
-export const CHART_STYLE_IDS = ["bar", "line"] as const;
+export const CHART_STYLE_IDS = ["bar", "line", "flow"] as const;
 export type ChartStyle = (typeof CHART_STYLE_IDS)[number];
-export const CHART_STYLES: Record<ChartStyle, string> = { bar: "Balken", line: "Linie" };
+export const CHART_STYLES: Record<ChartStyle, string> = { bar: "Balken", line: "Linie", flow: "Eingänge und Ausgaben" };
 
 /**
  * Name, short name for the switch and axis label of each grouping. On the axis a value gets `labelSlot` px when every
@@ -67,12 +67,44 @@ export function groupSeries(points: readonly { date: string; balance: number }[]
     return out;
 }
 
+/** One value of the income and expenses per period: the sums of its days and their total (`net`). */
+export type FlowGroupPoint = Omit<GroupPoint, "balance"> & { income: number; expenses: number; net: number };
+
+/** Sums of income and expenses per day, month, quarter or year; periods cut by the series are marked partial. */
+export function groupFlows(points: readonly { date: string; income: number; expenses: number }[], group: SeriesGroup): FlowGroupPoint[] {
+    if (group === "day") return points.map((p) => ({ date: p.date, from: p.date, to: p.date, partial: false, income: p.income, expenses: p.expenses, net: p.income + p.expenses }));
+    const out: FlowGroupPoint[] = [];
+    let cur: (FlowGroupPoint & { end: string }) | undefined;
+    const flush = () => {
+        if (!cur) return;
+        const { end, ...point } = cur;
+        out.push({ ...point, partial: point.from !== point.date || point.to !== end, net: point.income + point.expenses });
+    };
+    for (const p of points) {
+        if (!cur || p.date > cur.end) {
+            flush();
+            const { start, end } = periodOf(p.date, group);
+            cur = { date: start, end, from: p.date, to: p.date, partial: false, income: 0, expenses: 0, net: 0 };
+        }
+        cur.to = p.date;
+        cur.income += p.income;
+        cur.expenses += p.expenses;
+    }
+    flush();
+    return out;
+}
+
+/** Name of a period for the tooltip: "November 2026", with the days when the period is cut. */
+export function periodLabel(p: { date: string; from: string; to: string; partial: boolean }, group: Exclude<SeriesGroup, "day">): string {
+    const name = group === "month" ? monthYearLong(p.date) : group === "quarter" ? quarterLabel(p.date) : yearLabel(p.date);
+    if (!p.partial) return name;
+    const days = p.from === p.to ? dateOnly(p.from) : `${dayMonth(p.from)}–${dateOnly(p.to)}`;
+    return `${name} (${days})`;
+}
+
 /** Name of a grouped value for the tooltip: "Ø November 2026", with the days when the period is cut. */
 export function groupPointLabel(p: GroupPoint, group: Exclude<SeriesGroup, "day">): string {
-    const name = group === "month" ? monthYearLong(p.date) : group === "quarter" ? quarterLabel(p.date) : yearLabel(p.date);
-    if (!p.partial) return `Ø ${name}`;
-    const days = p.from === p.to ? dateOnly(p.from) : `${dayMonth(p.from)}–${dateOnly(p.to)}`;
-    return `Ø ${name} (${days})`;
+    return `Ø ${periodLabel(p, group)}`;
 }
 
 const dateOnly = (iso: string) => `${dayMonth(iso)}${iso.slice(0, 4)}`;

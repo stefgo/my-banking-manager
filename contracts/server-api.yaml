@@ -6890,6 +6890,93 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /api/stats/flows:
+    get:
+      operationId: flows
+      summary: Daily income and expenses without own transfers
+      tags:
+        - Transactions
+      security:
+        - session: []
+        - device: []
+      parameters:
+        - name: scope
+          in: query
+          required: false
+          schema:
+            default: all
+            type: string
+            pattern: ^(all|group:\d+|account:\d+)$
+        - name: days
+          in: query
+          required: false
+          schema:
+            default: 30
+            type: integer
+            minimum: 7
+            maximum: 730
+        - name: range
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - "30"
+              - "90"
+              - "365"
+              - month
+              - last
+              - all
+        - name: from
+          in: query
+          required: false
+          schema:
+            description: "Takes precedence over range and days; missing with to: the first booking"
+            type: string
+        - name: to
+          in: query
+          required: false
+          schema:
+            description: "Takes precedence over range and days; missing with from: today"
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  points:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date:
+                          type: string
+                        income:
+                          type: integer
+                          minimum: -9007199254740991
+                          maximum: 9007199254740991
+                        expenses:
+                          type: integer
+                          minimum: -9007199254740991
+                          maximum: 9007199254740991
+                          description: Negative or zero
+                      required:
+                        - date
+                        - income
+                        - expenses
+                      additionalProperties: false
+                required:
+                  - points
+                additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /api/stats/cashflow:
     get:
       operationId: cashflow

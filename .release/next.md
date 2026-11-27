@@ -35,7 +35,8 @@ Nothing inside an HTML comment is published.
   abgelehnten Zahlungen zählen ebenfalls nicht als Einnahme oder Ausgabe. Sie alle bekommen die
   Vorbelegung für Gegenbuchungen (anfangs „Umbuchung“).
 - **Buchungen erfassen, ändern und löschen bei jedem Konto:** „Buchung erfassen“ gibt es jetzt
-  auch bei Bankkonten. **Bearbeiten** in den Details öffnet bei jedem Umsatz einen Dialog für
+  auch bei Bankkonten, dort im Menü des Kontos und mit B; den Button im Kopf der Umsatzliste
+  haben nur Offline-Konten. **Bearbeiten** in den Details öffnet bei jedem Umsatz einen Dialog für
   Betrag, Datum, Gegenseite und Verwendungszweck; er ersetzt „Anzeige ändern“. Bei Umsätzen von
   der Bank, aus einem Import oder von MBM für PayPal ergänzt zählen geänderte Werte statt der
   ursprünglichen, die Details zeigen diese, und „Ursprüngliche Werte“ nimmt die Änderung zurück.
@@ -48,6 +49,16 @@ Nothing inside an HTML comment is published.
 - **Import: nach Datum suchen:** Im Schritt „Prüfen“ findet die Suche Zeilen auch nach dem
   Buchungsdatum, mit derselben Schreibweise wie die Umsatzliste: `datum>=1.3.2026`,
   `datum<1.4.2026`, `datum:3.2026` oder `datum:vormonat`, auch zusammen mit Suchtext.
+- **Verlauf: Eingänge und Ausgaben:** Der Verlauf im Kopf der Umsatzliste hat eine dritte
+  Darstellung. Sie zeigt je Tag, Monat, Quartal oder Jahr die Summe der Eingänge als grünen und die
+  der Ausgaben als roten Balken, dazu den Saldo des Zeitraums als Linie. Umbuchungen zählen wie bei
+  der Karte „Eingänge und Ausgaben“ der Übersicht nicht mit.
+- **Vom Verlauf in die Liste:** Ein Klick auf einen Balken oder Punkt im Verlauf scrollt die
+  Umsatzliste zu diesem Tag, Monat, Quartal oder Jahr. Oben steht der jüngste Tag des Zeitraums
+  mit Buchungen, darunter folgen die älteren.
+- **Kopf der Umsatzliste beim Scrollen:** Scrollt der Kopf aus dem Bild, bleibt oben eine schmale
+  Leiste mit Symbol, Name und Kontostand bzw. Summe. Fährst du mit der Maus darüber, gleitet der
+  ganze Kopf mit Abrufen, Überweisen, Verlauf und Menü herein. Am Handy tippst du die Leiste an.
 - **Hinweis auf eine neue Oberfläche:** Nach einem Update merkt ein offenes Browserfenster, dass der
   Server eine neue Version der Oberfläche ausliefert, und bietet **Neu laden** an. Vor der Anmeldung
   lädt es von selbst neu.
@@ -64,6 +75,8 @@ Nothing inside an HTML comment is published.
   seine Kontoart. Eine Kreditkarte zeigt also weiter ihre Kartennummer statt nur „Offline-Konto“.
 - **Rahmen des Felds „Wenn“:** Beim Bearbeiten einer Regel zeigte das Feld „Wenn“ beim Tippen
   einen zweiten Rahmen innerhalb des eigenen. Jetzt hat es wie die Suche nur einen.
+- **Kein Rahmen um den Verlauf:** Ein Klick auf einen Balken im Verlauf rahmte das ganze Diagramm
+  blau ein. Jetzt bleibt es ohne Rahmen.
 
 ### Upgrade
 
@@ -92,6 +105,8 @@ Nothing inside an HTML comment is published.
 - **Enable Banking abschalten:** Im Image `mbm-server-full` ist der Konnektor eingebaut; mit
   `MBM_ENABLEBANKING_EMBEDDED=0` bietet MBM keine PSD2-Zugänge an und spricht nie mit Enable
   Banking.
+- **API:** Neu ist `GET /api/stats/flows`: Eingänge und Ausgaben je Tag über dieselben Tage wie
+  `GET /api/stats/series`, ohne Umbuchungen.
 - **API:** Die Kontoart `offline` gibt es nicht mehr. Ein Konto ist offline, wenn `connectionId`
   leer ist. Selbst angelegte Konten haben die neue Art `other`.
 

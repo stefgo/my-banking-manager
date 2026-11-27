@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Transaction } from "@mbm/shared";
-import { buildRows, listOrder } from "./rows";
+import { buildRows, dayRowAtOrBefore, listOrder } from "./rows";
 
 const tx = (id: number, date: string, amount: number, status: "booked" | "pending" = "booked"): Transaction => ({
     id, accountId: 1, bookingDate: date, valueDate: date, amount, currency: "EUR", counterpartyName: `T${id}`, ultimateParty: "", counterpartyIban: null, bookingText: "", reference: "", customerReference: "", bankReference: "", mandateId: "", creditorId: "", counterpartyBic: "", counterpartyAccount: "", counterpartyBankCode: "",
@@ -28,5 +28,28 @@ describe("buildRows", () => {
 
     it("orders bookings for the keyboard like the list", () => {
         expect(listOrder([tx(1, "2026-11-10", 1), tx(2, "2026-11-09", 1, "pending")]).map((t) => t.id)).toEqual([2, 1]);
+    });
+});
+
+describe("dayRowAtOrBefore", () => {
+    const rows = buildRows([tx(1, "2026-11-10", -1, "pending"), tx(2, "2026-11-10", -1), tx(3, "2026-10-31", -1), tx(4, "2026-10-02", -1), tx(5, "2026-09-15", -1)]);
+    const dayOf = (i: number) => (i < 0 ? null : rows[i]!.key);
+
+    it("finds the newest day of the period, not the pending header", () => {
+        expect(dayOf(dayRowAtOrBefore(rows, "2026-11-30"))).toBe("h2026-11-10");
+        expect(dayOf(dayRowAtOrBefore(rows, "2026-10-31"))).toBe("h2026-10-31");
+    });
+
+    it("falls back to the next older day when the period has no bookings", () => {
+        expect(dayOf(dayRowAtOrBefore(rows, "2026-09-30"))).toBe("h2026-09-15");
+        expect(dayOf(dayRowAtOrBefore(rows, "2026-10-30"))).toBe("h2026-10-02");
+    });
+
+    it("gives a period before every booking the oldest day", () => {
+        expect(dayOf(dayRowAtOrBefore(rows, "2026-09-14"))).toBe("h2026-09-15");
+    });
+
+    it("finds nothing without booked days", () => {
+        expect(dayRowAtOrBefore(buildRows([tx(1, "2026-11-10", -1, "pending")]), "2026-11-30")).toBe(-1);
     });
 });

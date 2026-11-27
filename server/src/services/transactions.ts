@@ -562,41 +562,44 @@ export function payees(db: Db, accountId?: number): { name: string; iban: string
 
 const SERIES_MAX_DAYS = 730;
 
-/** Daily balance of the accounts in `scope` for the last `days` days, today included. */
-/** Daily end-of-day balance over the last `days` days, or over `range` when given. */
-export function balanceSeries(
-    db: Db,
-    scope: AccountScope,
-    days: number,
-    range?: TxRange,
-    today = todayIso(),
-    span?: { from?: string; to?: string },
-): { date: string; balance: number }[] {
-    const ids = accountsInScope(db, scope);
-    const inIds = `account_id IN (${ids.map(() => "?").join(",")}) AND ${LIVE}`;
+type SeriesSpan = { from?: string; to?: string };
+
+/**
+ * First and last day of a series: the last `days` days, the days of `range` ("all" from the first booking) or a span
+ * from the search (open ends from the first booking to today, at most 730 days). Undefined when the span is empty.
+ */
+function seriesBounds(db: Db, ids: number[], days: number, range: TxRange | undefined, today: string, span?: SeriesSpan): { from: string; to: string } | undefined {
     const firstBooking = () => {
-        const first = ids.length ? (db.prepare(`SELECT MIN(booking_date) AS d FROM transactions WHERE ${inIds}`).get(...ids) as { d: string | null }).d : null;
+        const first = ids.length
+            ? (db.prepare(`SELECT MIN(booking_date) AS d FROM transactions WHERE account_id IN (${ids.map(() => "?").join(",")}) AND ${LIVE}`).get(...ids) as { d: string | null }).d
+            : null;
         return first && first < today ? first : addDaysIso(today, -29);
     };
-    let from = addDaysIso(today, -(days - 1));
-    let to = today;
     if (span && (span.from || span.to)) {
-        // A span from the search: open ends run from the first booking to today, at most 730 days
-        to = span.to && span.to < today ? span.to : today;
-        from = span.from ?? firstBooking();
+        const to = span.to && span.to < today ? span.to : today;
+        let from = span.from ?? firstBooking();
         if (from < addDaysIso(to, -(SERIES_MAX_DAYS - 1))) from = addDaysIso(to, -(SERIES_MAX_DAYS - 1));
-        if (from > to) return [];
-    } else if (range) {
-        const b = rangeBounds(range, today);
-        to = b.to ?? today;
-        from = b.from ?? firstBooking();
+        return from > to ? undefined : { from, to };
     }
+    if (range) {
+        const b = rangeBounds(range, today);
+        return { from: b.from ?? firstBooking(), to: b.to ?? today };
+    }
+    return { from: addDaysIso(today, -(days - 1)), to: today };
+}
+
+/** Daily end-of-day balance over the last `days` days, or over `range` when given. */
+export function balanceSeries(db: Db, scope: AccountScope, days: number, range?: TxRange, today = todayIso(), span?: SeriesSpan): { date: string; balance: number }[] {
+    const ids = accountsInScope(db, scope);
+    const bounds = seriesBounds(db, ids, days, range, today, span);
+    if (!bounds) return [];
+    const { from, to } = bounds;
     const current = ids.reduce((s, id) => s + getAccount(db, id).balance, 0);
     // Bookings after a day lower the balance of that day when going backwards
     const deltas = new Map<string, number>();
     if (ids.length) {
         const rows = db
-            .prepare(`SELECT booking_date AS d, SUM(amount) AS s FROM transactions WHERE ${inIds} AND booking_date > ? GROUP BY booking_date`)
+            .prepare(`SELECT booking_date AS d, SUM(amount) AS s FROM transactions WHERE account_id IN (${ids.map(() => "?").join(",")}) AND ${LIVE} AND booking_date > ? GROUP BY booking_date`)
             .all(...ids, from) as { d: string; s: number }[];
         for (const r of rows) deltas.set(r.d, r.s);
     }
@@ -611,24 +614,42 @@ export function balanceSeries(
     return points.reverse();
 }
 
+/**
+ * Income and expenses of the bookings of `ids` between `from` and `to` as they count in figures: per share (a split
+ * booking counts with each share in its category), without returns and excluded categories such as own transfers.
+ */
+function flowQuery(db: Db, ids: number[], select: string, tail = ""): string {
+    const none = uncategorizedCounts(db) ? "tc.category_id IS NULL OR " : "";
+    return `SELECT ${select},
+                COALESCE(SUM(CASE WHEN COALESCE(tc.amount, t.amount) > 0 THEN COALESCE(tc.amount, t.amount) END), 0) AS income,
+                COALESCE(SUM(CASE WHEN COALESCE(tc.amount, t.amount) < 0 THEN COALESCE(tc.amount, t.amount) END), 0) AS expenses
+            FROM transactions t
+            LEFT JOIN transaction_categories tc ON tc.transaction_id = t.id
+            WHERE t.account_id IN (${ids.map(() => "?").join(",")}) AND t.booking_date BETWEEN ? AND ? AND t.${LIVE}
+              AND ${NOT_RETURNED}
+              AND (${none}tc.category_id NOT IN (${EXCLUDED_CATEGORIES}))
+            ${tail}`;
+}
+
 export function cashflow(db: Db, scope: AccountScope, from: string, to: string): { income: number; expenses: number; count: number } {
     const ids = accountsInScope(db, scope);
     if (!ids.length) return { income: 0, expenses: 0, count: 0 };
-    const none = uncategorizedCounts(db) ? "tc.category_id IS NULL OR " : "";
-    const row = db
-        .prepare(
-            // Per share: a split booking counts with each share in its category
-            `SELECT COALESCE(SUM(CASE WHEN COALESCE(tc.amount, t.amount) > 0 THEN COALESCE(tc.amount, t.amount) END), 0) AS income,
-                    COALESCE(SUM(CASE WHEN COALESCE(tc.amount, t.amount) < 0 THEN COALESCE(tc.amount, t.amount) END), 0) AS expenses,
-                    count(DISTINCT t.id) AS count
-             FROM transactions t
-             LEFT JOIN transaction_categories tc ON tc.transaction_id = t.id
-             WHERE t.account_id IN (${ids.map(() => "?").join(",")}) AND t.booking_date BETWEEN ? AND ? AND t.${LIVE}
-               AND ${NOT_RETURNED}
-               AND (${none}tc.category_id NOT IN (${EXCLUDED_CATEGORIES}))`,
-        )
-        .get(...ids, from, to) as { income: number; expenses: number; count: number };
-    return row;
+    return db.prepare(flowQuery(db, ids, "count(DISTINCT t.id) AS count")).get(...ids, from, to) as { income: number; expenses: number; count: number };
+}
+
+/** Income and expenses per day over the days of the balance series, as the cashflow counts them; every day has a point. */
+export function flowSeries(db: Db, scope: AccountScope, days: number, range?: TxRange, today = todayIso(), span?: SeriesSpan): { date: string; income: number; expenses: number }[] {
+    const ids = accountsInScope(db, scope);
+    const bounds = seriesBounds(db, ids, days, range, today, span);
+    if (!bounds) return [];
+    const byDay = new Map<string, { income: number; expenses: number }>();
+    if (ids.length) {
+        const rows = db.prepare(flowQuery(db, ids, "t.booking_date AS d", "GROUP BY t.booking_date")).all(...ids, bounds.from, bounds.to) as { d: string; income: number; expenses: number }[];
+        for (const r of rows) byDay.set(r.d, { income: r.income, expenses: r.expenses });
+    }
+    const points: { date: string; income: number; expenses: number }[] = [];
+    for (let date = bounds.from; date <= bounds.to; date = addDaysIso(date, 1)) points.push({ date, ...(byDay.get(date) ?? { income: 0, expenses: 0 }) });
+    return points;
 }
 
 export function categorySums(db: Db, scope: AccountScope, from: string, to: string): { categoryId: number | null; amount: number; count: number }[] {

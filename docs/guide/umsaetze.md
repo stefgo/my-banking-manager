@@ -5,6 +5,11 @@ Gruppe, im **Kategorienbaum** eine Kategorie. Der Kopf zeigt dann Kontostand, IB
 Aktionen dazu: Abrufen, Überweisen, Verlauf und Infos. Passt die IBAN oder Kontonummer nicht mehr in
 eine Zeile, entfällt das Symbol, und Kontodaten und Kontostand stehen untereinander.
 
+Scrollst du die Liste nach unten, bleibt vom Kopf oben eine schmale Leiste mit Symbol, Name und
+Kontostand (bei einer Kategorie die Summe). Fährst du mit der Maus darüber, gleitet der ganze Kopf
+mit seinen Aktionen herein. Verlässt du ihn, gleitet er wieder hinaus. Am Handy tippst du die Leiste
+an, und Scrollen blendet den Kopf wieder aus.
+
 ![Die Umsätze des Girokontos, nach Tagen mit Tagessumme und Saldo](../assets/screenshots/umsaetze-dark.png)
 
 *Die Umsätze eines Kontos. Vorgemerkte stehen oben, darunter die gebuchten nach Tagen mit Tagessumme und Saldo.*
@@ -76,8 +81,8 @@ Umsatz.
 
 ## Buchungen erfassen, ändern und löschen
 
-**Buchung erfassen** gibt es bei jedem Konto: im Kopf der Umsatzliste, im Menü des Kontos oder mit
-++b++. Bei einem Bankkonto bleibt der Kontostand der Bank. Die Buchung verschiebt nur den
+**Buchung erfassen** gibt es bei jedem Konto: im Menü des Kontos oder mit ++b++, bei einem
+Offline-Konto auch im Kopf der Umsatzliste. Bei einem Bankkonto bleibt der Kontostand der Bank. Die Buchung verschiebt nur den
 Saldoverlauf vor ihrem Datum, wie ein [CSV-Import](import.md). Liefert die Bank später dieselbe
 Buchung (gleicher Tag, gleicher Betrag, gleiche Gegenseite), übernimmt sie deine. Deine Buchung
 behält dann ihre Kategorie und kommt nicht doppelt. Eine vorgemerkte Buchung der Bank steht bis
@@ -116,9 +121,34 @@ du ausgeblendete Umsätze wieder, **Wiederherstellen** in ihren Details holt sie
 
 Über der Liste stehen vier Filter: **Kategorien**, **Eingänge und Ausgaben**, **Zeitraum**
 (dieser Monat, Vormonat, 30, 90 oder 365 Tage, alle) und **Gelöschte**. Der letzte zeigt nur
-die gelöschten Umsätze und bleibt nicht für das Konto gespeichert. **Verlauf** im Kopf blendet den
-Saldoverlauf des gewählten Kontos ein.
+die gelöschten Umsätze und bleibt nicht für das Konto gespeichert.
 Scrollst du die Liste, bleiben Suchfeld und Filter am oberen Rand stehen.
+
+## Verlauf
+
+**Verlauf** im Kopf blendet ein Diagramm für das gewählte Konto oder die Gruppe ein. Es deckt den
+Zeitraum des Filters ab, bei einer Datumsbedingung in der Suche deren Tage. Rechts daneben wählst du
+die Darstellung und gruppierst nach **T**ag, **M**onat, **Q**uartal oder **J**ahr:
+
+- **Balken** und **Linie** zeigen den Kontostand: je Tag den Stand am Abend, je Monat, Quartal oder
+  Jahr den Durchschnitt (Ø) der Tage.
+- **Eingänge und Ausgaben** zeigt je Zeitraum die Summe der Eingänge als grünen Balken nach oben
+  und die Summe der Ausgaben als roten Balken nach unten. Die Linie ist der Saldo des Zeitraums,
+  also Eingänge minus Ausgaben. Gezählt wird wie bei der Karte „Eingänge und Ausgaben“ der
+  Übersicht: ohne Umbuchungen und andere Kategorien, die [nicht in Auswertungen](kategorien-regeln.md) zählen, ohne
+  zurückgegebene Lastschriften, eine aufgeteilte Buchung mit jedem Anteil.
+
+Ein Zeitraum, den der Filter anschneidet (etwa der laufende Monat), ist blasser. Fährst du über
+einen Wert, zeigt MBM die Beträge.
+
+Klickst du auf einen Wert, scrollt die Umsatzliste zu seinem Zeitraum: Oben steht der jüngste Tag
+darin mit Buchungen, darunter folgen die älteren Tage. Hat der Zeitraum keine Buchungen, etwa wegen
+eines Filters, scrollt sie zum nächsten älteren Tag; liegt er vor der ersten Buchung, ans Ende der
+Liste. Die Werte der Vorschau führen nirgendwohin.
+
+![Eingänge und Ausgaben des Girokontos je Monat, mit dem Saldo als Linie](../assets/screenshots/umsaetze-verlauf-dark.png)
+
+*Eingänge und Ausgaben der letzten zwölf Monate; der laufende November ist blasser.*
 
 ## Suche
 

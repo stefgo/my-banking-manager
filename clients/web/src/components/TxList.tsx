@@ -13,7 +13,7 @@ import { ui } from "../lib/ui";
 import { Ic, Sym } from "./icons";
 import { Picker } from "./pickers";
 import { useCategoryItems } from "./pickItems";
-import { buildRows, type ListRow } from "./rows";
+import { buildRows, dayRowAtOrBefore, type ListRow } from "./rows";
 
 
 interface RowProps {
@@ -166,9 +166,17 @@ export interface TxListProps {
     onClick?: (e: React.MouseEvent, tx: Transaction) => void;
     onLongPress?: (tx: Transaction) => void;
     virtual?: boolean;
+    /** Scrolls to the newest booked day on or before `to` (a period picked in the chart); a new `n` scrolls again. */
+    jumpTo?: { to: string; n: number } | null;
 }
 
-export function TxList({ items, balances, accounts, cat, showAccount = true, focusId = null, selectedId = null, picked, catOpenFor = null, onCatOpen, onClick, onLongPress, virtual = false }: TxListProps) {
+/** Glides to a picked period, unless the system asks for less motion. */
+const glide = (): ScrollBehavior => (matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
+
+/** Scroll padding of the page: the height of the sticky bars above the list. */
+const stickyTop = () => parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+
+export function TxList({ items, balances, accounts, cat, showAccount = true, focusId = null, selectedId = null, picked, catOpenFor = null, onCatOpen, onClick, onLongPress, virtual = false, jumpTo = null }: TxListProps) {
     const rows = useMemo(() => buildRows(items, balances), [items, balances]);
     const names = useMemo(() => new Map(accounts.map((a) => [a.id, a.name])), [accounts]);
     const catItems = useCategoryItems({ none: true });
@@ -179,7 +187,7 @@ export function TxList({ items, balances, accounts, cat, showAccount = true, foc
 
     const render = (r: ListRow) =>
         r.type === "head" ? (
-            <div className={`day ${r.booked ? "booked" : ""}`}>
+            <div className={`day ${r.booked ? "booked" : ""}`} data-row={r.key}>
                 <span>{r.label}</span>
                 <span className="day-end">
                     <span className="amt">{fmtSigned(r.sum)}</span>
@@ -207,21 +215,31 @@ export function TxList({ items, balances, accounts, cat, showAccount = true, foc
             />
         );
 
-    if (!virtual || rows.length < 150) {
-        return (
-            <div className="txlist">
-                {rows.map((r) => (
-                    <Fragment key={r.key}>{render(r)}</Fragment>
-                ))}
-            </div>
-        );
-    }
-    return <VirtualRows rows={rows} render={render} focusId={focusId} />;
+    if (!virtual || rows.length < 150) return <PlainRows rows={rows} render={render} jumpTo={jumpTo} />;
+    return <VirtualRows rows={rows} render={render} focusId={focusId} jumpTo={jumpTo} />;
+}
+
+function PlainRows({ rows, render, jumpTo }: { rows: ListRow[]; render: (r: ListRow) => React.ReactNode; jumpTo: TxListProps["jumpTo"] }) {
+    const ref = useRef<HTMLDivElement>(null);
+    useLayoutEffect(() => {
+        if (!jumpTo) return;
+        const head = rows[dayRowAtOrBefore(rows, jumpTo.to)];
+        // The scroll padding keeps the day clear of the sticky bars
+        if (head) ref.current?.querySelector(`[data-row="${head.key}"]`)?.scrollIntoView({ block: "start", behavior: glide() });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [jumpTo]);
+    return (
+        <div className="txlist" ref={ref}>
+            {rows.map((r) => (
+                <Fragment key={r.key}>{render(r)}</Fragment>
+            ))}
+        </div>
+    );
 }
 
 const HEAD_HEIGHT = 38;
 
-function VirtualRows({ rows, render, focusId }: { rows: ListRow[]; render: (r: ListRow) => React.ReactNode; focusId: number | null }) {
+function VirtualRows({ rows, render, focusId, jumpTo }: { rows: ListRow[]; render: (r: ListRow) => React.ReactNode; focusId: number | null; jumpTo: TxListProps["jumpTo"] }) {
     const ref = useRef<HTMLDivElement>(null);
     const [margin, setMargin] = useState(0);
     // The content above the list changes height, for example when the details panel narrows the page
@@ -236,7 +254,14 @@ function VirtualRows({ rows, render, focusId }: { rows: ListRow[]; render: (r: L
     }, []);
     // Keep the focused booking in view while moving with J/K: clear of the sticky bars and day head
     const focusIndex = focusId === null ? -1 : rows.findIndex((r) => r.type === "tx" && r.tx.id === focusId);
-    const padStart = useMemo(() => (focusIndex < 0 ? 0 : (parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0) + HEAD_HEIGHT), [focusIndex]);
+    // Scrolling to a period puts the head of its day at the top, a focused booking keeps room for its head above it
+    const [jumped, setJumped] = useState(false);
+    const [seen, setSeen] = useState({ jumpTo, focusIndex });
+    if (seen.jumpTo !== jumpTo || seen.focusIndex !== focusIndex) {
+        setSeen({ jumpTo, focusIndex });
+        setJumped(!!jumpTo && seen.jumpTo !== jumpTo);
+    }
+    const padStart = useMemo(() => (jumped ? stickyTop() : focusIndex < 0 ? 0 : stickyTop() + HEAD_HEIGHT), [focusIndex, jumped]);
     const v = useWindowVirtualizer({
         count: rows.length,
         estimateSize: (i) => (rows[i]!.type === "head" ? HEAD_HEIGHT : 58),
@@ -248,6 +273,13 @@ function VirtualRows({ rows, render, focusId }: { rows: ListRow[]; render: (r: L
     useLayoutEffect(() => {
         if (focusIndex >= 0) v.scrollToIndex(focusIndex, { align: "auto" });
     }, [focusIndex, v]);
+    // A period picked in the chart: the head of its newest day at the top
+    useLayoutEffect(() => {
+        if (!jumpTo) return;
+        const head = dayRowAtOrBefore(rows, jumpTo.to);
+        if (head >= 0) v.scrollToIndex(head, { align: "start", behavior: glide() });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [jumpTo]);
     return (
         <div ref={ref} className="txlist vlist" style={{ height: v.getTotalSize() }}>
             {v.getVirtualItems().map((it) => (
