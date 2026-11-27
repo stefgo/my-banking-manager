@@ -76,8 +76,8 @@ Umsatz.
 
 ## Buchungen erfassen, ändern und löschen
 
-**Buchung erfassen** gibt es bei jedem Konto: im Kopf der Umsatzliste, im Menü des Kontos oder mit
-++b++. Bei einem Bankkonto bleibt der Kontostand der Bank. Die Buchung verschiebt nur den
+**Buchung erfassen** gibt es bei jedem Konto: im Menü des Kontos oder mit ++b++, bei einem
+Offline-Konto auch im Kopf der Umsatzliste. Bei einem Bankkonto bleibt der Kontostand der Bank. Die Buchung verschiebt nur den
 Saldoverlauf vor ihrem Datum, wie ein [CSV-Import](import.md). Liefert die Bank später dieselbe
 Buchung (gleicher Tag, gleicher Betrag, gleiche Gegenseite), übernimmt sie deine. Deine Buchung
 behält dann ihre Kategorie und kommt nicht doppelt. Eine vorgemerkte Buchung der Bank steht bis

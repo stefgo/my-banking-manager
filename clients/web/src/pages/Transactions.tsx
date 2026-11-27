@@ -762,8 +762,8 @@ function ContextHeader({
                 </div>
             </div>
             <div className="ctx-actions">
-                {account && (
-                    <button className={`btn btn-sm ${offline ? "btn-primary" : ""}`} onClick={() => openBooking(account.id)}>
+                {account && offline && (
+                    <button className="btn btn-sm btn-primary" onClick={() => openBooking(account.id)}>
                         <Ic icon={Plus} size={14} />
                         Buchung erfassen
                         <Kbd>B</Kbd>
