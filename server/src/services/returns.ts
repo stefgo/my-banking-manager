@@ -16,7 +16,8 @@ interface LinkRow {
     counterparty_iban: string | null;
 }
 
-const COLUMNS = "id, amount, booking_date, reference, mandate_id, creditor_id, counterparty_iban";
+// Amount and day as the bank sent them: what the user changed does not part a return from its booking
+const COLUMNS = "id, COALESCE(original_amount, amount) AS amount, COALESCE(original_booking_date, booking_date) AS booking_date, reference, mandate_id, creditor_id, counterparty_iban";
 
 export const cleanIban = (iban: string | null | undefined): string => (iban ?? "").replace(/\s/g, "").toUpperCase();
 
@@ -28,20 +29,21 @@ const knownRef = (s: string): string => {
 /**
  * Links the open returns of an account and returns their ids. Sure matches go first, so that a
  * weaker one cannot take the booking a stronger one belongs to. Among equal bookings the latest
- * wins. Without a match the return stays open and counts like any booking.
+ * wins. Without a match the return stays open and counts like any booking. Deleted bookings take
+ * no part.
  */
 export function linkReturns(db: Db, accountId: number): number[] {
     const open = db
-        .prepare(`SELECT ${COLUMNS} FROM transactions WHERE account_id = ? AND is_return = 1 AND return_of_id IS NULL AND status = 'booked' AND amount != 0 ORDER BY booking_date, id`)
+        .prepare(`SELECT ${COLUMNS} FROM transactions WHERE account_id = ? AND is_return = 1 AND return_of_id IS NULL AND status = 'booked' AND amount != 0 AND deleted_at IS NULL ORDER BY booking_date, id`)
         .all(accountId) as LinkRow[];
     if (!open.length) return [];
     const own = cleanIban((db.prepare("SELECT iban FROM accounts WHERE id = ?").get(accountId) as { iban: string | null } | undefined)?.iban);
     const originals = db.prepare(
         `SELECT ${COLUMNS} FROM transactions o
-         WHERE o.account_id = ? AND o.amount = ? AND o.status = 'booked' AND o.is_return = 0 AND o.source != 'manual'
-           AND o.booking_date BETWEEN date(?, '-${MAX_DAYS} days') AND ?
-           AND NOT EXISTS (SELECT 1 FROM transactions r WHERE r.return_of_id = o.id)
-         ORDER BY o.booking_date DESC, o.id DESC`,
+         WHERE o.account_id = ? AND COALESCE(o.original_amount, o.amount) = ? AND o.status = 'booked' AND o.is_return = 0 AND o.source != 'manual' AND o.deleted_at IS NULL
+           AND COALESCE(o.original_booking_date, o.booking_date) BETWEEN date(?, '-${MAX_DAYS} days') AND ?
+           AND NOT EXISTS (SELECT 1 FROM transactions r WHERE r.return_of_id = o.id AND r.deleted_at IS NULL)
+         ORDER BY COALESCE(o.original_booking_date, o.booking_date) DESC, o.id DESC`,
     );
     const link = db.prepare("UPDATE transactions SET return_of_id = ? WHERE id = ?");
     const matches: ((r: LinkRow, o: LinkRow) => boolean)[] = [

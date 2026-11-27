@@ -326,6 +326,8 @@ const ACTION_LABELS: Record<string, string> = {
     account_detached: "Konto vom Bankzugang gelöst",
     reconcile: "Saldo abgeglichen",
     counter_booking: "Gegenbuchung angelegt",
+    transaction_deleted: "Umsatz gelöscht",
+    transaction_restored: "Umsatz wiederhergestellt",
     category_deleted: "Kategorie gelöscht",
     import: "CSV importiert",
     import_undone: "Import rückgängig",

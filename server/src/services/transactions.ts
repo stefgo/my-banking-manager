@@ -17,7 +17,7 @@ import {
 import type { Db } from "../db/database.js";
 import { nowIso } from "../db/database.js";
 import { badRequest, conflict, notFound } from "../http/errors.js";
-import { accountsInScope, balanceAt, getAccount, requireAccount, requireOffline } from "./accounts.js";
+import { accountsInScope, balanceAt, getAccount, keepBankBalance, requireAccount, requireOffline } from "./accounts.js";
 import { descendantIds, getSlot } from "./categories.js";
 import { queryTargets } from "./querytarget.js";
 
@@ -51,6 +51,9 @@ interface TxRow {
     funding_of_id: number | null;
     funded_by_id: number | null;
     first_seen_at: string;
+    deleted_at: string | null;
+    original_amount: number | null;
+    original_booking_date: string | null;
     category_id: number | null;
     category_source: "rule" | "manual" | "auto" | null;
     edit_counterparty: string | null;
@@ -61,12 +64,19 @@ interface TxRow {
     unread?: number;
 }
 
-const RETURNED_BY = "(SELECT rb.id FROM transactions rb WHERE rb.return_of_id = t.id) AS returned_by_id";
+const RETURNED_BY = "(SELECT rb.id FROM transactions rb WHERE rb.return_of_id = t.id AND rb.deleted_at IS NULL) AS returned_by_id";
 /** The booking MBM added for where the money of a PayPal payment came from. */
-const FUNDED_BY = "(SELECT fb.id FROM transactions fb WHERE fb.funding_of_id = t.id ORDER BY fb.id LIMIT 1) AS funded_by_id";
+const FUNDED_BY = "(SELECT fb.id FROM transactions fb WHERE fb.funding_of_id = t.id AND fb.deleted_at IS NULL ORDER BY fb.id LIMIT 1) AS funded_by_id";
 
-/** Bookings that count in figures: neither a linked return nor the booking it gave back. */
-const NOT_RETURNED = "t.return_of_id IS NULL AND NOT EXISTS (SELECT 1 FROM transactions rb WHERE rb.return_of_id = t.id)";
+/** Bookings left out of lists and figures: those the user deleted. */
+export const LIVE = "deleted_at IS NULL";
+
+/**
+ * Bookings that count in figures: neither a linked return nor the booking it gave back. A pair
+ * whose other half was deleted counts again.
+ */
+const NOT_RETURNED =
+    "NOT EXISTS (SELECT 1 FROM transactions ro WHERE ro.id = t.return_of_id AND ro.deleted_at IS NULL) AND NOT EXISTS (SELECT 1 FROM transactions rb WHERE rb.return_of_id = t.id AND rb.deleted_at IS NULL)";
 
 const EDIT_COLUMNS = "ec.value AS edit_counterparty, ec.source AS edit_counterparty_source, er.value AS edit_remittance, er.source AS edit_remittance_source";
 // One row per booking: a split booking shows its largest share
@@ -124,6 +134,8 @@ export const toTransaction = (r: TxRow): Transaction => ({
         counterparty: r.edit_counterparty_source ? { value: r.edit_counterparty, source: r.edit_counterparty_source } : null,
         remittance: r.edit_remittance_source ? { value: r.edit_remittance, source: r.edit_remittance_source } : null,
     },
+    original: r.original_amount !== null && r.original_booking_date !== null ? { amount: r.original_amount, bookingDate: r.original_booking_date } : null,
+    deletedAt: r.deleted_at,
 });
 
 export function getTransaction(db: Db, id: number): Transaction {
@@ -176,6 +188,8 @@ export interface TxFilter {
     category: string;
     dir: "all" | "in" | "out";
     pending?: boolean;
+    /** Only the deleted bookings, which are left out otherwise. */
+    deleted?: boolean;
     limit: number;
 }
 
@@ -183,7 +197,7 @@ export interface TxFilter {
 export function listTransactions(db: Db, f: TxFilter, userId: number): TransactionList {
     const accountIds = accountsInScope(db, f.scope);
     if (!accountIds.length) return { items: [], total: 0, count: 0, truncated: false };
-    const where: string[] = [`t.account_id IN (${accountIds.map(() => "?").join(",")})`];
+    const where: string[] = [`t.account_id IN (${accountIds.map(() => "?").join(",")})`, f.deleted ? "t.deleted_at IS NOT NULL" : "t.deleted_at IS NULL"];
     const args: unknown[] = [...accountIds];
     const bounds = f.range ? rangeBounds(f.range) : { from: null, to: null };
     const from = f.from ?? bounds.from;
@@ -259,8 +273,13 @@ export function counterDefaultCategoryId(db: Db): number | null {
     return (db.prepare("SELECT id FROM categories WHERE counter_default = 1 ORDER BY id LIMIT 1").get() as { id: number } | undefined)?.id ?? null;
 }
 
+/**
+ * Books by hand. On an account with a bank balance the balance stays the bank's: the booking only
+ * changes the history before it (as an import does). A fetch later takes it over when the bank
+ * delivers the same booking.
+ */
 export function createManual(db: Db, accountId: number, input: ManualInput, userId: number | null): Transaction {
-    requireOffline(db, accountId);
+    requireAccount(db, accountId);
     if (input.categoryId) requireCategory(db, input.categoryId);
     const id = Number(
         db.prepare(
@@ -281,21 +300,77 @@ export function createManual(db: Db, accountId: number, input: ManualInput, user
     );
     // Rules never run on a booking by hand by themselves
     if (input.categoryId != null) setCategory(db, id, input.categoryId, "manual");
+    keepBankBalance(db, accountId, input.amount);
     return getTransaction(db, id);
 }
 
-function requireManual(db: Db, id: number): Transaction {
-    const tx = getTransaction(db, id);
-    if (tx.source !== "manual") throw conflict("Nur Buchungen, die von Hand erfasst wurden, lassen sich ändern oder löschen.", "not_manual");
-    return tx;
+function requireLive(tx: Transaction): void {
+    if (tx.deletedAt) throw conflict("Dieser Umsatz ist gelöscht. Stelle ihn zuerst wieder her.", "deleted");
 }
 
-export function updateManual(db: Db, id: number, input: Partial<ManualInput>): Transaction {
-    const tx = requireManual(db, id);
-    // A single share follows the new amount; the shares of a split stay as they are
-    const updateShareAmount = db.prepare(
+/** Fields only a booking entered by hand can change; of all others only amount and booking date. */
+const MANUAL_ONLY = ["valueDate", "counterpartyName", "counterpartyIban", "remittance", "status", "categoryId"] as const;
+
+/** A single share follows the new amount; the shares of a split stay as they are. */
+export function followAmount(db: Db, id: number, amount: number): void {
+    db.prepare(
         "UPDATE transaction_categories SET amount = @amount WHERE transaction_id = @id AND (SELECT count(*) FROM transaction_categories WHERE transaction_id = @id) = 1",
+    ).run({ amount, id });
+}
+
+/**
+ * Gives a booking from the bank, an import or MBM the amount and booking date that count. The
+ * values it came with are kept as the original once one of them differs, and go again when both
+ * are the same as the original.
+ */
+export function setCountingValues(db: Db, id: number, amount: number, bookingDate: string): void {
+    const row = db.prepare("SELECT amount, booking_date, original_amount, original_booking_date FROM transactions WHERE id = ?").get(id) as {
+        amount: number;
+        booking_date: string;
+        original_amount: number | null;
+        original_booking_date: string | null;
+    };
+    const originalAmount = row.original_amount ?? row.amount;
+    const originalDate = row.original_booking_date ?? row.booking_date;
+    const unchanged = amount === originalAmount && bookingDate === originalDate;
+    db.prepare("UPDATE transactions SET amount = ?, booking_date = ?, original_amount = ?, original_booking_date = ? WHERE id = ?").run(
+        amount,
+        bookingDate,
+        unchanged ? null : originalAmount,
+        unchanged ? null : originalDate,
+        id,
     );
+    if (amount !== row.amount) followAmount(db, id, amount);
+}
+
+/**
+ * Changes a booking. One entered by hand changes as a whole; of one from the bank, an import or
+ * added by MBM only amount and booking date, and not while it is pending. On an account with a bank
+ * balance, the balance stays the bank's.
+ */
+export function updateTransaction(db: Db, id: number, input: Partial<ManualInput>): Transaction {
+    const tx = getTransaction(db, id);
+    requireLive(tx);
+    if (tx.source === "manual") updateManual(db, tx, input);
+    else {
+        if (MANUAL_ONLY.some((k) => input[k] !== undefined)) throw badRequest("Bei diesem Umsatz lassen sich nur Datum und Betrag ändern.", "not_manual");
+        if (tx.status === "pending") throw conflict("Vorgemerkte Umsätze lassen sich erst ändern, wenn sie gebucht sind.", "pending");
+        const amount = input.amount ?? tx.amount;
+        const bookingDate = input.bookingDate ?? tx.bookingDate;
+        setCountingValues(db, id, amount, bookingDate);
+        // What MBM added for a PayPal payment moves with its date, unless its own date was changed
+        if (bookingDate !== tx.bookingDate) {
+            const added = db.prepare("SELECT id, amount FROM transactions WHERE funding_of_id = ? AND booking_date = ?").all(id, tx.bookingDate) as { id: number; amount: number }[];
+            for (const a of added) setCountingValues(db, a.id, a.amount, bookingDate);
+        }
+        followCounter(db, tx, input);
+    }
+    keepBankBalance(db, tx.accountId, (input.amount ?? tx.amount) - tx.amount);
+    return getTransaction(db, id);
+}
+
+function updateManual(db: Db, tx: Transaction, input: Partial<ManualInput>): void {
+    const id = tx.id;
     if (input.categoryId) requireCategory(db, input.categoryId);
     db.prepare(
         `UPDATE transactions SET booking_date = ?, value_date = ?, amount = ?, counterparty_name = ?, counterparty_iban = ?, remittance = ?, status = ?
@@ -311,30 +386,59 @@ export function updateManual(db: Db, id: number, input: Partial<ManualInput>): T
         id,
     );
     if (input.categoryId !== undefined) setCategory(db, id, input.categoryId, "manual");
-    else updateShareAmount.run({ amount: input.amount ?? tx.amount, id });
+    else followAmount(db, id, input.amount ?? tx.amount);
     // A new text by hand is what the booking says now; an older adjustment of it is obsolete
     const dropEdit = db.prepare("DELETE FROM transaction_edits WHERE transaction_id = ? AND field = ?");
     if (input.counterpartyName !== undefined && input.counterpartyName !== tx.counterpartyName) dropEdit.run(id, "counterparty");
     if (input.remittance !== undefined && input.remittance !== tx.remittance) dropEdit.run(id, "remittance");
-    // A counter booking follows its partner's amount and date
-    if (tx.counterTransactionId && (input.amount !== undefined || input.bookingDate !== undefined)) {
-        db.prepare("UPDATE transactions SET amount = ?, booking_date = ?, value_date = ? WHERE id = ? AND source = 'manual'").run(
-            -(input.amount ?? tx.amount),
-            input.bookingDate ?? tx.bookingDate,
-            input.bookingDate ?? tx.bookingDate,
-            tx.counterTransactionId,
-        );
-        if (db.prepare("SELECT 1 FROM transactions WHERE id = ? AND source = 'manual'").get(tx.counterTransactionId)) updateShareAmount.run({ amount: -(input.amount ?? tx.amount), id: tx.counterTransactionId });
+    followCounter(db, tx, input);
+}
+
+/** A counter booking (always one by hand, in an offline account) follows its partner's amount and date. */
+function followCounter(db: Db, tx: Transaction, input: Partial<ManualInput>): void {
+    if (!tx.counterTransactionId || (input.amount === undefined && input.bookingDate === undefined)) return;
+    const changed = db
+        .prepare("UPDATE transactions SET amount = ?, booking_date = ?, value_date = ? WHERE id = ? AND source = 'manual'")
+        .run(-(input.amount ?? tx.amount), input.bookingDate ?? tx.bookingDate, input.bookingDate ?? tx.bookingDate, tx.counterTransactionId).changes;
+    if (changed) followAmount(db, tx.counterTransactionId, -(input.amount ?? tx.amount));
+}
+
+/**
+ * Deletes a booking. One entered by hand goes for good. All others stay as deleted, with their
+ * fingerprint, so that neither a fetch nor an import brings them back; what MBM added for a PayPal
+ * payment is deleted with it. On an account with a bank balance, the balance stays the bank's.
+ */
+export function deleteTransaction(db: Db, id: number): Transaction {
+    const tx = getTransaction(db, id);
+    requireLive(tx);
+    // Deleting a counter booking keeps its origin; deleting the origin takes the counter booking along
+    if (tx.counterTransactionId) unlinkCounter(db, id, tx.id < tx.counterTransactionId);
+    if (tx.source === "manual") {
+        db.prepare("DELETE FROM transactions WHERE id = ?").run(id);
+        keepBankBalance(db, tx.accountId, -tx.amount);
+        return tx;
     }
+    const now = nowIso();
+    // The same time marks what goes with the booking, so that it comes back with it
+    const ids = (db.prepare(`SELECT id FROM transactions WHERE (id = ? OR funding_of_id = ?) AND ${LIVE}`).all(id, id) as { id: number }[]).map((r) => r.id);
+    const marks = ids.map(() => "?").join(",");
+    const { sum } = db.prepare(`SELECT COALESCE(SUM(amount), 0) AS sum FROM transactions WHERE id IN (${marks})`).get(...ids) as { sum: number };
+    db.prepare(`UPDATE transactions SET deleted_at = ? WHERE id IN (${marks})`).run(now, ...ids);
+    db.prepare(`DELETE FROM transaction_unread WHERE transaction_id IN (${marks})`).run(...ids);
+    keepBankBalance(db, tx.accountId, -sum);
     return getTransaction(db, id);
 }
 
-export function deleteManual(db: Db, id: number): Transaction {
-    const tx = requireManual(db, id);
-    // Deleting a counter booking keeps its origin; deleting the origin takes the counter booking along
-    if (tx.counterTransactionId) unlinkCounter(db, id, tx.id < tx.counterTransactionId);
-    db.prepare("DELETE FROM transactions WHERE id = ?").run(id);
-    return tx;
+/** Brings back a deleted booking, with what MBM added for it and was deleted with it. */
+export function restoreTransaction(db: Db, id: number): Transaction {
+    const tx = getTransaction(db, id);
+    if (!tx.deletedAt) throw conflict("Dieser Umsatz ist nicht gelöscht.", "not_deleted");
+    const ids = (db.prepare("SELECT id FROM transactions WHERE (id = ? OR funding_of_id = ?) AND deleted_at = ?").all(id, id, tx.deletedAt) as { id: number }[]).map((r) => r.id);
+    const marks = ids.map(() => "?").join(",");
+    const { sum } = db.prepare(`SELECT COALESCE(SUM(amount), 0) AS sum FROM transactions WHERE id IN (${marks})`).get(...ids) as { sum: number };
+    db.prepare(`UPDATE transactions SET deleted_at = NULL WHERE id IN (${marks})`).run(...ids);
+    keepBankBalance(db, tx.accountId, sum);
+    return getTransaction(db, id);
 }
 
 /** Shows an own text for a field; null shows the bank's value and keeps rules from filling it. */
@@ -377,6 +481,7 @@ export function assignCategory(db: Db, ids: number[], categoryId: number | null)
  */
 export function createCounter(db: Db, txId: number, offlineId: number, userId: number | null, categoryId?: number | null): Transaction {
     const tx = getTransaction(db, txId);
+    requireLive(tx);
     const target = requireOffline(db, offlineId);
     if (tx.accountId === offlineId) throw badRequest("Die Gegenbuchung muss in einem anderen Konto liegen.");
     if (tx.counterTransactionId) throw conflict("Dieser Umsatz hat schon eine Gegenbuchung.", "has_counter");
@@ -446,7 +551,7 @@ export function payees(db: Db, accountId?: number): { name: string; iban: string
     const rows = db
         .prepare(
             `SELECT counterparty_name AS name, MAX(counterparty_iban) AS iban, count(*) AS uses, MAX(booking_date) AS last
-             FROM transactions WHERE counterparty_name <> '' AND counterparty_name <> 'Saldo-Abgleich' ${accountId ? "AND account_id = ?" : ""}
+             FROM transactions WHERE ${LIVE} AND counterparty_name <> '' AND counterparty_name <> 'Saldo-Abgleich' ${accountId ? "AND account_id = ?" : ""}
              GROUP BY counterparty_name COLLATE NOCASE ORDER BY uses DESC, last DESC LIMIT 200`,
         )
         .all(...(accountId ? [accountId] : [])) as { name: string; iban: string | null; uses: number }[];
@@ -468,7 +573,7 @@ export function balanceSeries(
     span?: { from?: string; to?: string },
 ): { date: string; balance: number }[] {
     const ids = accountsInScope(db, scope);
-    const inIds = `account_id IN (${ids.map(() => "?").join(",")})`;
+    const inIds = `account_id IN (${ids.map(() => "?").join(",")}) AND ${LIVE}`;
     const firstBooking = () => {
         const first = ids.length ? (db.prepare(`SELECT MIN(booking_date) AS d FROM transactions WHERE ${inIds}`).get(...ids) as { d: string | null }).d : null;
         return first && first < today ? first : addDaysIso(today, -29);
@@ -518,7 +623,7 @@ export function cashflow(db: Db, scope: AccountScope, from: string, to: string):
                     count(DISTINCT t.id) AS count
              FROM transactions t
              LEFT JOIN transaction_categories tc ON tc.transaction_id = t.id
-             WHERE t.account_id IN (${ids.map(() => "?").join(",")}) AND t.booking_date BETWEEN ? AND ?
+             WHERE t.account_id IN (${ids.map(() => "?").join(",")}) AND t.booking_date BETWEEN ? AND ? AND t.${LIVE}
                AND ${NOT_RETURNED}
                AND (${none}tc.category_id NOT IN (${EXCLUDED_CATEGORIES}))`,
         )
@@ -533,7 +638,7 @@ export function categorySums(db: Db, scope: AccountScope, from: string, to: stri
         .prepare(
             `SELECT tc.category_id AS categoryId, SUM(COALESCE(tc.amount, t.amount)) AS amount, count(*) AS count
              FROM transactions t LEFT JOIN transaction_categories tc ON tc.transaction_id = t.id
-             WHERE t.account_id IN (${ids.map(() => "?").join(",")}) AND t.booking_date BETWEEN ? AND ?
+             WHERE t.account_id IN (${ids.map(() => "?").join(",")}) AND t.booking_date BETWEEN ? AND ? AND t.${LIVE}
                AND ${NOT_RETURNED}
              GROUP BY tc.category_id`,
         )

@@ -155,13 +155,14 @@ function plan(db: Db, accountId: number, content: string, selection: ImportSelec
     const separator = format.values.categorySeparator;
     const parsed = mapFormatRows(table, format);
     const dates = parsed.map((r) => r.date).filter((d): d is string => !!d).sort();
-    // Stored bookings by day and amount, with their counterparty
+    // Stored bookings by day and amount, with their counterparty. Day and amount as the bank or the
+    // file gave them, whatever the user changed; deleted ones too, so that they do not come back.
     const existing = new Map<string, StoredBooking[]>();
     if (dates.length) {
         const rows = db
             .prepare(
-                `SELECT id, booking_date, amount, counterparty_name, counterparty_iban, remittance, booking_text, reference, customer_reference, bank_reference, mandate_id, creditor_id, counterparty_bic
-                 FROM transactions WHERE account_id = ? AND booking_date BETWEEN ? AND ?`,
+                `SELECT id, COALESCE(original_booking_date, booking_date) AS booking_date, COALESCE(original_amount, amount) AS amount, counterparty_name, counterparty_iban, remittance, booking_text, reference, customer_reference, bank_reference, mandate_id, creditor_id, counterparty_bic
+                 FROM transactions WHERE account_id = ? AND COALESCE(original_booking_date, booking_date) BETWEEN ? AND ?`,
             )
             .all(accountId, dates[0], dates[dates.length - 1]) as {
             id: number;
@@ -465,7 +466,7 @@ export function listImports(db: Db): ImportRecord[] {
         .prepare(
             `SELECT i.id, i.account_id AS accountId, i.file_name AS fileName, i.imported_at AS importedAt, u.name AS userName,
                     i.rows, i.imported, i.skipped,
-                    (SELECT count(*) FROM transactions t WHERE t.import_id = i.id) AS remaining
+                    (SELECT count(*) FROM transactions t WHERE t.import_id = i.id AND t.deleted_at IS NULL) AS remaining
              FROM imports i LEFT JOIN users u ON u.id = i.user_id ORDER BY i.id DESC`,
         )
         .all() as ImportRecord[];
@@ -475,7 +476,8 @@ export function listImports(db: Db): ImportRecord[] {
 export function undoImport(db: Db, id: number): { accountId: number; fileName: string; removed: number } {
     const row = db.prepare("SELECT account_id, file_name FROM imports WHERE id = ?").get(id) as { account_id: number; file_name: string } | undefined;
     if (!row) throw notFound("Import");
-    const { sum } = db.prepare("SELECT COALESCE(SUM(amount), 0) AS sum FROM transactions WHERE import_id = ?").get(id) as { sum: number };
+    // Deleted bookings no longer count in the balance
+    const { sum } = db.prepare("SELECT COALESCE(SUM(amount), 0) AS sum FROM transactions WHERE import_id = ? AND deleted_at IS NULL").get(id) as { sum: number };
     // Counter bookings made from imported bookings go too
     db.prepare("DELETE FROM transactions WHERE source = 'manual' AND counter_transaction_id IN (SELECT id FROM transactions WHERE import_id = ?)").run(id);
     const removed = db.prepare("DELETE FROM transactions WHERE import_id = ?").run(id).changes;

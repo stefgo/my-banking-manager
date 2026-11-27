@@ -68,7 +68,7 @@ export function accountMenu(a: Account, action: Action, openStyle: () => void, o
                       run: () => confirmDeleteAccount(a, action),
                   },
               ]
-            : []),
+            : [...(order ? [{ separator: true }] : []), { label: "Buchung erfassen", icon: Plus, run: () => ui.open({ kind: "booking", accountId: a.id }) }]),
     ];
 }
 

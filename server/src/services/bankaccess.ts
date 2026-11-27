@@ -194,7 +194,7 @@ export function deleteConnection(db: Db, id: number, accounts: "keep" | "delete"
 /** Turns a bank account into an offline account; its kind, bookings and last bank balance stay. */
 function toOffline(db: Db, accountId: number): void {
     const balance = (db.prepare("SELECT amount FROM balances WHERE account_id = ?").get(accountId) as { amount: number } | undefined)?.amount;
-    const sum = (db.prepare("SELECT COALESCE(SUM(amount), 0) AS s FROM transactions WHERE account_id = ?").get(accountId) as { s: number }).s;
+    const sum = (db.prepare("SELECT COALESCE(SUM(amount), 0) AS s FROM transactions WHERE account_id = ? AND deleted_at IS NULL").get(accountId) as { s: number }).s;
     // An offline balance is opening balance plus bookings: keep the last bank balance
     // Without the time of the last fetch: attached again, it starts from its newest booking
     db.prepare("UPDATE accounts SET connection_id = NULL, external_id = NULL, opening_balance = ?, transactions_fetched_at = NULL WHERE id = ?").run((balance ?? sum) - sum, accountId);

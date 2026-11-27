@@ -8,7 +8,7 @@ import { routes, type Account, type Transaction } from "@mbm/shared";
 import { call } from "../lib/api";
 import { useAction, type useCategoryIndex } from "../lib/queries";
 import { categoryColor, categoryPath, type CategoryIndex } from "../lib/tree";
-import { dayMonth, fmt, fmtSigned, shownParty, shownPurpose } from "../lib/format";
+import { dateText, dayMonth, fmt, fmtSigned, shownParty, shownPurpose } from "../lib/format";
 import { ui } from "../lib/ui";
 import { Ic, Sym } from "./icons";
 import { Picker } from "./pickers";
@@ -105,6 +105,11 @@ export const TxRow = memo(function TxRow({ tx, idx, accountName, inPending, focu
                     )}
                     {name}
                     {tx.status === "pending" && !inPending && <span className="pill">vorgemerkt</span>}
+                    {tx.original && (
+                        <span className="pill" title={`Ursprünglich ${fmtSigned(tx.original.amount)} am ${dateText(tx.original.bookingDate)}`}>
+                            geändert
+                        </span>
+                    )}
                 </span>
                 <span className="tx-sub">
                     {inPending && (

@@ -67,16 +67,48 @@ Forderung ist damit meist nicht erledigt: Zieht der Gläubiger erneut ein, zähl
 
 ![Die Details eines Umsatzes neben der Liste](../assets/screenshots/umsatz-details-dark.png)
 
-*Die Details: Kategorie ändern, als neu markieren, kopieren oder eine Gegenbuchung in einem Offline-Konto anlegen.*
+*Die Details: Kategorie ändern, Datum und Betrag ändern, löschen, als neu markieren, kopieren oder eine Gegenbuchung in einem Offline-Konto anlegen.*
 
 **Mehrere Umsätze** wählst du mit ++x++, ++cmd++-Klick oder ++shift++-Klick aus. Dann weist ++c++
 ihnen eine Kategorie zu. Mit ++j++ und ++k++ gehst du durch die Liste, ++enter++ öffnet einen
 Umsatz.
 
+## Buchungen erfassen, ändern und löschen
+
+**Buchung erfassen** gibt es bei jedem Konto: im Kopf der Umsatzliste, im Menü des Kontos oder mit
+++b++. Bei einem Bankkonto bleibt der Kontostand der Bank. Die Buchung verschiebt nur den
+Saldoverlauf vor ihrem Datum, wie ein [CSV-Import](import.md). Liefert die Bank später dieselbe
+Buchung (gleicher Tag, gleicher Betrag, gleiche Gegenseite), übernimmt sie deine. Deine Buchung
+behält dann ihre Kategorie und kommt nicht doppelt. Eine vorgemerkte Buchung der Bank steht bis
+dahin daneben.
+
+**Datum und Betrag ändern** geht bei jedem gebuchten Umsatz, auch bei einem von der Bank, aus einem
+Import oder einem, den MBM für PayPal ergänzt hat. Alles andere bleibt, wie die Bank es geliefert
+hat; für Gegenseite und Zweck gibt es „Anzeige ändern“. Ein geänderter Umsatz trägt in der Liste
+„geändert“, die Details zeigen den ursprünglichen Wert („Laut Bank“). **Ursprüngliche Werte** im
+Dialog nimmt die Änderung zurück. Vorgemerkte Umsätze änderst du erst, wenn sie gebucht sind. Den
+Umsatz erkennt MBM beim nächsten Abruf und beim Import trotzdem, denn es vergleicht mit den Werten
+der Bank.
+
+**Löschen** geht bei jedem Umsatz. Eine Buchung, die du selbst erfasst hast, ist danach weg. Alle
+anderen blendet MBM nur aus: Sie verschwinden aus Liste und Auswertungen, kommen aber auch beim
+nächsten Abruf oder Import nicht wieder. Das gilt auch für einen vorgemerkten Umsatz, sobald die
+Bank ihn bucht. Löschst du eine PayPal-Zahlung, verschwindet die Abbuchung, die MBM dazu ergänzt
+hat, mit ihr. Eine Gegenbuchung im Offline-Konto entfernt MBM. Über den Filter **Gelöschte** findest
+du ausgeblendete Umsätze wieder, **Wiederherstellen** in ihren Details holt sie zurück. Das
+[Protokoll](einstellungen.md#protokoll) hält Löschen und Wiederherstellen fest.
+
+!!! note "Der Kontostand bleibt der der Bank"
+
+    Bei einem Bankkonto ändern Erfassen, Ändern und Löschen den Kontostand nicht, denn den meldet die
+    Bank. Die Differenz geht in den Anfangssaldo und verschiebt den Saldoverlauf vor dem Umsatz. Bei
+    einem Offline-Konto ändert sich der Kontostand wie erwartet.
+
 ## Filter
 
-Über der Liste stehen drei Filter: **Kategorien**, **Eingänge und Ausgaben** und **Zeitraum**
-(dieser Monat, Vormonat, 30, 90 oder 365 Tage, alle). **Verlauf** im Kopf blendet den
+Über der Liste stehen vier Filter: **Kategorien**, **Eingänge und Ausgaben**, **Zeitraum**
+(dieser Monat, Vormonat, 30, 90 oder 365 Tage, alle) und **Gelöschte**. Der letzte zeigt nur
+die gelöschten Umsätze und bleibt nicht für das Konto gespeichert. **Verlauf** im Kopf blendet den
 Saldoverlauf des gewählten Kontos ein.
 Scrollst du die Liste, bleiben Suchfeld und Filter am oberen Rand stehen.
 

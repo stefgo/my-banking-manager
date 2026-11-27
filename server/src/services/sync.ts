@@ -292,7 +292,8 @@ export class SyncManager {
         const balances = withBalance.length ? (await call<{ balances: ConnectorBalance[] }>("balances", { accounts: withBalance.map((t) => t.ref) })).balances : [];
 
         for (const t of run.api.ordersOnly ? [] : targets) {
-            const newest = (db().prepare("SELECT MAX(booking_date) AS d FROM transactions WHERE account_id = ? AND source = 'bank' AND status = 'booked'").get(t.id) as { d: string | null }).d;
+            // The day as the bank sent it, deleted bookings included: it is about what the bank delivered
+            const newest = (db().prepare("SELECT MAX(COALESCE(original_booking_date, booking_date)) AS d FROM transactions WHERE account_id = ? AND source = 'bank' AND status = 'booked' AND funding_of_id IS NULL").get(t.id) as { d: string | null }).d;
             const { f: fetchedAt, r: refetchAll } = db().prepare("SELECT transactions_fetched_at AS f, refetch_all AS r FROM accounts WHERE id = ?").get(t.id) as { f: string | null; r: number };
             // Once from the start, when stored bookings are to learn something new (see migration 0016)
             const from = refetchAll ? undefined : fetchFrom(newest, fetchedAt);

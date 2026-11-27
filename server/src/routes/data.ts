@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { formatSignedCents, routes, todayIso } from "@mbm/shared";
+import type { Db } from "../db/database.js";
 import { handle, type AppContext } from "../http/route.js";
 import * as accounts from "../services/accounts.js";
 import * as categories from "../services/categories.js";
@@ -147,15 +148,32 @@ export function registerDataRoutes(app: FastifyInstance, ctx: AppContext): void 
     });
 
     handle(app, ctx, routes.updateTransaction, ({ db, params, body }) => {
-        const t = db.transaction(() => tx.updateManual(db, params.id, body))();
+        const t = db.transaction(() => tx.updateTransaction(db, params.id, body))();
         events.changed("accounts", "transactions", "categories");
         return t;
     });
 
-    handle(app, ctx, routes.deleteTransaction, ({ db, params }) => {
-        db.transaction(() => tx.deleteManual(db, params.id))();
-        events.changed("accounts", "transactions", "categories");
+    /** Account, day and amount of a booking, for the activity log. */
+    const describe = (db: Db, t: { accountId: number; bookingDate: string; amount: number }) =>
+        [accounts.getAccount(db, t.accountId).name, `${t.bookingDate.split("-").reverse().join(".")}, ${formatSignedCents(t.amount)}`] as const;
+
+    handle(app, ctx, routes.deleteTransaction, ({ db, actor, params }) => {
+        db.transaction(() => {
+            const t = tx.deleteTransaction(db, params.id);
+            logActivity(db, actor, "transaction_deleted", ...describe(db, t));
+        })();
+        events.changed("accounts", "transactions", "categories", "activity", "unread");
         return OK;
+    });
+
+    handle(app, ctx, routes.restoreTransaction, ({ db, actor, params }) => {
+        const t = db.transaction(() => {
+            const restored = tx.restoreTransaction(db, params.id);
+            logActivity(db, actor, "transaction_restored", ...describe(db, restored));
+            return restored;
+        })();
+        events.changed("accounts", "transactions", "categories", "activity");
+        return t;
     });
 
     handle(app, ctx, routes.assignCategory, ({ db, body }) => {

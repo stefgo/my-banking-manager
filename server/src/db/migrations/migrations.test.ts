@@ -16,6 +16,7 @@ import { accountKind } from "./0013-account-kind.js";
 import { transferChecks } from "./0014-transfer-checks.js";
 import { psd2Connections } from "./0015-psd2-connections.js";
 import { paypalFunding } from "./0016-paypal-funding.js";
+import { bookingEdits } from "./0017-booking-edits.js";
 import { applyMigration, migrations, type Migration } from "./index.js";
 
 const columns = (db: Database.Database, table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
@@ -638,5 +639,23 @@ describe("0016-paypal-funding", () => {
         db.exec(`INSERT INTO transactions (id, account_id, booking_date, amount, status, first_seen_at, source, funding_of_id) VALUES (2, 2, '2026-10-01', 1999, 'booked', '${T0}', 'bank', 1)`);
         db.exec("DELETE FROM transactions WHERE id = 1");
         expect(db.prepare("SELECT count(*) AS n FROM transactions").get()).toEqual({ n: 0 });
+    });
+});
+
+describe("0017-booking-edits", () => {
+    let db: Database.Database;
+
+    beforeEach(() => {
+        db = before(bookingEdits);
+        db.exec(`
+            INSERT INTO accounts (id, name, kind, icon, color, position, created_at) VALUES (1, 'Bar', 'other', 'wallet', 'blue', 0, '${T0}');
+            INSERT INTO transactions (id, account_id, booking_date, amount, status, first_seen_at, source) VALUES (1, 1, '2026-10-01', -1999, 'booked', '${T0}', 'bank');
+        `);
+        applyMigration(db, bookingEdits);
+    });
+    afterEach(() => db.close());
+
+    it("leaves stored bookings unchanged and undeleted", () => {
+        expect(db.prepare("SELECT amount, booking_date AS d, deleted_at AS del, original_amount AS oa, original_booking_date AS od FROM transactions").get()).toEqual({ amount: -1999, d: "2026-10-01", del: null, oa: null, od: null });
     });
 });

@@ -9,8 +9,14 @@
 //   preset category for counter bookings.
 // - New bookings are new (unread) for every user; the successor of a pending booking stays read
 //   for whoever had read that one.
-// - Imported: a booked booking the bank delivers for the first time takes over an equal booking
-//   from a CSV import (same comparison as the import), which keeps its id, category and read state.
+// - Imported or by hand: a booked booking the bank delivers for the first time takes over an equal
+//   booking from a CSV import or entered by hand (same comparison as the import), which keeps its
+//   id, category and read state.
+// - Deleted by the user: a booked one keeps its fingerprint and so never comes again; the mark of a
+//   pending one goes over to its successor, as its category does. Deleted bookings get no rules,
+//   are not new and do not count in the balance.
+// - Changed by the user (amount, booking date): the fingerprint stays, matching goes by the values
+//   the bank or the file gave.
 // - Returns: linked to the booking they give back, whose category they take. One stored with this
 //   account as its counterparty is corrected in place, since the corrected IBAN changes its fingerprint.
 // - The balance: the account's opening balance is set so that opening balance plus booked
@@ -73,6 +79,8 @@ interface OldPending {
     shares: { category_id: number; amount: number; source: string }[];
     /** Users who had not read it; filled before it is deleted. */
     unreadBy: number[];
+    /** Deleted by the user: its successor is deleted as well. */
+    deleted_at: string | null;
     /** Its adjusted texts; filled before it is deleted. */
     edits: { field: string; value: string | null; source: string }[];
 }
@@ -110,7 +118,7 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
         // Pending bookings of the last fetch, with the category a user may have given them
         const oldPending = db
             .prepare(
-                `SELECT t.id, t.fingerprint, t.booking_date, t.amount, t.counterparty_name, t.counterparty_iban, t.remittance
+                `SELECT t.id, t.fingerprint, t.booking_date, t.amount, t.counterparty_name, t.counterparty_iban, t.remittance, t.deleted_at
                  FROM transactions t WHERE t.account_id = ? AND t.source = 'bank' AND t.status = 'pending'`,
             )
             .all(accountId) as OldPending[];
@@ -143,6 +151,14 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
         };
 
         const newIds: number[] = [];
+        // Successors of a deleted pending booking: deleted too, so no rules, not new
+        const deletedIds = new Set<number>();
+        const markDeleted = db.prepare("UPDATE transactions SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL");
+        const carryDeleted = (id: number, from: OldPending | undefined) => {
+            if (!from?.deleted_at) return;
+            markDeleted.run(from.deleted_at, id);
+            deletedIds.add(id);
+        };
         // Moves between own pockets: the preset category of counter bookings, no rule's
         const transferIds = new Set<number>();
         // A pending booking that comes back is not new to the rules
@@ -157,7 +173,8 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
                 carryCategories(id, carried, t.amount);
                 carryEdits(id, carried);
                 if (t.status === "pending") returning.add(id);
-                markNewFor(db, id, carried.unreadBy);
+                carryDeleted(id, carried);
+                if (!carried.deleted_at) markNewFor(db, id, carried.unreadBy);
             } else markNew(db, [id]);
             newIds.push(id);
             if (t.transfer) transferIds.add(id);
@@ -180,10 +197,15 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
             return match;
         };
 
-        // Bookings from a CSV import, by day and amount; each one stands for one booking of the bank
+        // Bookings from a CSV import or entered by hand, by day and amount (as the file gave them);
+        // each one stands for one booking of the bank. Counter bookings and balance checks stand for none.
+        // A deleted one is taken over as well and stays deleted.
         const imported = new Map<string, { id: number; iban: string | null; name: string; purpose: string }[]>();
         const importedRows = db
-            .prepare("SELECT id, booking_date, amount, counterparty_iban AS iban, counterparty_name AS name, remittance AS purpose FROM transactions WHERE account_id = ? AND source = 'import' ORDER BY id")
+            .prepare(
+                `SELECT id, COALESCE(original_booking_date, booking_date) AS booking_date, COALESCE(original_amount, amount) AS amount, counterparty_iban AS iban, counterparty_name AS name, remittance AS purpose
+                 FROM transactions WHERE account_id = ? AND (source = 'import' OR (source = 'manual' AND counter_transaction_id IS NULL AND counterparty_name <> 'Saldo-Abgleich')) ORDER BY id`,
+            )
             .all(accountId) as { id: number; booking_date: string; amount: number; iban: string | null; name: string; purpose: string }[];
         for (const r of importedRows) {
             const key = duplicateKey(r.booking_date, r.amount);
@@ -242,7 +264,10 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
         const selfBooked = new Map<string, number[]>();
         if (ownIban) {
             const rows = db
-                .prepare("SELECT id, booking_date, amount, remittance, end_to_end_id FROM transactions WHERE account_id = ? AND source = 'bank' AND status = 'booked' AND UPPER(REPLACE(counterparty_iban, ' ', '')) = ? ORDER BY id")
+                .prepare(
+                    `SELECT id, COALESCE(original_booking_date, booking_date) AS booking_date, COALESCE(original_amount, amount) AS amount, remittance, end_to_end_id
+                     FROM transactions WHERE account_id = ? AND source = 'bank' AND status = 'booked' AND UPPER(REPLACE(counterparty_iban, ' ', '')) = ? ORDER BY id`,
+                )
                 .all(accountId, ownIban) as { id: number; booking_date: string; amount: number; remittance: string; end_to_end_id: string | null }[];
             for (const r of rows) {
                 const key = selfKey(r.booking_date, r.amount, r.remittance, r.end_to_end_id);
@@ -302,10 +327,12 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
                 const carried = successorOf(t);
                 if (carried && !hasCategory.get(importedId)) carryCategories(importedId, carried, t.amount);
                 if (carried) carryEdits(importedId, carried);
+                carryDeleted(importedId, carried);
                 return;
             }
-            insert(t, fp, successorOf(t));
-            newBooked++;
+            const carried = successorOf(t);
+            insert(t, fp, carried);
+            if (!carried?.deleted_at) newBooked++;
         });
         const pendingFps = fingerprints(pending);
         pending.forEach((t, i) => insert(t, pendingFps[i]!, successorOf(t, pendingFps[i])));
@@ -314,9 +341,9 @@ export function applyFetch(db: Db, accountId: number, txs: ConnectorTransaction[
         // have come with this fetch, so its category is written first; the texts of a return follow.
         const linkedReturns = linkReturns(db, accountId);
         const linked = new Set(linkedReturns);
-        const results = evaluateNew(db, newIds.filter((id) => !returning.has(id)));
+        const results = evaluateNew(db, newIds.filter((id) => !returning.has(id) && !deletedIds.has(id)));
         writeRuleCategories(db, results, new Set([...linked, ...transferIds]));
-        categorizeTransfers(db, newIds.filter((id) => !linked.has(id)), transferIds);
+        categorizeTransfers(db, newIds.filter((id) => !linked.has(id) && !deletedIds.has(id)), transferIds);
         recategorizeMarked(db, marked);
         inheritReturnCategories(db, linkedReturns);
         writeRuleTexts(db, results);
@@ -358,7 +385,8 @@ function categorizeTransfers(db: Db, ids: number[], marked: ReadonlySet<number> 
         // The other side, if it is there already and has no category yet
         const counter = db
             .prepare(
-                `SELECT t.id, t.amount FROM transactions t WHERE t.account_id = ? AND t.amount = ? AND abs(julianday(t.booking_date) - julianday(?)) <= 3
+                `SELECT t.id, t.amount FROM transactions t WHERE t.account_id = ? AND COALESCE(t.original_amount, t.amount) = ?
+                 AND abs(julianday(COALESCE(t.original_booking_date, t.booking_date)) - julianday(?)) <= 3 AND t.deleted_at IS NULL
                  AND NOT EXISTS (SELECT 1 FROM transaction_categories tc WHERE tc.transaction_id = t.id) ORDER BY t.id LIMIT 1`,
             )
             .get(other, -r.amount, r.booking_date) as { id: number; amount: number } | undefined;

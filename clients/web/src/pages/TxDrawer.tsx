@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Dialog as RDialog } from "radix-ui";
-import { CheckCheck, CircleDot, Copy, Link2, Pencil, PenLine, Send, Tag, Trash2, Unlink, Wand2, X } from "lucide-react";
-import { groupIban, isOffline, quoteTxQueryValue, returnReasonText, routes, type RuleEdit } from "@mbm/shared";
+import { CheckCheck, CircleDot, Copy, Link2, Pencil, PenLine, RotateCcw, Send, Tag, Trash2, Unlink, Wand2, X } from "lucide-react";
+import { groupIban, isOffline, quoteTxQueryValue, returnReasonText, routes, type RuleEdit, type Transaction } from "@mbm/shared";
 import { call } from "../lib/api";
 import { useAccounts, useAction, useCategoryIndex, useGroups, useRules, useTransferAccounts, useTxById } from "../lib/queries";
 import { useStartTransfer } from "../lib/transfer";
@@ -13,6 +13,7 @@ import { copyText } from "../lib/clipboard";
 import { markTxs } from "../lib/unread";
 import { ui, useUi } from "../lib/ui";
 import { INSPECTOR_QUERY, useMedia } from "../lib/media";
+import { Button } from "../components/common";
 import { CatTile, Ic, Sym } from "../components/icons";
 import { Picker, PickerButton } from "../components/pickers";
 import { useCategoryItems } from "../components/pickItems";
@@ -143,6 +144,7 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                                 <h2>
                                     {name}
                                     {tx.status === "pending" && <span className="pill">vorgemerkt</span>}
+                                    {tx.deletedAt && <span className="pill">gelöscht</span>}
                                 </h2>
                             </RDialog.Title>
                         </div>
@@ -223,6 +225,13 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                         {tx.mandateId && row("Mandat", <span className="mono">{tx.mandateId}</span>)}
                         {tx.creditorId && row("Gläubiger-ID", <span className="mono">{tx.creditorId}</span>)}
                         {row("Buchungstag", tx.status === "pending" ? `${dateText(tx.bookingDate)} · noch nicht gebucht` : dateText(tx.bookingDate))}
+                        {tx.original &&
+                            row(
+                                tx.fundingOfId !== null ? "Berechnet" : tx.source === "import" ? "Laut Datei" : "Laut Bank",
+                                <>
+                                    <span className="amt">{fmtSigned(tx.original.amount)}</span> am {dateText(tx.original.bookingDate)}
+                                </>,
+                            )}
                         {tx.valueDate && tx.valueDate !== tx.bookingDate && row("Wertstellung", dateText(tx.valueDate))}
                         {row("Konto", account?.name ?? "")}
                         {tx.ultimateParty && tx.counterpartyName && row("Kontoinhaber", tx.counterpartyName)}
@@ -313,65 +322,79 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                         </div>
                     )}
                     <div className="d-actions">
-                        {canTransfer && tx.counterpartyIban && (
-                            <button
-                                className="btn"
-                                onClick={() => {
-                                    ui.openTx(null);
-                                    startTransfer({ payeeName: tx.counterpartyName, payeeIban: tx.counterpartyIban!, ...(tx.amount < 0 ? { amount: -tx.amount, remittance: tx.remittance.slice(0, 140) } : {}) });
-                                }}
+                        {tx.deletedAt ? (
+                            <Button
+                                icon={RotateCcw}
+                                iconSize={16}
+                                busy={action.pending}
+                                onClick={() => void action.run(() => call(routes.restoreTransaction, { params: { id: tx.id } }), { topics: ["accounts", "transactions", "categories"], ok: "Umsatz wiederhergestellt" })}
                             >
-                                <Ic icon={Send} size={16} />
-                                Überweisen an …
-                            </button>
+                                Wiederherstellen
+                            </Button>
+                        ) : (
+                            <>
+                                {canTransfer && tx.counterpartyIban && (
+                                    <button
+                                        className="btn"
+                                        onClick={() => {
+                                            ui.openTx(null);
+                                            startTransfer({ payeeName: tx.counterpartyName, payeeIban: tx.counterpartyIban!, ...(tx.amount < 0 ? { amount: -tx.amount, remittance: tx.remittance.slice(0, 140) } : {}) });
+                                        }}
+                                    >
+                                        <Ic icon={Send} size={16} />
+                                        Überweisen an …
+                                    </button>
+                                )}
+                                <button className="btn" onClick={() => setEditingFor(editingFor === tx.id ? null : tx.id)}>
+                                    <Ic icon={PenLine} size={16} />
+                                    Anzeige ändern
+                                </button>
+                                {!!bankParty && (
+                                    <button className="btn" onClick={makeRule}>
+                                        <Ic icon={Wand2} size={16} />
+                                        Daraus eine Regel machen
+                                    </button>
+                                )}
+                                {(tx.source === "manual" || tx.status === "booked") && (
+                                    <button className="btn" onClick={() => ui.open({ kind: "booking", txId: tx.id })}>
+                                        <Ic icon={Pencil} size={16} />
+                                        {tx.source === "manual" ? "Bearbeiten" : "Datum und Betrag ändern"}
+                                    </button>
+                                )}
+                                {!tx.counterTransactionId && offline.length > 0 && tx.status !== "pending" && (
+                                    <button className="btn" onClick={() => ui.open({ kind: "counterBooking", txId: tx.id })}>
+                                        <Ic icon={Link2} size={16} />
+                                        Gegenbuchung in Offline-Konto …
+                                    </button>
+                                )}
+                                <button
+                                    className="btn btn-ghost btn-danger"
+                                    onClick={() =>
+                                        ui.confirm({
+                                            title: `${tx.source === "manual" ? "Buchung" : "Umsatz"} „${name}“ löschen?`,
+                                            text: deleteText(tx, fmtSigned(tx.amount)),
+                                            confirm: "Löschen",
+                                            danger: true,
+                                            onConfirm: async () => {
+                                                const ok = await action.succeeds(() => call(routes.deleteTransaction, { params: { id: tx.id } }), {
+                                                    topics: ["accounts", "transactions", "categories", "unread"],
+                                                    ok: tx.source === "manual" ? "Buchung gelöscht" : "Umsatz gelöscht",
+                                                });
+                                                if (ok) close();
+                                                return ok;
+                                            },
+                                        })
+                                    }
+                                >
+                                    <Ic icon={Trash2} size={16} />
+                                    Löschen
+                                </button>
+                                <button className="btn" onClick={() => void markTxs([tx], !tx.unread)}>
+                                    <Ic icon={tx.unread ? CheckCheck : CircleDot} size={16} />
+                                    {tx.unread ? "Als gelesen markieren" : "Als neu markieren"}
+                                </button>
+                            </>
                         )}
-                        <button className="btn" onClick={() => setEditingFor(editingFor === tx.id ? null : tx.id)}>
-                            <Ic icon={PenLine} size={16} />
-                            Anzeige ändern
-                        </button>
-                        {!!bankParty && (
-                            <button className="btn" onClick={makeRule}>
-                                <Ic icon={Wand2} size={16} />
-                                Daraus eine Regel machen
-                            </button>
-                        )}
-                        {tx.source === "manual" && (
-                            <button className="btn" onClick={() => ui.open({ kind: "booking", txId: tx.id })}>
-                                <Ic icon={Pencil} size={16} />
-                                Bearbeiten
-                            </button>
-                        )}
-                        {!tx.counterTransactionId && offline.length > 0 && tx.status !== "pending" && (
-                            <button className="btn" onClick={() => ui.open({ kind: "counterBooking", txId: tx.id })}>
-                                <Ic icon={Link2} size={16} />
-                                Gegenbuchung in Offline-Konto …
-                            </button>
-                        )}
-                        {tx.source === "manual" && (
-                            <button
-                                className="btn btn-ghost btn-danger"
-                                onClick={() =>
-                                    ui.confirm({
-                                        title: `Buchung „${name}“ löschen?`,
-                                        text: `Die Buchung über ${fmtSigned(tx.amount)} wird gelöscht.${tx.counterTransactionId ? " Die Verknüpfung zur Gegenbuchung wird gelöst." : ""} Das lässt sich nicht rückgängig machen.`,
-                                        confirm: "Löschen",
-                                        danger: true,
-                                        onConfirm: async () => {
-                                            const ok = await action.succeeds(() => call(routes.deleteTransaction, { params: { id: tx.id } }), { topics: ["accounts", "transactions", "categories"], ok: "Buchung gelöscht" });
-                                            if (ok) close();
-                                            return ok;
-                                        },
-                                    })
-                                }
-                            >
-                                <Ic icon={Trash2} size={16} />
-                                Löschen
-                            </button>
-                        )}
-                        <button className="btn" onClick={() => void markTxs([tx], !tx.unread)}>
-                            <Ic icon={tx.unread ? CheckCheck : CircleDot} size={16} />
-                            {tx.unread ? "Als gelesen markieren" : "Als neu markieren"}
-                        </button>
                         <button className="btn" onClick={() => copyText(`${dateText(tx.bookingDate)}; ${name}; ${purpose}; ${fmtSigned(tx.amount)}`)}>
                             <Ic icon={Copy} size={16} />
                             Kopieren
@@ -381,4 +404,11 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
             </RDialog.Portal>
         </RDialog.Root>
     );
+}
+
+/** What deleting a booking does, for the question before it. */
+function deleteText(tx: Transaction, amount: string): string {
+    if (tx.source === "manual") return `Die Buchung über ${amount} wird gelöscht.${tx.counterTransactionId ? " Die Verknüpfung zur Gegenbuchung wird gelöst." : ""} Das lässt sich nicht rückgängig machen.`;
+    const along = [tx.fundedById !== null && "Die von MBM ergänzte Buchung dazu wird mit gelöscht.", tx.counterTransactionId && "Die Gegenbuchung wird entfernt."].filter(Boolean).join(" ");
+    return `Der Umsatz über ${amount} verschwindet aus Liste und Auswertungen und kommt auch beim nächsten Abruf nicht wieder.${along ? ` ${along}` : ""} Unter dem Filter „Gelöschte“ kannst du ihn wiederherstellen.`;
 }

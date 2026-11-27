@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowDownUp, BarChart3, CalendarDays, ChartColumn, ChartLine, Check, CheckCheck, CircleDot, Folder, Landmark, Plus, RefreshCw, Search, Send, Tag, Wand2, X } from "lucide-react";
+import { ArrowDownUp, BarChart3, CalendarDays, ChartColumn, ChartLine, Check, CheckCheck, CircleDot, Folder, Landmark, Plus, RefreshCw, Search, Send, Tag, Trash2, Wand2, X } from "lucide-react";
 import { isActive, startSync, useConnections, useSyncRuns } from "../lib/bank";
 import { addDaysIso, dateBounds, groupCardNumber, groupIban, isOffline, isValidIsoDate, parseTxQuery, routes, todayIso, TxRange, type AccountScope, type Transaction, type TxDateBounds } from "@mbm/shared";
 import { transactionsRoute } from "../router";
@@ -40,6 +40,11 @@ const DIR_OPTIONS: { value: TxSearch["dir"]; label: string }[] = [
     { value: "all", label: "Eingänge und Ausgaben" },
     { value: "in", label: "Eingänge" },
     { value: "out", label: "Ausgaben" },
+];
+
+const DELETED_OPTIONS: { value: "live" | "deleted"; label: string }[] = [
+    { value: "live", label: "Ohne gelöschte" },
+    { value: "deleted", label: "Gelöschte" },
 ];
 
 /** Range of the list while neither the URL nor the kept filters of the account set one. */
@@ -164,6 +169,7 @@ function TransactionList() {
         q: validQ || undefined,
         category: search.cat,
         dir: search.dir,
+        ...(search.deleted ? { deleted: "true" as const } : {}),
         limit: 20000,
     });
     const items = useMemo(() => list.data?.items ?? [], [list.data]);
@@ -175,14 +181,14 @@ function TransactionList() {
 
     const catView = isCategoryView(search);
     const rangeSet = !dateInSearch && range !== DEFAULT_RANGE;
-    const filtersSet = (catView ? search.scope !== "all" : search.cat !== "all") || search.dir !== "all" || rangeSet;
+    const filtersSet = (catView ? search.scope !== "all" : search.cat !== "all") || search.dir !== "all" || rangeSet || !!search.deleted;
     // The search counts as soon as something is typed, also a period of own choice
     const searching = q.trim() !== "" || searchText.trim() !== "";
     const [customRange, setCustomRange] = useState(false);
     // Back to the view alone: the account (or category) stays, search and filters go
     const resetAll = () => {
         if (searching) replaceSearch("");
-        if (filtersSet) setFilters(catView ? { scope: undefined, dir: undefined, range: undefined } : { cat: undefined, dir: undefined, range: undefined });
+        if (filtersSet) setFilters(catView ? { scope: undefined, dir: undefined, range: undefined, deleted: undefined } : { cat: undefined, dir: undefined, range: undefined, deleted: undefined });
     };
     const pickRange = (v: TxRange | "custom") => {
         if (v === "custom") return setCustomRange(true);
@@ -195,6 +201,7 @@ function TransactionList() {
         searching && "Suche",
         catView ? search.scope !== "all" && "Konto" : search.cat !== "all" && "Kategorie",
         search.dir !== "all" && "Richtung",
+        search.deleted && "Gelöschte",
         !dateInSearch && listRange !== "all" && `Zeitraum „${RANGE_LABELS[range]}“`,
     ].filter((x): x is string => !!x);
     const order = useMemo(() => listOrder(items), [items]);
@@ -218,12 +225,12 @@ function TransactionList() {
     }
 
     useEffect(() => () => ui.clearPick(), []);
-    useEffect(() => ui.clearPick(), [search.scope, search.cat, validQ, search.dir, listRange]);
+    useEffect(() => ui.clearPick(), [search.scope, search.cat, validQ, search.dir, search.deleted, listRange]);
 
     // A new view or filter whose loaded list lacks the open booking ends its details. Within one
     // view they stay: a counter booking is not in the list, and a booking that just left it by a
     // new category still shows the offer of a rule.
-    const listView = JSON.stringify([search.scope, search.cat, validQ, search.dir, listRange]);
+    const listView = JSON.stringify([search.scope, search.cat, validQ, search.dir, search.deleted, listRange]);
     const checkedView = useRef(listView);
     useEffect(() => {
         if (!list.data || list.isPlaceholderData || checkedView.current === listView) return;
@@ -422,6 +429,16 @@ function TransactionList() {
                             onPick={pickRange}
                         />
                     </Removable>
+                    <Removable label="Filter „Gelöschte“" onClear={search.deleted ? () => setFilters({ deleted: undefined }) : undefined}>
+                        <Choice
+                            icon={Trash2}
+                            label="Gelöschte Umsätze"
+                            options={DELETED_OPTIONS}
+                            value={search.deleted ? "deleted" : "live"}
+                            set={!!search.deleted}
+                            onPick={(v) => setFilters({ deleted: v === "deleted" ? true : undefined })}
+                        />
+                    </Removable>
                 </div>
                 {customRange && (
                     <CustomRangeDialog
@@ -453,7 +470,7 @@ function TransactionList() {
                     <NoBankAccess offline />
                 ) : (
                     <Empty
-                        title={searchText ? `Keine Umsätze für „${searchText}“` : "Keine Umsätze mit diesen Filtern"}
+                        title={searchText ? `Keine Umsätze für „${searchText}“` : search.deleted ? "Keine gelöschten Umsätze" : "Keine Umsätze mit diesen Filtern"}
                         text={
                             (narrowedBy.length ? `Die Liste ist eingeschränkt durch: ${narrowedBy.join(", ")}. ` : "") +
                             "Probiere eine andere Schreibweise, einen längeren Zeitraum oder weniger Filter. Die Suchsyntax steht hinter dem Info-Symbol im Suchfeld."
@@ -745,8 +762,8 @@ function ContextHeader({
                 </div>
             </div>
             <div className="ctx-actions">
-                {offline && account && (
-                    <button className="btn btn-sm btn-primary" onClick={() => openBooking(account.id)}>
+                {account && (
+                    <button className={`btn btn-sm ${offline ? "btn-primary" : ""}`} onClick={() => openBooking(account.id)}>
                         <Ic icon={Plus} size={14} />
                         Buchung erfassen
                         <Kbd>B</Kbd>

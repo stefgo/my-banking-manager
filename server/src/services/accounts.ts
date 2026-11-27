@@ -171,10 +171,10 @@ export function requireOffline(db: Db, id: number): AccountRow {
 
 const ACCOUNT_SELECT = `
     SELECT a.*,
-        COALESCE(a.opening_balance, 0) + COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.account_id = a.id), 0) AS balance,
-        COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.account_id = a.id AND t.status = 'pending'), 0) AS pending_sum,
-        (SELECT count(*) FROM transactions t WHERE t.account_id = a.id AND t.status = 'pending') AS pending_count,
-        (SELECT count(*) FROM transactions t WHERE t.account_id = a.id) AS tx_count
+        COALESCE(a.opening_balance, 0) + COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.account_id = a.id AND t.deleted_at IS NULL), 0) AS balance,
+        COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.account_id = a.id AND t.status = 'pending' AND t.deleted_at IS NULL), 0) AS pending_sum,
+        (SELECT count(*) FROM transactions t WHERE t.account_id = a.id AND t.status = 'pending' AND t.deleted_at IS NULL) AS pending_count,
+        (SELECT count(*) FROM transactions t WHERE t.account_id = a.id AND t.deleted_at IS NULL) AS tx_count
     FROM accounts a`;
 
 const toAccount = (r: AccountRow & { balance: number; pending_sum: number; pending_count: number; tx_count: number }): Account => ({
@@ -264,17 +264,18 @@ export function accountsInScope(db: Db, scope: AccountScope): number[] {
 
 /** Balance of an account at the end of `date`. */
 export function balanceAt(db: Db, accountId: number, date: string): number {
-    const after = (db.prepare("SELECT COALESCE(SUM(amount), 0) AS s FROM transactions WHERE account_id = ? AND booking_date > ?").get(accountId, date) as { s: number }).s;
+    const after = (db.prepare("SELECT COALESCE(SUM(amount), 0) AS s FROM transactions WHERE account_id = ? AND booking_date > ? AND deleted_at IS NULL").get(accountId, date) as { s: number }).s;
     return getAccount(db, accountId).balance - after;
 }
 
 /**
  * Sets the opening balance so that the bookings lead to the booked balance the bank just sent.
- * That balance holds every booking but the bank's own pending ones.
+ * That balance holds every booking but the bank's own pending ones. Deleted bookings do not count,
+ * changed ones with the value that counts: what the user changed only moves the history before it.
  */
 export function alignBankBalance(db: Db, accountId: number, booked: number): void {
     const { s } = db
-        .prepare("SELECT COALESCE(SUM(amount), 0) AS s FROM transactions WHERE account_id = ? AND NOT (source = 'bank' AND status = 'pending')")
+        .prepare("SELECT COALESCE(SUM(amount), 0) AS s FROM transactions WHERE account_id = ? AND NOT (source = 'bank' AND status = 'pending') AND deleted_at IS NULL")
         .get(accountId) as { s: number };
     db.prepare("UPDATE accounts SET opening_balance = ? WHERE id = ?").run(booked - s, accountId);
 }

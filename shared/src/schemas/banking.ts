@@ -182,6 +182,11 @@ export const Transaction = z.object({
     edits: z
         .object({ counterparty: TxEdit.nullable(), remittance: TxEdit.nullable() })
         .describe("Values shown instead of the bank's. All other fields keep the bank's values"),
+    original: z
+        .object({ amount: Cents, bookingDate: IsoDate })
+        .nullable()
+        .describe("The bank's (or the file's) amount and booking date once the user changed one of them; amount and bookingDate hold the values that count. null: unchanged"),
+    deletedAt: Timestamp.nullable().describe("Deleted by the user: kept so that no fetch brings it back, left out of lists and figures; null for others"),
 });
 export type Transaction = z.infer<typeof Transaction>;
 
@@ -207,6 +212,7 @@ export const TransactionQuery = z.object({
     category: z.string().regex(/^(all|(none|\d+)(,(none|\d+)){0,99})$/).default("all").describe("all, or a comma-separated list of category ids and none"),
     dir: z.enum(["all", "in", "out"]).default("all"),
     pending: z.enum(["true", "false"]).transform((v) => v === "true").optional(),
+    deleted: z.enum(["true", "false"]).transform((v) => v === "true").optional().describe("true: only deleted bookings, which are left out otherwise"),
     limit: z.coerce.number().int().min(1).max(20000).default(5000),
 });
 export type TransactionQuery = z.input<typeof TransactionQuery>;
@@ -236,8 +242,9 @@ export const ManualTransactionRequest = z.object({
     remittance: ManualTransactionFields.remittance.default(""),
     status: ManualTransactionFields.status.default("booked"),
 });
-// Without defaults: a field left out of a change stays as it is
-export const UpdateManualTransactionRequest = z.object(ManualTransactionFields).partial();
+// Without defaults: a field left out of a change stays as it is. Of a booking from the bank, an
+// import or one MBM added, only amount and booking date can change.
+export const UpdateTransactionRequest = z.object(ManualTransactionFields).partial();
 
 export const AssignCategoryRequest = z.object({
     ids: z.array(Id).min(1).max(5000),

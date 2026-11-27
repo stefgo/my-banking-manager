@@ -113,8 +113,8 @@ export function ruleBookings(db: Db): (row: BookingRow) => RuleBooking {
     });
 }
 
-/** Bookings MBM added itself (where the money of a PayPal payment came from) are no matter for rules. */
-const allBookings = (db: Db): RunRow[] => db.prepare(`${RUN_SELECT} WHERE t.funding_of_id IS NULL ORDER BY t.booking_date DESC, t.id DESC`).all() as RunRow[];
+/** Bookings MBM added itself (where the money of a PayPal payment came from) and deleted ones are no matter for rules. */
+const allBookings = (db: Db): RunRow[] => db.prepare(`${RUN_SELECT} WHERE t.funding_of_id IS NULL AND t.deleted_at IS NULL ORDER BY t.booking_date DESC, t.id DESC`).all() as RunRow[];
 
 export function listRules(db: Db): Rule[] {
     const rules = loadRules(db);
@@ -437,7 +437,7 @@ export function evaluateNew(db: Db, ids: readonly number[]): Map<number, StoredR
     const rules = activeRules(db);
     if (!rules.length) return out;
     const book = ruleBookings(db);
-    const stmt = db.prepare(`${RUN_SELECT} WHERE t.id = ?`);
+    const stmt = db.prepare(`${RUN_SELECT} WHERE t.id = ? AND t.deleted_at IS NULL`);
     for (const id of ids) {
         const row = stmt.get(id) as RunRow | undefined;
         if (!row) continue;

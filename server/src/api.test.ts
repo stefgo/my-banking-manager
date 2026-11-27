@@ -364,14 +364,25 @@ describe("offline accounts", () => {
         expect((await api("POST", `/api/transactions/${(await book(null)).id}/counter`, { accountId: box.id, categoryId: 99999 })).status).toBe(400);
     });
 
-    it("only changes bookings entered by hand", async () => {
+    it("changes only amount and date of an imported booking and keeps it when deleted", async () => {
         const { api } = await setUpSignedIn(t);
         const cash = (await api<Account>("POST", "/api/accounts", { name: "Bargeld" })).body;
         const csv = "Datum;Betrag;Name\n01.02.2026;-5,00;Kiosk\n";
         await api("POST", `/api/accounts/${cash.id}/import`, { fileName: "a.csv", content: csv });
         const imported = (await api<TransactionList>("GET", "/api/transactions?range=all")).body.items[0]!;
-        expect((await api("PATCH", `/api/transactions/${imported.id}`, { amount: -600 })).status).toBe(409);
-        expect((await api("DELETE", `/api/transactions/${imported.id}`)).status).toBe(409);
+        expect((await api("PATCH", `/api/transactions/${imported.id}`, { remittance: "Zeitung" })).status).toBe(400);
+        const changed = await api<Transaction>("PATCH", `/api/transactions/${imported.id}`, { amount: -600 });
+        expect(changed.body).toMatchObject({ amount: -600, bookingDate: "2026-02-01", original: { amount: -500, bookingDate: "2026-02-01" } });
+        // Back to the file's values: unchanged again
+        expect((await api<Transaction>("PATCH", `/api/transactions/${imported.id}`, { amount: -500 })).body.original).toBeNull();
+        expect((await api("DELETE", `/api/transactions/${imported.id}`)).status).toBe(200);
+        expect((await api<TransactionList>("GET", "/api/transactions?range=all")).body.items).toEqual([]);
+        // The same file again brings nothing: the deleted booking still stands for its row
+        const again = await api<{ imported: number; skipped: number }>("POST", `/api/accounts/${cash.id}/import`, { fileName: "a.csv", content: csv });
+        expect(again.body).toMatchObject({ imported: 0, skipped: 1 });
+        const deleted = (await api<TransactionList>("GET", "/api/transactions?range=all&deleted=true")).body.items;
+        expect(deleted.map((x) => x.id)).toEqual([imported.id]);
+        expect((await api<Transaction>("POST", `/api/transactions/${imported.id}/restore`)).body.deletedAt).toBeNull();
     });
 });
 

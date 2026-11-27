@@ -28,11 +28,11 @@ const toCategory = (r: CategoryRow): Category => ({
     info: readInfo(r),
 });
 
-const SELECT = `SELECT c.*, (SELECT count(*) FROM transaction_categories tc WHERE tc.category_id = c.id) AS count FROM categories c`;
+const SELECT = `SELECT c.*, (SELECT count(*) FROM transaction_categories tc JOIN transactions t ON t.id = tc.transaction_id WHERE tc.category_id = c.id AND t.deleted_at IS NULL) AS count FROM categories c`;
 
 export function listCategories(db: Db): CategoryList {
     const items = (db.prepare(`${SELECT} ORDER BY c.position, c.id`).all() as CategoryRow[]).map(toCategory);
-    const uncategorized = (db.prepare("SELECT count(*) AS n FROM transactions t WHERE NOT EXISTS (SELECT 1 FROM transaction_categories c WHERE c.transaction_id = t.id)").get() as { n: number }).n;
+    const uncategorized = (db.prepare("SELECT count(*) AS n FROM transactions t WHERE t.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM transaction_categories c WHERE c.transaction_id = t.id)").get() as { n: number }).n;
     return { items, uncategorized, none: getSlot(db) };
 }
 
