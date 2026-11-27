@@ -5,6 +5,11 @@ Gruppe, im **Kategorienbaum** eine Kategorie. Der Kopf zeigt dann Kontostand, IB
 Aktionen dazu: Abrufen, Überweisen, Verlauf und Infos. Passt die IBAN oder Kontonummer nicht mehr in
 eine Zeile, entfällt das Symbol, und Kontodaten und Kontostand stehen untereinander.
 
+Scrollst du die Liste nach unten, bleibt vom Kopf oben eine schmale Leiste mit Symbol, Name und
+Kontostand (bei einer Kategorie die Summe). Fährst du mit der Maus darüber, gleitet der ganze Kopf
+mit seinen Aktionen herein. Verlässt du ihn, gleitet er wieder hinaus. Am Handy tippst du die Leiste
+an, und Scrollen blendet den Kopf wieder aus.
+
 ![Die Umsätze des Girokontos, nach Tagen mit Tagessumme und Saldo](../assets/screenshots/umsaetze-dark.png)
 
 *Die Umsätze eines Kontos. Vorgemerkte stehen oben, darunter die gebuchten nach Tagen mit Tagessumme und Saldo.*

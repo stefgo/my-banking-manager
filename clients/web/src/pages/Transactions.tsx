@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowDownUp, BarChart3, CalendarDays, ChartColumn, ChartLine, ChartNoAxesCombined, Check, CheckCheck, CircleDot, Folder, Landmark, Plus, RefreshCw, Search, Send, Tag, Trash2, Wand2, X } from "lucide-react";
+import { ArrowDownUp, BarChart3, CalendarDays, ChartColumn, ChartLine, ChartNoAxesCombined, Check, CheckCheck, ChevronDown, CircleDot, Folder, Landmark, Plus, RefreshCw, Search, Send, Tag, Trash2, Wand2, X } from "lucide-react";
 import { isActive, startSync, useConnections, useSyncRuns } from "../lib/bank";
 import { addDaysIso, dateBounds, groupCardNumber, groupIban, isOffline, isValidIsoDate, parseTxQuery, routes, todayIso, TxRange, type AccountScope, type Transaction, type TxDateBounds } from "@mbm/shared";
 import { transactionsRoute } from "../router";
@@ -24,6 +24,7 @@ import { CHART_STYLE_IDS, CHART_STYLES, SERIES_GROUP_IDS, SERIES_GROUPS, type Ch
 import { InfoPanel, InfoToggle } from "../components/InfoPanel";
 import { QueryHelp } from "../components/QueryHelp";
 import { SuggestList } from "../components/SuggestList";
+import { usePeekHead } from "../lib/usePeekHead";
 import { useStackedHead } from "../lib/useStackedHead";
 import { useStickyBar } from "../lib/useStickyBar";
 import { useSuggest } from "../lib/useSuggest";
@@ -615,6 +616,7 @@ function ContextHeader({
     const startTransfer = useStartTransfer();
     const unreadOf = useUnreadByAccount();
     const stackedHead = useStackedHead();
+    const peekHead = usePeekHead();
 
     // The view of one category; the filter of several always shows the account view
     if (isCategoryView(search)) {
@@ -627,7 +629,14 @@ function ContextHeader({
         const color = c ? categoryColor(index, c.id) : "neutral";
         const kindName = top ? "Kategorie" : `Unterkategorie von ${categoryPath(index, c!.parentId)}`;
         return (
-            <section className="hero ctx">
+            <section className="hero ctx peek" ref={peekHead}>
+                <HeadPeek
+                    icon={c ? <Sym name={c.icon} size={13} /> : "?"}
+                    color={c ? color : undefined}
+                    name={none ? "Ohne Kategorie" : (c?.name ?? "")}
+                >
+                    <Amt cents={total} signed />
+                </HeadPeek>
                 <div className="ctx-top">
                     {c ? (
                         <StylePicker
@@ -693,7 +702,10 @@ function ContextHeader({
     const syncing = (syncRuns ?? []).some((r) => isActive(r) && r.accountIds.some((id) => bankIds.includes(id)));
 
     return (
-        <section className="hero ctx">
+        <section className="hero ctx peek" ref={peekHead}>
+            <HeadPeek icon={node ? <Sym name={node.icon} size={13} /> : <Ic icon={Folder} size={13} />} color={node?.color} name={scopeName(scope, groups, accounts)}>
+                <Amt cents={sumBalance(ids)} />
+            </HeadPeek>
             <div className="ctx-top" ref={stackedHead}>
                 {node ? (
                     <StylePicker
@@ -822,6 +834,24 @@ function ContextHeader({
     );
 }
 
+/**
+ * The slim bar the head leaves at the top once it has scrolled away (usePeekHead): small symbol,
+ * name and figure. Hovering or tapping it brings the whole head in.
+ */
+function HeadPeek({ icon, color, name, children }: { icon: React.ReactNode; color?: string; name: string; children: React.ReactNode }) {
+    return (
+        <button type="button" className="ctx-peek" title="Kopf einblenden">
+            <span className="ctx-peek-bar">
+                <span className={color ? `ctx-peek-ic tone k-${color}` : "ctx-peek-ic"} aria-hidden="true">
+                    {icon}
+                </span>
+                <span className="ctx-peek-name">{name}</span>
+                <span className="ctx-peek-fig">{children}</span>
+                <Ic icon={ChevronDown} size={14} />
+            </span>
+        </button>
+    );
+}
 
 /** Symbol of each way to draw the chart in the switch above it. */
 const STYLE_ICON: Record<ChartStyle, typeof ChartLine> = { bar: ChartColumn, line: ChartLine, flow: ChartNoAxesCombined };

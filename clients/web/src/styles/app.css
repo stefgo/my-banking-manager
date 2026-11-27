@@ -94,8 +94,8 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body { height: 100%; }
-/* Scrolling to an element leaves it clear of the sticky top bar and the bar of the transaction list */
-html { scroll-padding-top: calc(var(--stick-top) + var(--sticky-bar, 0px)); }
+/* Scrolling to an element leaves it clear of the sticky top bar, the slim bar of the head and the bar of the transaction list */
+html { scroll-padding-top: calc(var(--stick-top) + var(--ctx-peek, 0px) + var(--sticky-bar, 0px)); }
 body {
     -webkit-tap-highlight-color: transparent;
     background: radial-gradient(1100px 520px at 72% -180px, var(--bg-glow), transparent 70%) no-repeat, var(--bg);
@@ -416,7 +416,7 @@ button.av:hover { box-shadow: inset 0 0 0 1px var(--c); }
 
 /* ---------- Transactions ---------- */
 .txlist { display: grid; grid-template-columns: minmax(0, 1fr); }
-.day { position: sticky; top: calc(var(--stick-top) + var(--sticky-bar, 0px)); z-index: 1; display: flex; justify-content: space-between; gap: 12px; padding: 14px 12px 6px; font-size: 12px; font-weight: 500; color: var(--muted); background: var(--surface); }
+.day { position: sticky; top: calc(var(--stick-top) + var(--ctx-peek, 0px) + var(--sticky-bar, 0px)); z-index: 1; display: flex; justify-content: space-between; gap: 12px; padding: 14px 12px 6px; font-size: 12px; font-weight: 500; color: var(--muted); background: var(--surface); }
 .day:first-child { padding-top: 4px; }
 .day .amt { color: var(--faint); }
 .day > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -445,7 +445,7 @@ button.av:hover { box-shadow: inset 0 0 0 1px var(--c); }
 /* Search and filters stay at the top while the list scrolls; the padding covers what passes below */
 .toolbar {
     display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px;
-    position: sticky; top: var(--stick-top); z-index: 3;
+    position: sticky; top: calc(var(--stick-top) + var(--ctx-peek, 0px)); z-index: 3;
     padding-block: 10px; margin-block: -10px; background: var(--bg);
 }
 .search {
@@ -752,6 +752,52 @@ a.mini { text-decoration: none; }
 .ctx-top[data-stacked] { position: relative; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .ctx-top[data-stacked] > .ctx-ic { position: absolute; top: 0; left: 0; visibility: hidden; }
 .ctx-top[data-stacked] .ctx-fig { grid-column: auto; text-align: left; }
+
+/* Head of the transaction list (usePeekHead): it sticks so far up that only its last
+   --ctx-peek pixels stay, covered by a slim bar. Hovering, focus, an open menu or a tap slide it
+   down from the top edge as a sheet (transform, so it stays smooth); the bar crosses over. The delays keep a
+   pass on the way to the search from opening it and a slip from closing it. */
+.ctx.peek {
+    --peek-open: translateY(calc(var(--ctx-h, 0px) - var(--ctx-peek, 0px)));
+    position: sticky; z-index: 4;
+    top: calc(var(--stick-top) + var(--ctx-peek, 0px) - var(--ctx-h, 0px));
+}
+.ctx-peek {
+    position: absolute; inset: auto -1px -1px; z-index: 1; height: calc(var(--ctx-peek, 0px) + 1px);
+    display: flex; align-items: flex-end; padding: 0; border: 0; background: var(--bg); color: inherit; text-align: left;
+    visibility: hidden; opacity: 0; cursor: default;
+}
+.ctx-peek-bar {
+    flex: 1; min-width: 0; height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 10px 0 14px;
+    border: 1px solid var(--line-soft); border-radius: 10px; background: var(--surface); font-size: 13px; color: var(--muted);
+    transition: border-color 0.15s, color 0.15s;
+}
+.ctx-peek:hover .ctx-peek-bar, .ctx-peek:focus-visible .ctx-peek-bar { color: var(--fg); border-color: var(--line); }
+.ctx-peek:focus-visible { outline: none; }
+.ctx-peek-ic { width: 20px; height: 20px; flex: none; display: grid; place-items: center; border-radius: 6px; font-size: 12px; color: var(--iris); background: var(--iris-soft); }
+.ctx-peek-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--fg); }
+.ctx-peek-fig { white-space: nowrap; font-weight: 500; color: var(--fg); }
+/* Closed: slides back up, the bar comes back as it arrives */
+.ctx.peek[data-stuck] {
+    border-top-left-radius: 0; border-top-right-radius: 0; border-top-color: transparent;
+    transition: transform 0.22s cubic-bezier(.4,0,.2,1) 0.2s, box-shadow 0.22s ease 0.2s;
+}
+.ctx.peek[data-stuck] > .ctx-peek { visibility: visible; opacity: 1; transition: opacity 0.18s ease 0.3s; }
+/* Open: slides down and eases out */
+.ctx.peek[data-stuck]:is([data-open], :has(:focus-visible), :has([aria-expanded="true"])) {
+    transform: var(--peek-open); box-shadow: var(--shadow);
+    transition: transform 0.34s cubic-bezier(.2,.8,.2,1) 0.12s, box-shadow 0.34s ease 0.12s;
+}
+.ctx.peek[data-stuck]:is([data-open], :has(:focus-visible), :has([aria-expanded="true"])) > .ctx-peek {
+    opacity: 0; pointer-events: none; transition: opacity 0.14s ease 0.12s;
+}
+@media (hover: hover) {
+    .ctx.peek[data-stuck]:hover {
+        transform: var(--peek-open); box-shadow: var(--shadow);
+        transition: transform 0.34s cubic-bezier(.2,.8,.2,1) 0.12s, box-shadow 0.34s ease 0.12s;
+    }
+    .ctx.peek[data-stuck]:hover > .ctx-peek { opacity: 0; pointer-events: none; transition: opacity 0.14s ease 0.12s; }
+}
 
 /* Own information of accounts, groups and categories: panel in the header, edit dialog */
 .info-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--iris); flex: none; }

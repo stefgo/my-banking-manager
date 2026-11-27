@@ -53,6 +53,9 @@ Nothing inside an HTML comment is published.
   Darstellung. Sie zeigt je Tag, Monat, Quartal oder Jahr die Summe der Eingänge als grünen und die
   der Ausgaben als roten Balken, dazu den Saldo des Zeitraums als Linie. Umbuchungen zählen wie bei
   der Karte „Eingänge und Ausgaben“ der Übersicht nicht mit.
+- **Kopf der Umsatzliste beim Scrollen:** Scrollt der Kopf aus dem Bild, bleibt oben eine schmale
+  Leiste mit Symbol, Name und Kontostand bzw. Summe. Fährst du mit der Maus darüber, gleitet der
+  ganze Kopf mit Abrufen, Überweisen, Verlauf und Menü herein. Am Handy tippst du die Leiste an.
 - **Hinweis auf eine neue Oberfläche:** Nach einem Update merkt ein offenes Browserfenster, dass der
   Server eine neue Version der Oberfläche ausliefert, und bietet **Neu laden** an. Vor der Anmeldung
   lädt es von selbst neu.
