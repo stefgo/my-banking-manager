@@ -72,6 +72,8 @@ Nothing inside an HTML comment is published.
   seine Kontoart. Eine Kreditkarte zeigt also weiter ihre Kartennummer statt nur „Offline-Konto“.
 - **Rahmen des Felds „Wenn“:** Beim Bearbeiten einer Regel zeigte das Feld „Wenn“ beim Tippen
   einen zweiten Rahmen innerhalb des eigenen. Jetzt hat es wie die Suche nur einen.
+- **Kein Rahmen um den Verlauf:** Ein Klick auf einen Balken im Verlauf rahmte das ganze Diagramm
+  blau ein. Jetzt bleibt es ohne Rahmen.
 
 ### Upgrade
 
