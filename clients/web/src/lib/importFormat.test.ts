@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BUILTIN_IMPORT_FORMATS, type ImportFormatDefinition, type ImportPreview } from "@mbm/shared";
-import { categoryChange, copyName, emptyFormat, fieldsSummary, fileSummary, formatColumns, formatProblem, matchesFilter, matchesSearch, newStep, NO_CHOICE, partName, pruneRefs, replaceStep, reviewCounts, reviewOutcome, rowCheck, rowSelectable, setRowPart, shownSelection, sourceKey, sourceOptions, stepsSummary, toggleRow, toggleShown } from "./importFormat";
+import { categoryChange, copyName, emptyFormat, fieldsSummary, fileSummary, formatColumns, formatProblem, matchesFilter, matchesSearch, newStep, parseReviewSearch, NO_CHOICE, partName, pruneRefs, replaceStep, reviewCounts, reviewOutcome, rowCheck, rowSelectable, setRowPart, shownSelection, sourceKey, sourceOptions, stepsSummary, toggleRow, toggleShown } from "./importFormat";
 
 type Row = ImportPreview["rows"][number];
 
@@ -123,13 +123,35 @@ describe("filter of the review", () => {
 describe("search in the review", () => {
     const r = row({ name: "Bäckerei Müller", purpose: "Brötchen", iban: "DE02120300000000202051", reference: "REF-77" });
 
+    const finds = (row: Row, text: string) => matchesSearch(row, parseReviewSearch(text, "2026-11-27"));
+
     it("finds name, purpose, IBAN and reference without case and accents", () => {
-        for (const text of ["backerei", "MULLER", "brotchen", "de0212", "ref-77", "  "]) expect(matchesSearch(r, text)).toBe(true);
-        expect(matchesSearch(r, "Metzgerei")).toBe(false);
+        for (const text of ["backerei", "MULLER", "brotchen", "de0212", "ref-77", "  "]) expect(finds(r, text)).toBe(true);
+        expect(finds(r, "Metzgerei")).toBe(false);
     });
 
     it("finds an IBAN typed with spaces", () => {
-        expect(matchesSearch(r, "DE02 1203 0000")).toBe(true);
+        expect(finds(r, "DE02 1203 0000")).toBe(true);
+    });
+
+    it("compares the booking date with > >= < <= = and :", () => {
+        // r is booked on 2026-11-01
+        for (const text of ["datum>31.10.2026", "datum>=1.11.2026", "datum<2.11.2026", "datum<=1.11.2026", "datum=1.11.2026", "datum:11.2026", "datum:>=2026-11", "date<2027", "Datum>= 1.11.2026"]) expect(finds(r, text)).toBe(true);
+        for (const text of ["datum>1.11.2026", "datum>=2.11.2026", "datum<1.11.2026", "datum<=31.10.2026", "datum=2.11.2026", "datum:10.2026", "datum>=2026-12"]) expect(finds(r, text)).toBe(false);
+    });
+
+    it("reads relative dates and combines dates with text", () => {
+        expect(finds(r, "datum:vormonat")).toBe(false);
+        expect(finds(r, "datum:monat backerei")).toBe(true);
+        expect(finds(r, "datum>=1.11.2026 datum<=30.11.2026 brotchen")).toBe(true);
+        expect(finds(r, "datum>=1.11.2026 metzgerei")).toBe(false);
+        expect(finds(row({ date: null }), "datum>2000")).toBe(false);
+    });
+
+    it("names a date it cannot read and searches without it", () => {
+        expect(parseReviewSearch("datum>=32.1.2026 markt")).toMatchObject({ text: "markt", dates: [], error: expect.stringContaining("„32.1.2026“ ist kein gültiges Datum") });
+        expect(parseReviewSearch("datum>=").error).toBe("Nach „datum>=“ fehlt ein Datum");
+        expect(parseReviewSearch("aktualisierungsdatum").dates).toEqual([]);
     });
 });
 
