@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, Check, Search, X } from "lucide-react";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import type { ImportFillField, ImportPreview } from "@mbm/shared";
 import { dateText, fmtSigned, plural } from "../../lib/format";
-import { categoryChange, matchesFilter, matchesSearch, reviewCounts, reviewOutcome, rowCheck, rowDiffers, rowFills, rowFillsCategory, rowFillsFields, setRowPart, shownSelection, toggleRow, toggleShown, type CategoryChange, type ReviewChoice, type ReviewFilter, type RowPart } from "../../lib/importFormat";
+import { categoryChange, matchesFilter, matchesSearch, parseReviewSearch, reviewCounts, reviewOutcome, rowCheck, rowDiffers, rowFills, rowFillsCategory, rowFillsFields, setRowPart, shownSelection, toggleRow, toggleShown, type CategoryChange, type ReviewChoice, type ReviewFilter, type RowPart } from "../../lib/importFormat";
 import { categoryPath, type CategoryIndex } from "../../lib/tree";
 import { Button, Hint } from "../common";
 import { Ic } from "../icons";
@@ -227,7 +227,8 @@ export function ImportReview({
     const [filter, setFilter] = useState<ReviewFilter>(() => (!counts.changes && counts.differs ? "differs" : "changes"));
     const [search, setSearch] = useState("");
     const needle = useDeferredValue(search);
-    const shown = useMemo(() => rows.filter((r) => matchesFilter(r, filter) && matchesSearch(r, needle)), [rows, filter, needle]);
+    const query = useMemo(() => parseReviewSearch(needle), [needle]);
+    const shown = useMemo(() => rows.filter((r) => matchesFilter(r, filter) && matchesSearch(r, query)), [rows, filter, query]);
     const outcome = useMemo(() => reviewOutcome(rows, choice), [rows, choice]);
     const selection = useMemo(() => shownSelection(shown, filter, choice), [shown, filter, choice]);
     const { missing, create, changes, blocked, affected } = outcome;
@@ -254,8 +255,10 @@ export function ImportReview({
                     <Ic icon={Search} />
                     <input
                         type="search"
-                        placeholder="Gegenseite, Verwendungszweck, IBAN oder Referenz"
+                        placeholder="Gegenseite, Verwendungszweck, IBAN, Referenz oder datum>=1.3.2026"
                         aria-label="Zeilen durchsuchen"
+                        aria-invalid={!!query.error}
+                        aria-describedby={query.error ? "rv-q-error" : undefined}
                         autoComplete="off"
                         spellCheck={false}
                         value={search}
@@ -270,6 +273,11 @@ export function ImportReview({
                         </button>
                     )}
                 </label>
+                {query.error && (
+                    <p id="rv-q-error" className="hint bad" role="status">
+                        {query.error} – diese Angabe bleibt bei der Suche außen vor.
+                    </p>
+                )}
                 <div className="seg rv-filter" role="group" aria-label="Zeilen filtern">
                     {FILTERS.map((f) => (
                         <button key={f.filter} type="button" className={f.tone} aria-pressed={filter === f.filter} disabled={!counts[f.filter] && f.filter !== "changes" && f.filter !== "all"} onClick={() => setFilter(f.filter)}>

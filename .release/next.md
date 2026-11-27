@@ -34,6 +34,9 @@ Nothing inside an HTML comment is published.
   30 Tage später zählt nicht und trägt die Abbuchung. Auszahlungen aufs Bankkonto und Erstattungen zu
   abgelehnten Zahlungen zählen ebenfalls nicht als Einnahme oder Ausgabe. Sie alle bekommen die
   Vorbelegung für Gegenbuchungen (anfangs „Umbuchung“).
+- **Import: nach Datum suchen:** Im Schritt „Prüfen“ findet die Suche Zeilen auch nach dem
+  Buchungsdatum, mit derselben Schreibweise wie die Umsatzliste: `datum>=1.3.2026`,
+  `datum<1.4.2026`, `datum:3.2026` oder `datum:vormonat`, auch zusammen mit Suchtext.
 - **Hinweis auf eine neue Oberfläche:** Nach einem Update merkt ein offenes Browserfenster, dass der
   Server eine neue Version der Oberfläche ausliefert, und bietet **Neu laden** an. Vor der Anmeldung
   lädt es von selbst neu.

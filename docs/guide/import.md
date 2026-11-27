@@ -19,8 +19,10 @@ seinem Menü. Der Import läuft dann auf einer eigenen Seite in vier Schritten:
    schon gewählt.
 4. **Prüfen:** Die Filterleiste zeigt, wie viele Zeilen *neu*, zu *ergänzen*, *abweichend*, schon
    *vorhanden* oder *unlesbar* sind. Die Suche findet Gegenseite, Verwendungszweck, IBAN und
-   Referenz, ein Klick auf eine Zeile zeigt ihre Details. Anfangs siehst du nur die Zeilen, die etwas
-   ändern oder unlesbar sind.
+   Referenz. Nach dem Buchungsdatum suchst du wie in der Umsatzliste mit `datum` und `>`, `>=`, `<`,
+   `<=`, `=` oder `:`, etwa `datum>=1.3.2026 datum<1.4.2026`, `datum:3.2026` oder `datum:vormonat`.
+   Ein Klick auf eine Zeile zeigt ihre Details. Anfangs siehst du nur die Zeilen, die etwas ändern
+   oder unlesbar sind.
 
 Mit den Kästchen wählst du, was du übernimmst. Anfangs sind alle neuen Umsätze und Ergänzungen
 gewählt. Eine [abweichende Kategorie](#abweichende-kategorien) ist nicht gewählt und bleibt, bis du

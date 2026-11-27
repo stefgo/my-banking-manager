@@ -1,5 +1,5 @@
 import { useDeferredValue, useMemo } from "react";
-import { foldText, FORMAT_FIELDS, ImportFormatDefinition, formatIssues, missingColumns, readTable, REST_PART, type CsvTable, type FormatField, type FormatStep, type FormatValueRef, type ImportPreview } from "@mbm/shared";
+import { foldText, FORMAT_FIELDS, ImportFormatDefinition, formatIssues, missingColumns, parseDateSpec, readTable, REST_PART, todayIso, type CsvTable, type FormatField, type FormatStep, type FormatValueRef, type ImportPreview } from "@mbm/shared";
 import { decodeCsv } from "./decode";
 import { plural } from "./format";
 
@@ -199,8 +199,55 @@ export function reviewCounts(rows: ReviewRow[]): Record<ReviewFilter, number> {
 }
 
 /** Finds text in the counterparty, purpose, IBAN or a reference; an IBAN also when typed with spaces. */
-export function matchesSearch(r: ReviewRow, text: string): boolean {
-    const needle = foldText(text).trim();
+type DateCmp = ">" | ">=" | "<" | "<=" | "=" | ":";
+
+/** The search of the review: text plus date conditions as the transaction list reads them. */
+export interface ReviewSearch {
+    /** Folded text the row must contain; "" for none. */
+    text: string;
+    /** Days the booking date must lie in, all of them. */
+    dates: { op: DateCmp; from: string; to: string }[];
+    /** Why a date condition cannot be read; "" if all can. */
+    error: string;
+}
+
+// datum>=1.3.2026, date:vormonat, datum< -30t: a field name at the start of a word, a comparison and the date
+const DATE_TERM = /(^|\s)(?:datum|date)(:(?:>=|<=|>|<|=)?|>=|<=|>|<|=)\s*([^\s]*)/gi;
+
+/** Reads the search of the review: date conditions (datum>=1.3.2026, datum:2026-11, datum<-30t) and text. */
+export function parseReviewSearch(input: string, today = todayIso()): ReviewSearch {
+    const dates: ReviewSearch["dates"] = [];
+    let error = "";
+    const rest = input.replace(DATE_TERM, (_all, lead: string, sign: string, value: string) => {
+        const op = (sign.length > 1 && sign.startsWith(":") ? sign.slice(1) : sign) as DateCmp;
+        const spec = value ? parseDateSpec(value, today) : null;
+        if (spec) dates.push({ op, from: spec.from, to: spec.to });
+        else error ||= value ? `„${value}“ ist kein gültiges Datum (z. B. 1.3.2026, 3.2026, 2026, -30t oder vormonat)` : `Nach „datum${sign}“ fehlt ein Datum`;
+        return lead;
+    });
+    return { text: foldText(rest).trim(), dates, error };
+}
+
+function matchesDate(day: string, { op, from, to }: ReviewSearch["dates"][number]): boolean {
+    switch (op) {
+        case ">":
+            return day > to;
+        case ">=":
+            return day >= from;
+        case "<":
+            return day < from;
+        case "<=":
+            return day <= to;
+        default:
+            return day >= from && day <= to;
+    }
+}
+
+export function matchesSearch(r: ReviewRow, search: ReviewSearch): boolean {
+    // A row without a readable date never meets a date condition
+    const day = r.date;
+    if (search.dates.length && !(day && search.dates.every((d) => matchesDate(day, d)))) return false;
+    const needle = search.text;
     if (!needle) return true;
     if ([r.name, r.purpose, r.iban ?? "", r.reference, r.customerReference, r.bankReference].some((v) => foldText(v).includes(needle))) return true;
     return !!r.iban && foldText(r.iban).replace(/ /g, "").includes(needle.replace(/ /g, ""));
