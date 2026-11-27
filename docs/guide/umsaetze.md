@@ -49,8 +49,9 @@ Regeln finden den Umsatz unter beiden Namen.
 Haben [Regeln](kategorien-regeln.md#regeln) oder du Gegenseite oder Zweck angepasst, zeigen Liste und
 Details das Ergebnis. **Originaldaten** klappt die Werte der Bank auf. Dort zeigt „Verwenden“ für
 dieses Feld wieder das Original und merkt sich das, „Wieder automatisch“ nimmt diese Entscheidung
-zurück. „Anzeige ändern“ setzt einen eigenen Text. Überweisungen nutzen immer Name, IBAN und Zweck der
-Bank. Die Suche findet angepasste und originale Werte.
+zurück. Einen eigenen Text setzt du mit [Bearbeiten](#buchungen-erfassen-ändern-und-löschen).
+Überweisungen nutzen immer Name, IBAN und Zweck der Bank. Die Suche findet angepasste und originale
+Werte.
 
 Ein Umsatz **ohne IBAN** ist normal und zählt wie jeder andere. Das betrifft etwa Entgelte, Zinsen,
 Bargeld und manche Kartenzahlungen. Nennt die Bank stattdessen eine Kontonummer oder BLZ, stehen sie
@@ -67,7 +68,7 @@ Forderung ist damit meist nicht erledigt: Zieht der Gläubiger erneut ein, zähl
 
 ![Die Details eines Umsatzes neben der Liste](../assets/screenshots/umsatz-details-dark.png)
 
-*Die Details: Kategorie ändern, Datum und Betrag ändern, löschen, als neu markieren, kopieren oder eine Gegenbuchung in einem Offline-Konto anlegen.*
+*Die Details: Kategorie ändern, bearbeiten, löschen, als neu markieren, kopieren oder eine Gegenbuchung in einem Offline-Konto anlegen.*
 
 **Mehrere Umsätze** wählst du mit ++x++, ++cmd++-Klick oder ++shift++-Klick aus. Dann weist ++c++
 ihnen eine Kategorie zu. Mit ++j++ und ++k++ gehst du durch die Liste, ++enter++ öffnet einen
@@ -82,13 +83,20 @@ Buchung (gleicher Tag, gleicher Betrag, gleiche Gegenseite), übernimmt sie dein
 behält dann ihre Kategorie und kommt nicht doppelt. Eine vorgemerkte Buchung der Bank steht bis
 dahin daneben.
 
-**Datum und Betrag ändern** geht bei jedem gebuchten Umsatz, auch bei einem von der Bank, aus einem
-Import oder einem, den MBM für PayPal ergänzt hat. Alles andere bleibt, wie die Bank es geliefert
-hat; für Gegenseite und Zweck gibt es „Anzeige ändern“. Ein geänderter Umsatz trägt in der Liste
-„geändert“, die Details zeigen den ursprünglichen Wert („Laut Bank“). **Ursprüngliche Werte** im
-Dialog nimmt die Änderung zurück. Vorgemerkte Umsätze änderst du erst, wenn sie gebucht sind. Den
-Umsatz erkennt MBM beim nächsten Abruf und beim Import trotzdem, denn es vergleicht mit den Werten
-der Bank.
+**Bearbeiten** in den Details öffnet bei jedem Umsatz denselben Dialog. Eine Buchung, die du selbst
+erfasst hast, änderst du darin ganz. Bei einem Umsatz von der Bank, aus einem Import oder einem, den
+MBM für PayPal ergänzt hat, änderst du Betrag, Datum, Gegenseite und Verwendungszweck:
+
+- **Betrag und Datum** zählen dann statt der Werte der Bank. Ein geänderter Umsatz trägt in der
+  Liste „geändert“, die Details zeigen den ursprünglichen Wert („Laut Bank“). **Ursprüngliche
+  Werte** im Dialog nimmt die Änderung zurück. Bei vorgemerkten Umsätzen geht das erst, wenn sie
+  gebucht sind. Den Umsatz erkennt MBM beim nächsten Abruf und beim Import trotzdem, denn es
+  vergleicht mit den Werten der Bank.
+- **Gegenseite und Verwendungszweck** zeigt MBM statt der Texte der Bank, auch statt der Texte
+  einer Regel. Leerst du ein Feld, zeigt es wieder den Text der Bank. Unter **Originaldaten** bleibt
+  stehen, was die Bank geliefert hat.
+
+Alles andere bleibt, wie die Bank es geliefert hat.
 
 **Löschen** geht bei jedem Umsatz. Eine Buchung, die du selbst erfasst hast, ist danach weg. Alle
 anderen blendet MBM nur aus: Sie verschwinden aus Liste und Auswertungen, kommen aber auch beim

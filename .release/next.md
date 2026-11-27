@@ -35,9 +35,11 @@ Nothing inside an HTML comment is published.
   abgelehnten Zahlungen zählen ebenfalls nicht als Einnahme oder Ausgabe. Sie alle bekommen die
   Vorbelegung für Gegenbuchungen (anfangs „Umbuchung“).
 - **Buchungen erfassen, ändern und löschen bei jedem Konto:** „Buchung erfassen“ gibt es jetzt
-  auch bei Bankkonten. Bei jedem gebuchten Umsatz, auch von der Bank, aus einem Import oder von MBM
-  für PayPal ergänzt, änderst du **Datum und Betrag**; die Details zeigen den ursprünglichen Wert,
-  und „Ursprüngliche Werte“ nimmt die Änderung zurück. **Löschen** geht bei jedem Umsatz: Umsätze
+  auch bei Bankkonten. **Bearbeiten** in den Details öffnet bei jedem Umsatz einen Dialog für
+  Betrag, Datum, Gegenseite und Verwendungszweck; er ersetzt „Anzeige ändern“. Bei Umsätzen von
+  der Bank, aus einem Import oder von MBM für PayPal ergänzt zählen geänderte Werte statt der
+  ursprünglichen, die Details zeigen diese, und „Ursprüngliche Werte“ nimmt die Änderung zurück.
+  Datum und Betrag vorgemerkter Umsätze änderst du, sobald sie gebucht sind. **Löschen** geht bei jedem Umsatz: Umsätze
   der Bank und aus Importen blendet MBM aus, sie kommen bei keinem Abruf und keinem Import wieder.
   Unter dem neuen Filter **Gelöschte** stellst du sie wieder her. Bei Bankkonten bleibt der
   Kontostand der Bank; was du erfasst, änderst oder löschst, verschiebt nur den Saldoverlauf davor.
