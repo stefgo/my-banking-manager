@@ -51,6 +51,8 @@ Nothing inside an HTML comment is published.
   sofort.
 - **Gelöste Kreditkarte bleibt Kreditkarte:** Löst du ein Konto von seinem Bankzugang, behält es
   seine Kontoart. Eine Kreditkarte zeigt also weiter ihre Kartennummer statt nur „Offline-Konto“.
+- **Rahmen des Felds „Wenn“:** Beim Bearbeiten einer Regel zeigte das Feld „Wenn“ beim Tippen
+  einen zweiten Rahmen innerhalb des eigenen. Jetzt hat es wie die Suche nur einen.
 
 ### Upgrade
 

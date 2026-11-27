@@ -338,7 +338,6 @@ export function RuleForm({
                 <span className="q-field">
                     <input
                         id={`${ids}-q`}
-                        className="inp inp-sm"
                         placeholder='z. B. gegenseite:rewe ODER zweck:"edeka markt"'
                         aria-label="Abfrage der Regel"
                         value={query}
