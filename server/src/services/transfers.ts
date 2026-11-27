@@ -918,7 +918,7 @@ export function listPayees(db: Db) {
         .prepare(
             `SELECT t.counterparty_name AS name, t.counterparty_iban AS iban, MAX(t.booking_date) AS lastDate
              FROM transactions t
-             WHERE t.amount < 0 AND t.counterparty_iban IS NOT NULL AND t.counterparty_iban != '' AND t.counterparty_name != ''
+             WHERE t.deleted_at IS NULL AND t.amount < 0 AND t.counterparty_iban IS NOT NULL AND t.counterparty_iban != '' AND t.counterparty_name != ''
                AND t.counterparty_iban NOT IN (SELECT iban FROM payees)
              GROUP BY t.counterparty_iban ORDER BY lastDate DESC LIMIT 200`,
         )

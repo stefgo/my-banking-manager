@@ -136,9 +136,14 @@ Saldo nach:
   beim Kauf eine Abbuchung, danach die Buchung „Später bezahlen“. Gibt es im Monat davor zwei Käufe
   mit dem Betrag der Rückzahlung (etwa ein Abo), bleibt es bei der Abbuchung.
 - **Auszahlungen** aufs Bankkonto bekommen nie eine Abbuchung.
-- Ergänzte Buchungen stehen als normale Zeilen in der Liste, sind nie neu und lassen sich nicht
-  löschen. In den Details steht „von MBM ergänzt“ und der Link zur Zahlung, bei der Zahlung der Link
-  zu ihrer Abbuchung.
+- Ergänzte Buchungen stehen als normale Zeilen in der Liste und sind nie neu. In den Details steht
+  „von MBM ergänzt“ und der Link zur Zahlung, bei der Zahlung der Link zu ihrer Abbuchung.
+- Du kannst sie wie jeden Umsatz [löschen oder in Datum und Betrag
+  ändern](umsaetze.md#buchungen-erfassen-ändern-und-löschen). Rechnet MBM nach einem Abruf neu,
+  bleibt dein Betrag, eine gelöschte bleibt gelöscht. Das Datum folgt ihrer Zahlung, solange du ihm
+  kein eigenes gegeben hast. Gerechnet wird immer mit dem, was PayPal geliefert hat: Deine
+  Änderungen an anderen Umsätzen verschieben keine Abbuchung. Fällt eine Abbuchung nach PayPals
+  Daten ganz weg, entfernt MBM sie, auch eine geänderte.
 
 Geht die Rechnung nicht auf, etwa weil du trotz Guthaben das Bankkonto gewählt hast, ergänzt MBM
 nur, was „Guthaben zuerst“ ergibt. Den Rest fängt der Anfangssaldo des Kontos auf. Der Saldo stimmt
@@ -200,7 +205,8 @@ Gruppe und einen **Anfangssaldo**: den Kontostand vor der ersten Buchung.
 
 - **Buchung erfassen** (++b++ oder im Menü des Kontos): Datum, Betrag, Gegenseite, Zweck,
   Kategorie. Regeln wirken auf Buchungen von Hand nur, wenn du sie beim
-  [Ausführen](kategorien-regeln.md#regeln-ausführen) auswählst.
+  [Ausführen](kategorien-regeln.md#regeln-ausführen) auswählst. Das geht auch bei einem Bankkonto,
+  siehe [Buchungen erfassen, ändern und löschen](umsaetze.md#buchungen-erfassen-ändern-und-löschen).
 - **Saldo abgleichen:** Du gibst den gezählten Bestand ein, MBM bucht die Differenz.
 - **Gegenbuchung:** In den Details eines Umsatzes, etwa einer Abhebung am Geldautomaten, legt
   „Gegenbuchung in Offline-Konto“ denselben Betrag mit umgekehrtem Vorzeichen im Offline-Konto

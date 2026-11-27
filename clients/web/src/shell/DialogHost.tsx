@@ -161,7 +161,7 @@ function Palette() {
                                     ))}
                                 </Command.Group>
                                 <Command.Group heading="Aktionen">
-                                    <Item icon={<Ic icon={Plus} size={17} />} label="Buchung erfassen (Offline-Konto)" kbd={keyText("booking")} onSelect={() => run(() => openBooking())} />
+                                    <Item icon={<Ic icon={Plus} size={17} />} label="Buchung erfassen" kbd={keyText("booking")} onSelect={() => run(() => openBooking())} />
                                     <Item icon={<Ic icon={Plus} size={17} />} label="Konto hinzufügen" onSelect={() => run(() => ui.open({ kind: "addAccount" }))} />
                                     {accounts.length > 0 && (
                                         <Item icon={<Ic icon={FileUp} size={17} />} label="CSV importieren" onSelect={() => run(() => openImport(currentAccount))} />

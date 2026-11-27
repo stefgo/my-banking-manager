@@ -91,9 +91,10 @@ export const routes = {
 
     // ---------- Transactions ----------
     listTransactions: r({ method: "GET", path: "/api/transactions", summary: "Bookings matching the filters, newest first", tag: "Transactions", access: "user", query: B.TransactionQuery, response: B.TransactionList }),
-    createTransaction: r({ method: "POST", path: "/api/accounts/:id/transactions", summary: "Book by hand (offline accounts)", tag: "Transactions", access: "user", params: IdParam, body: B.ManualTransactionRequest, response: B.Transaction }),
-    updateTransaction: r({ method: "PATCH", path: "/api/transactions/:id", summary: "Change a booking entered by hand", tag: "Transactions", access: "user", params: IdParam, body: B.UpdateManualTransactionRequest, response: B.Transaction }),
-    deleteTransaction: r({ method: "DELETE", path: "/api/transactions/:id", summary: "Delete a booking entered by hand", tag: "Transactions", access: "user", params: IdParam, response: Ok }),
+    createTransaction: r({ method: "POST", path: "/api/accounts/:id/transactions", summary: "Book by hand; on an account with a bank balance only the history before it changes", tag: "Transactions", access: "user", params: IdParam, body: B.ManualTransactionRequest, response: B.Transaction }),
+    updateTransaction: r({ method: "PATCH", path: "/api/transactions/:id", summary: "Change a booking; of one from the bank, an import or added by MBM only amount and booking date", tag: "Transactions", access: "user", params: IdParam, body: B.UpdateTransactionRequest, response: B.Transaction }),
+    deleteTransaction: r({ method: "DELETE", path: "/api/transactions/:id", summary: "Delete a booking: one entered by hand for good, others kept as deleted so that no fetch brings them back", tag: "Transactions", access: "user", params: IdParam, response: Ok }),
+    restoreTransaction: r({ method: "POST", path: "/api/transactions/:id/restore", summary: "Bring back a deleted booking", tag: "Transactions", access: "user", params: IdParam, response: B.Transaction }),
     assignCategory: r({ method: "PUT", path: "/api/transactions/category", summary: "Assign a category to bookings", tag: "Transactions", access: "user", body: B.AssignCategoryRequest, response: B.AssignCategoryResponse }),
     unreadCounts: r({ method: "GET", path: "/api/transactions/unread", summary: "Number of new bookings of the signed-in user per account", tag: "Transactions", access: "user", response: B.UnreadCounts }),
     markRead: r({ method: "POST", path: "/api/transactions/read", summary: "Mark bookings as read or as new again, for the signed-in user", tag: "Transactions", access: "user", body: B.MarkReadRequest, response: B.MarkReadResponse }),

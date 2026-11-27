@@ -25,6 +25,15 @@ describe("transaction filters in the URL", () => {
         expect(catParam(["12", "none", "12"])).toBe("12,none");
     });
 
+    it("shows the deleted bookings in the URL, never among the filters kept for the account", () => {
+        const s = parseTxSearch({ scope: "account:2", deleted: true, dir: "out" });
+        expect(s.deleted).toBe(true);
+        expect(compactTxSearch(s)).toEqual({ scope: "account:2", dir: "out", deleted: true });
+        expect(filterOf(s)).toEqual({ dir: "out" });
+        expect(parseTxSearch({ deleted: "yes" }).deleted).toBeUndefined();
+        expect(compactTxSearch(parseTxSearch({ deleted: false }))).toEqual({});
+    });
+
     it("shows the view of one category only", () => {
         expect(isCategoryView(parseTxSearch({ cat: "12", ctx: "cat" }))).toBe(true);
         expect(isCategoryView(parseTxSearch({ cat: "none", ctx: "cat" }))).toBe(true);

@@ -34,6 +34,15 @@ Nothing inside an HTML comment is published.
   30 Tage später zählt nicht und trägt die Abbuchung. Auszahlungen aufs Bankkonto und Erstattungen zu
   abgelehnten Zahlungen zählen ebenfalls nicht als Einnahme oder Ausgabe. Sie alle bekommen die
   Vorbelegung für Gegenbuchungen (anfangs „Umbuchung“).
+- **Buchungen erfassen, ändern und löschen bei jedem Konto:** „Buchung erfassen“ gibt es jetzt
+  auch bei Bankkonten. Bei jedem gebuchten Umsatz, auch von der Bank, aus einem Import oder von MBM
+  für PayPal ergänzt, änderst du **Datum und Betrag**; die Details zeigen den ursprünglichen Wert,
+  und „Ursprüngliche Werte“ nimmt die Änderung zurück. **Löschen** geht bei jedem Umsatz: Umsätze
+  der Bank und aus Importen blendet MBM aus, sie kommen bei keinem Abruf und keinem Import wieder.
+  Unter dem neuen Filter **Gelöschte** stellst du sie wieder her. Bei Bankkonten bleibt der
+  Kontostand der Bank; was du erfasst, änderst oder löschst, verschiebt nur den Saldoverlauf davor.
+  Liefert die Bank eine Buchung, die du schon von Hand erfasst hast, übernimmt sie diese, statt sie
+  doppelt anzulegen.
 - **Import: nach Datum suchen:** Im Schritt „Prüfen“ findet die Suche Zeilen auch nach dem
   Buchungsdatum, mit derselben Schreibweise wie die Umsatzliste: `datum>=1.3.2026`,
   `datum<1.4.2026`, `datum:3.2026` oder `datum:vormonat`, auch zusammen mit Suchtext.
@@ -65,6 +74,15 @@ Nothing inside an HTML comment is published.
 - Migration 0016 bereitet die ergänzten PayPal-Buchungen vor. Der erste Abruf eines PayPal-Kontos
   danach reicht einmal so weit zurück, wie PayPal erlaubt: Schon gespeicherte Umsätze bekommen ihre
   neue Umsatzart und Kategorie, keiner kommt doppelt. Eine selbst gewählte Kategorie bleibt.
+- Migration 0017 ergänzt die Spalten für gelöschte und geänderte Umsätze. Gespeicherte Umsätze
+  bleiben unverändert.
+- **PayPal:** Eine ergänzte Abbuchung, deren berechneter Betrag oder deren Art sich ändert, behält
+  jetzt ihre ID, statt neu angelegt zu werden.
+- **API:** `PATCH /api/transactions/:id` ändert auch Umsätze der Bank und aus Importen (nur
+  `amount` und `bookingDate`), `DELETE` löscht jeden Umsatz, neu ist
+  `POST /api/transactions/:id/restore`. `Transaction` hat die neuen Felder `original` und
+  `deletedAt`, `GET /api/transactions` den Parameter `deleted`. `POST /api/accounts/:id/transactions`
+  geht bei jedem Konto.
 - **Getrennte Container (`compose.split.yaml`):** Neu ist der Dienst `enablebanking` mit dem Image
   `mbm-enablebanking` (in der `.env`: `MBM_IMAGE_ENABLEBANKING`). Übernimm die neue
   `compose.split.yaml`, oder lass den Dienst und `MBM_ENABLEBANKING_SOCKET` weg, wenn du kein PSD2

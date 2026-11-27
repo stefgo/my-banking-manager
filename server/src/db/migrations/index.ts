@@ -15,6 +15,7 @@ import { accountKind } from "./0013-account-kind.js";
 import { transferChecks } from "./0014-transfer-checks.js";
 import { psd2Connections } from "./0015-psd2-connections.js";
 import { paypalFunding } from "./0016-paypal-funding.js";
+import { bookingEdits } from "./0017-booking-edits.js";
 
 export interface Migration {
     name: string;
@@ -29,7 +30,7 @@ export interface Migration {
 // One file per migration. Each runs once, in this order, inside a transaction. Never change one
 // that shipped; add the next file and list it here.
 export const migrations: Migration[] = [initial, unread, bookingDetails, importFormats, bookingReturns, counterpartyAccount, ruleActions, bookingReferences, transactionsFetchedAt, orderWrites,
-    foreignKeyIndexes, bookingGuards, accountKind, transferChecks, psd2Connections, paypalFunding];
+    foreignKeyIndexes, bookingGuards, accountKind, transferChecks, psd2Connections, paypalFunding, bookingEdits];
 
 /** Runs one migration inside a transaction. */
 export function applyMigration(db: Database.Database, m: Migration): void {

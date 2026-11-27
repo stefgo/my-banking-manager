@@ -4475,6 +4475,15 @@ paths:
             enum:
               - "true"
               - "false"
+        - name: deleted
+          in: query
+          required: false
+          schema:
+            description: "true: only deleted bookings, which are left out otherwise"
+            type: string
+            enum:
+              - "true"
+              - "false"
         - name: limit
           in: query
           required: false
@@ -4673,6 +4682,28 @@ paths:
                             - remittance
                           additionalProperties: false
                           description: Values shown instead of the bank's. All other fields keep the bank's values
+                        original:
+                          anyOf:
+                            - type: object
+                              properties:
+                                amount:
+                                  type: integer
+                                  minimum: -9007199254740991
+                                  maximum: 9007199254740991
+                                bookingDate:
+                                  type: string
+                              required:
+                                - amount
+                                - bookingDate
+                              additionalProperties: false
+                            - type: "null"
+                          description: "The bank's (or the file's) amount and booking date once the user changed one of them; amount and bookingDate hold the values that count. null: unchanged"
+                        deletedAt:
+                          anyOf:
+                            - type: string
+                              description: ISO 8601 date and time
+                            - type: "null"
+                          description: "Deleted by the user: kept so that no fetch brings it back, left out of lists and figures; null for others"
                       required:
                         - id
                         - accountId
@@ -4708,6 +4739,8 @@ paths:
                         - createdAt
                         - unread
                         - edits
+                        - original
+                        - deletedAt
                       additionalProperties: false
                   total:
                     type: integer
@@ -4735,7 +4768,7 @@ paths:
   /api/accounts/{id}/transactions:
     post:
       operationId: createTransaction
-      summary: Book by hand (offline accounts)
+      summary: Book by hand; on an account with a bank balance only the history before it changes
       tags:
         - Transactions
       security:
@@ -4979,6 +5012,28 @@ paths:
                       - remittance
                     additionalProperties: false
                     description: Values shown instead of the bank's. All other fields keep the bank's values
+                  original:
+                    anyOf:
+                      - type: object
+                        properties:
+                          amount:
+                            type: integer
+                            minimum: -9007199254740991
+                            maximum: 9007199254740991
+                          bookingDate:
+                            type: string
+                        required:
+                          - amount
+                          - bookingDate
+                        additionalProperties: false
+                      - type: "null"
+                    description: "The bank's (or the file's) amount and booking date once the user changed one of them; amount and bookingDate hold the values that count. null: unchanged"
+                  deletedAt:
+                    anyOf:
+                      - type: string
+                        description: ISO 8601 date and time
+                      - type: "null"
+                    description: "Deleted by the user: kept so that no fetch brings it back, left out of lists and figures; null for others"
                 required:
                   - id
                   - accountId
@@ -5014,6 +5069,8 @@ paths:
                   - createdAt
                   - unread
                   - edits
+                  - original
+                  - deletedAt
                 additionalProperties: false
         default:
           description: Error
@@ -5024,7 +5081,7 @@ paths:
   /api/transactions/{id}:
     patch:
       operationId: updateTransaction
-      summary: Change a booking entered by hand
+      summary: Change a booking; of one from the bank, an import or added by MBM only amount and booking date
       tags:
         - Transactions
       security:
@@ -5262,6 +5319,28 @@ paths:
                       - remittance
                     additionalProperties: false
                     description: Values shown instead of the bank's. All other fields keep the bank's values
+                  original:
+                    anyOf:
+                      - type: object
+                        properties:
+                          amount:
+                            type: integer
+                            minimum: -9007199254740991
+                            maximum: 9007199254740991
+                          bookingDate:
+                            type: string
+                        required:
+                          - amount
+                          - bookingDate
+                        additionalProperties: false
+                      - type: "null"
+                    description: "The bank's (or the file's) amount and booking date once the user changed one of them; amount and bookingDate hold the values that count. null: unchanged"
+                  deletedAt:
+                    anyOf:
+                      - type: string
+                        description: ISO 8601 date and time
+                      - type: "null"
+                    description: "Deleted by the user: kept so that no fetch brings it back, left out of lists and figures; null for others"
                 required:
                   - id
                   - accountId
@@ -5297,6 +5376,8 @@ paths:
                   - createdAt
                   - unread
                   - edits
+                  - original
+                  - deletedAt
                 additionalProperties: false
         default:
           description: Error
@@ -5306,7 +5387,7 @@ paths:
                 $ref: "#/components/schemas/ApiError"
     delete:
       operationId: deleteTransaction
-      summary: Delete a booking entered by hand
+      summary: "Delete a booking: one entered by hand for good, others kept as deleted so that no fetch brings them back"
       tags:
         - Transactions
       security:
@@ -5333,6 +5414,274 @@ paths:
                     const: true
                 required:
                   - ok
+                additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/transactions/{id}/restore:
+    post:
+      operationId: restoreTransaction
+      summary: Bring back a deleted booking
+      tags:
+        - Transactions
+      security:
+        - session: []
+        - device: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            exclusiveMinimum: 0
+            maximum: 9007199254740991
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 9007199254740991
+                  accountId:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 9007199254740991
+                  bookingDate:
+                    type: string
+                  valueDate:
+                    type:
+                      - string
+                      - "null"
+                  amount:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  currency:
+                    type: string
+                    const: EUR
+                  counterpartyName:
+                    type: string
+                  ultimateParty:
+                    type: string
+                  counterpartyIban:
+                    type:
+                      - string
+                      - "null"
+                  remittance:
+                    type: string
+                  bookingText:
+                    type: string
+                  reference:
+                    type: string
+                  customerReference:
+                    type: string
+                    description: Customer reference (KREF) the payer gave the order; "" if none
+                  bankReference:
+                    type: string
+                    description: The bank's own reference of the booking; "" if none
+                  mandateId:
+                    type: string
+                  creditorId:
+                    type: string
+                  counterpartyBic:
+                    type: string
+                    description: BIC of the counterparty; "" if none
+                  counterpartyAccount:
+                    type: string
+                    description: Account of the counterparty when the bank names no IBAN; "" if none
+                  counterpartyBankCode:
+                    type: string
+                    description: National bank code that goes with counterpartyAccount; "" if none
+                  status:
+                    type: string
+                    enum:
+                      - booked
+                      - pending
+                  source:
+                    type: string
+                    enum:
+                      - bank
+                      - manual
+                      - import
+                  importId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                  counterTransactionId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                  isReturn:
+                    type: boolean
+                    description: Gives back an earlier booking (return debit, cancellation)
+                  returnReason:
+                    type: string
+                    description: Reason code of the return as the bank sends it; "" if none
+                  returnOfId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                    description: The booking this return gives back
+                  returnedById:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                    description: The return that gave this booking back
+                  fundingOfId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                    description: 'Added by MBM (PayPal): the payment this debit from bank account or card, or this credit of "Pay in 30 days", paid for'
+                  fundedById:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                    description: The booking MBM added for where the money of this payment came from
+                  categoryId:
+                    anyOf:
+                      - type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      - type: "null"
+                  categorySource:
+                    anyOf:
+                      - type: string
+                        enum:
+                          - rule
+                          - manual
+                          - auto
+                      - type: "null"
+                  createdAt:
+                    type: string
+                    description: ISO 8601 date and time
+                  unread:
+                    type: boolean
+                    description: "New: not looked at yet by the signed-in user"
+                  edits:
+                    type: object
+                    properties:
+                      counterparty:
+                        anyOf:
+                          - type: object
+                            properties:
+                              value:
+                                description: "The text to show; null: the bank's value, chosen on purpose"
+                                type:
+                                  - string
+                                  - "null"
+                              source:
+                                type: string
+                                enum:
+                                  - rule
+                                  - manual
+                            required:
+                              - value
+                              - source
+                            additionalProperties: false
+                          - type: "null"
+                      remittance:
+                        anyOf:
+                          - type: object
+                            properties:
+                              value:
+                                description: "The text to show; null: the bank's value, chosen on purpose"
+                                type:
+                                  - string
+                                  - "null"
+                              source:
+                                type: string
+                                enum:
+                                  - rule
+                                  - manual
+                            required:
+                              - value
+                              - source
+                            additionalProperties: false
+                          - type: "null"
+                    required:
+                      - counterparty
+                      - remittance
+                    additionalProperties: false
+                    description: Values shown instead of the bank's. All other fields keep the bank's values
+                  original:
+                    anyOf:
+                      - type: object
+                        properties:
+                          amount:
+                            type: integer
+                            minimum: -9007199254740991
+                            maximum: 9007199254740991
+                          bookingDate:
+                            type: string
+                        required:
+                          - amount
+                          - bookingDate
+                        additionalProperties: false
+                      - type: "null"
+                    description: "The bank's (or the file's) amount and booking date once the user changed one of them; amount and bookingDate hold the values that count. null: unchanged"
+                  deletedAt:
+                    anyOf:
+                      - type: string
+                        description: ISO 8601 date and time
+                      - type: "null"
+                    description: "Deleted by the user: kept so that no fetch brings it back, left out of lists and figures; null for others"
+                required:
+                  - id
+                  - accountId
+                  - bookingDate
+                  - valueDate
+                  - amount
+                  - currency
+                  - counterpartyName
+                  - ultimateParty
+                  - counterpartyIban
+                  - remittance
+                  - bookingText
+                  - reference
+                  - customerReference
+                  - bankReference
+                  - mandateId
+                  - creditorId
+                  - counterpartyBic
+                  - counterpartyAccount
+                  - counterpartyBankCode
+                  - status
+                  - source
+                  - importId
+                  - counterTransactionId
+                  - isReturn
+                  - returnReason
+                  - returnOfId
+                  - returnedById
+                  - fundingOfId
+                  - fundedById
+                  - categoryId
+                  - categorySource
+                  - createdAt
+                  - unread
+                  - edits
+                  - original
+                  - deletedAt
                 additionalProperties: false
         default:
           description: Error
@@ -5722,6 +6071,28 @@ paths:
                       - remittance
                     additionalProperties: false
                     description: Values shown instead of the bank's. All other fields keep the bank's values
+                  original:
+                    anyOf:
+                      - type: object
+                        properties:
+                          amount:
+                            type: integer
+                            minimum: -9007199254740991
+                            maximum: 9007199254740991
+                          bookingDate:
+                            type: string
+                        required:
+                          - amount
+                          - bookingDate
+                        additionalProperties: false
+                      - type: "null"
+                    description: "The bank's (or the file's) amount and booking date once the user changed one of them; amount and bookingDate hold the values that count. null: unchanged"
+                  deletedAt:
+                    anyOf:
+                      - type: string
+                        description: ISO 8601 date and time
+                      - type: "null"
+                    description: "Deleted by the user: kept so that no fetch brings it back, left out of lists and figures; null for others"
                 required:
                   - id
                   - accountId
@@ -5757,6 +6128,8 @@ paths:
                   - createdAt
                   - unread
                   - edits
+                  - original
+                  - deletedAt
                 additionalProperties: false
         default:
           description: Error
@@ -5973,6 +6346,28 @@ paths:
                       - remittance
                     additionalProperties: false
                     description: Values shown instead of the bank's. All other fields keep the bank's values
+                  original:
+                    anyOf:
+                      - type: object
+                        properties:
+                          amount:
+                            type: integer
+                            minimum: -9007199254740991
+                            maximum: 9007199254740991
+                          bookingDate:
+                            type: string
+                        required:
+                          - amount
+                          - bookingDate
+                        additionalProperties: false
+                      - type: "null"
+                    description: "The bank's (or the file's) amount and booking date once the user changed one of them; amount and bookingDate hold the values that count. null: unchanged"
+                  deletedAt:
+                    anyOf:
+                      - type: string
+                        description: ISO 8601 date and time
+                      - type: "null"
+                    description: "Deleted by the user: kept so that no fetch brings it back, left out of lists and figures; null for others"
                 required:
                   - id
                   - accountId
@@ -6008,6 +6403,8 @@ paths:
                   - createdAt
                   - unread
                   - edits
+                  - original
+                  - deletedAt
                 additionalProperties: false
         default:
           description: Error
@@ -6237,6 +6634,28 @@ paths:
                       - remittance
                     additionalProperties: false
                     description: Values shown instead of the bank's. All other fields keep the bank's values
+                  original:
+                    anyOf:
+                      - type: object
+                        properties:
+                          amount:
+                            type: integer
+                            minimum: -9007199254740991
+                            maximum: 9007199254740991
+                          bookingDate:
+                            type: string
+                        required:
+                          - amount
+                          - bookingDate
+                        additionalProperties: false
+                      - type: "null"
+                    description: "The bank's (or the file's) amount and booking date once the user changed one of them; amount and bookingDate hold the values that count. null: unchanged"
+                  deletedAt:
+                    anyOf:
+                      - type: string
+                        description: ISO 8601 date and time
+                      - type: "null"
+                    description: "Deleted by the user: kept so that no fetch brings it back, left out of lists and figures; null for others"
                 required:
                   - id
                   - accountId
@@ -6272,6 +6691,8 @@ paths:
                   - createdAt
                   - unread
                   - edits
+                  - original
+                  - deletedAt
                 additionalProperties: false
         default:
           description: Error

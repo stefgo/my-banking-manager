@@ -273,6 +273,8 @@ function book(b: Booking): Transaction | null {
         // What the last fetches brought is new for Alex; what MBM added is never new
         unread: bank && b.date >= "2026-11-18" && !b.fundingOf,
         edits: { counterparty: null, remittance: null },
+        original: null,
+        deletedAt: null,
     };
     transactions.push(t);
     return t;

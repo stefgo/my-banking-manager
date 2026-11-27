@@ -14,6 +14,8 @@ export interface TxSearch {
     ctx: "acc" | "cat";
     /** "none": no view picked yet; the page asks to pick one in the sidebar instead of a list. */
     view?: "none";
+    /** Only the deleted bookings. Not kept with the filters of the account: it is a look into the bin. */
+    deleted?: true;
 }
 
 // Same format as `category` of the transaction query
@@ -49,6 +51,7 @@ export function parseTxSearch(raw: Record<string, unknown>): TxSearch {
         range: range.success ? range.data : undefined,
         ctx: raw.ctx === "cat" ? "cat" : "acc",
         view: raw.view === "none" ? "none" : undefined,
+        deleted: raw.deleted === "1" || raw.deleted === 1 || raw.deleted === true ? true : undefined,
     };
 }
 
@@ -61,6 +64,7 @@ export function compactTxSearch(s: Partial<TxSearch>): Partial<TxSearch> {
     if (s.range) out.range = s.range;
     if (s.ctx === "cat") out.ctx = "cat";
     if (s.view === "none") out.view = "none";
+    if (s.deleted) out.deleted = true;
     return out;
 }
 

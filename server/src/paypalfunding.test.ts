@@ -159,9 +159,10 @@ describe("where the money of PayPal payments came from", () => {
             [ago(28), 1000, "Abbuchung"],
             [ago(0), 4000, "Abbuchung"],
         ]);
-        // The debit for Q stays the same booking
+        // The debit for Q stays the same booking; the one for P turns into the credit in place
         expect(second[1]!.id).toBe(first[1]!.id);
-        expect(second[0]!.id).not.toBe(first[0]!.id);
+        expect(second[0]!.id).toBe(first[0]!.id);
+        expect(second[0]!.party).toBe("PayPal Später bezahlen");
     });
 
     it("leaves a purchase its debit where two of the same amount fit the repayment (a subscription)", async () => {
@@ -209,6 +210,60 @@ describe("where the money of PayPal payments came from", () => {
         // The next fetch goes on from the newest booking again
         await sync();
         expect(eb.calls.filter((c) => c.path.endsWith("/transactions")).at(-1)!.query.date_from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+
+    it("keeps what the user changed or deleted of added bookings when they are worked out again", async () => {
+        account.transactions = [booking("Q", 10, "10.00", "DBIT", "PAYMENT", { name: "Abo Dienst" }), booking("P", 30, "40.00", "DBIT", "PAYMENT", { name: "Möbel Muster" })];
+        const accountId = await paypal();
+        await sync();
+        const [forP, forQ] = added(accountId);
+        expect([forP!.amount, forQ!.amount]).toEqual([4000, 1000]);
+        expect((await api("PATCH", `/api/transactions/${forP!.id}`, { amount: 4500 })).status).toBe(200);
+        expect((await api("DELETE", `/api/transactions/${forQ!.id}`)).status).toBe(200);
+
+        // A new payment brings both into the window again
+        account.transactions.unshift(booking("N", 0, "3.00", "DBIT", "PAYMENT", { name: "Kiosk" }));
+        await sync();
+        const db = t.vault.database;
+        const state = db.prepare("SELECT id, amount, original_amount AS orig, deleted_at IS NOT NULL AS gone FROM transactions WHERE funding_of_id IS NOT NULL ORDER BY booking_date").all();
+        expect(state).toEqual([
+            { id: forP!.id, amount: 4500, orig: 4000, gone: 0 },
+            { id: forQ!.id, amount: 1000, orig: null, gone: 1 },
+            { id: expect.any(Number), amount: 300, orig: null, gone: 0 },
+        ]);
+        // The balance stays PayPal's
+        expect((await api<{ id: number; balance: number }[]>("GET", "/api/accounts")).body.find((a) => a.id === accountId)!.balance).toBe(0);
+    });
+
+    it("works added bookings out from PayPal's values, not from changed or deleted payments", async () => {
+        account.transactions = [booking("Q", 10, "10.00", "DBIT", "PAYMENT", { name: "Abo Dienst" }), booking("P", 30, "40.00", "DBIT", "PAYMENT", { name: "Möbel Muster" })];
+        const accountId = await paypal();
+        await sync();
+        const payments = rows(accountId).filter((r) => r.of === null);
+        const [p, q] = payments;
+        const [forP, forQ] = added(accountId);
+        // P costs more and moves; what MBM added for it moves along. Q goes, with what MBM added for it.
+        expect((await api("PATCH", `/api/transactions/${p!.id}`, { amount: -6000, bookingDate: ago(25) })).status).toBe(200);
+        expect(rows(accountId).find((r) => r.id === forP!.id)!.d).toBe(ago(25));
+        expect((await api("DELETE", `/api/transactions/${q!.id}`)).status).toBe(200);
+        const db = t.vault.database;
+        const deleted = () => (db.prepare("SELECT id FROM transactions WHERE deleted_at IS NOT NULL ORDER BY id").all() as { id: number }[]).map((r) => r.id);
+        expect(deleted()).toEqual([q!.id, forQ!.id].sort((a, b) => a - b));
+
+        account.transactions.unshift(booking("N", 0, "3.00", "DBIT", "PAYMENT", { name: "Kiosk" }));
+        await sync();
+        // From PayPal's values: 40 and 10 still came from outside, and so do the 3 of the new payment
+        expect(added(accountId).map((r) => [r.d, r.amount])).toEqual([
+            [ago(25), 4000],
+            [ago(10), 1000],
+            [ago(0), 300],
+        ]);
+        expect(deleted()).toEqual([q!.id, forQ!.id].sort((a, b) => a - b));
+        expect((await api<{ id: number; balance: number }[]>("GET", "/api/accounts")).body.find((a) => a.id === accountId)!.balance).toBe(0);
+
+        // Restoring Q brings back what MBM added for it
+        expect((await api("POST", `/api/transactions/${q!.id}/restore`)).status).toBe(200);
+        expect(deleted()).toEqual([]);
     });
 
     it("adds nothing to other accounts and nothing without a balance", async () => {
