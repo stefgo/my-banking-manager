@@ -138,6 +138,13 @@ die Darstellung und gruppierst nach **T**ag, **M**onat, **Q**uartal oder **J**ah
   Übersicht: ohne Umbuchungen und andere Kategorien, die [nicht in Auswertungen](kategorien-regeln.md) zählen, ohne
   zurückgegebene Lastschriften, eine aufgeteilte Buchung mit jedem Anteil.
 
+**Eingänge und Ausgaben** folgt den Filtern der Liste: Mit einer Kategorie zählen nur die Anteile in
+dieser Kategorie und ihren Unterkategorien, bei einer aufgeteilten Buchung also nur der passende
+Anteil. Eine Kategorie, die du so wählst, zählt auch dann, wenn sie sonst nicht in Auswertungen
+zählt, etwa Umbuchungen. Mit der Richtung siehst du nur die Eingänge oder nur die Ausgaben, mit
+„Gelöschte“ nur die gelöschten Umsätze. Der Suchtext wirkt nicht, nur ein Datum darin. **Balken**
+und **Linie** zeigen immer den Kontostand, ohne Filter.
+
 Ein Zeitraum, den der Filter anschneidet (etwa der laufende Monat), ist blasser. Fährst du über
 einen Wert, zeigt MBM die Beträge.
 

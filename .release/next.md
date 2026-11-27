@@ -52,8 +52,9 @@ Nothing inside an HTML comment is published.
 - **Verlauf: Eingänge und Ausgaben:** Der Verlauf im Kopf der Umsatzliste hat eine dritte
   Darstellung. Sie zeigt je Tag, Monat, Quartal oder Jahr die Summe der Eingänge als grünen und die
   der Ausgaben als roten Balken, dazu den Saldo des Zeitraums als Linie. Umbuchungen zählen wie bei
-  der Karte „Eingänge und Ausgaben“ der Übersicht nicht mit. Das Diagramm ist jetzt immer so hoch
-  wie die Schalter daneben.
+  der Karte „Eingänge und Ausgaben“ der Übersicht nicht mit. Die Darstellung folgt den Filtern
+  Kategorie (bei aufgeteilten Buchungen nur der passende Anteil), Richtung und „Gelöschte“, nicht
+  dem Suchtext. Das Diagramm ist jetzt immer so hoch wie die Schalter daneben.
 - **Vom Verlauf in die Liste:** Ein Klick auf einen Balken oder Punkt im Verlauf scrollt die
   Umsatzliste zu diesem Tag, Monat, Quartal oder Jahr. Oben steht der jüngste Tag des Zeitraums
   mit Buchungen, darunter folgen die älteren.

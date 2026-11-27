@@ -845,7 +845,15 @@ function ContextHeader({
                             ))}
                         </div>
                     </div>
-                    <BalanceChart scope={scope} range={range} span={span} group={chartGroup} chartStyle={chartStyle} onPick={onPickPeriod} />
+                    <BalanceChart
+                        scope={scope}
+                        range={range}
+                        span={span}
+                        filter={{ category: search.cat, dir: search.dir, deleted: search.deleted }}
+                        group={chartGroup}
+                        chartStyle={chartStyle}
+                        onPick={onPickPeriod}
+                    />
                 </div>
             )}
             {node && infoOpen && <InfoPanel info={node.info} onEdit={() => ui.open({ kind: "info", target: account ? "account" : "group", id: node.id })} />}

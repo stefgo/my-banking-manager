@@ -179,6 +179,18 @@ function uncategorizedCounts(db: Db): boolean {
     return !(db.prepare(`SELECT 1 FROM (${EXCLUDED_CATEGORIES}) WHERE id = ?`).get(parent) as unknown);
 }
 
+/**
+ * The categories a category filter ("none" or ids, comma-separated, not "all") picks: each with its subcategories,
+ * and whether bookings without a category belong to it.
+ */
+function pickedCategories(db: Db, category: string): { ids: number[]; none: boolean } {
+    const picked = new Set(category.split(","));
+    const ids = [...new Set([...picked].filter((x) => x !== "none").flatMap((x) => categorySubtree(db, Number(x))))];
+    // "Ohne Kategorie" below a picked category belongs to it like a subcategory
+    const parent = getSlot(db).parentId;
+    return { ids, none: picked.has("none") || (parent !== null && ids.includes(parent)) };
+}
+
 export interface TxFilter {
     scope: AccountScope;
     range?: TxRange;
@@ -211,11 +223,7 @@ export function listTransactions(db: Db, f: TxFilter, userId: number): Transacti
         args.push(to);
     }
     if (f.category !== "all") {
-        const picked = new Set(f.category.split(","));
-        const ids = [...new Set([...picked].filter((x) => x !== "none").flatMap((x) => categorySubtree(db, Number(x))))];
-        // "Ohne Kategorie" below a picked category belongs to it like a subcategory
-        const parent = getSlot(db).parentId;
-        const none = picked.has("none") || (parent !== null && ids.includes(parent));
+        const { ids, none } = pickedCategories(db, f.category);
         const parts: string[] = [];
         // A split booking belongs to every category it has a share in
         if (ids.length) parts.push(`EXISTS (SELECT 1 FROM transaction_categories x WHERE x.transaction_id = t.id AND x.category_id IN (${ids.map(() => "?").join(",")}))`);
@@ -617,34 +625,69 @@ export function balanceSeries(db: Db, scope: AccountScope, days: number, range?:
 /**
  * Income and expenses of the bookings of `ids` between `from` and `to` as they count in figures: per share (a split
  * booking counts with each share in its category), without returns and excluded categories such as own transfers.
+ * `filter` narrows them like the list: only the shares in the picked categories (which then count even if excluded),
+ * only bookings in or out, or only deleted ones. Its arguments follow those of `ids`, `from` and `to`.
  */
-function flowQuery(db: Db, ids: number[], select: string, tail = ""): string {
-    const none = uncategorizedCounts(db) ? "tc.category_id IS NULL OR " : "";
-    return `SELECT ${select},
+function flowQuery(db: Db, ids: number[], select: string, tail = "", filter: FlowFilter = {}): { sql: string; args: number[] } {
+    const where: string[] = [];
+    const args: number[] = [];
+    if (filter.category && filter.category !== "all") {
+        const picked = pickedCategories(db, filter.category);
+        const parts: string[] = [];
+        if (picked.ids.length) parts.push(`tc.category_id IN (${picked.ids.map(() => "?").join(",")})`);
+        if (picked.none) parts.push("tc.category_id IS NULL");
+        where.push(parts.length ? `(${parts.join(" OR ")})` : "0");
+        args.push(...picked.ids);
+    } else {
+        const none = uncategorizedCounts(db) ? "tc.category_id IS NULL OR " : "";
+        where.push(`(${none}tc.category_id NOT IN (${EXCLUDED_CATEGORIES}))`);
+    }
+    if (filter.dir === "in") where.push("t.amount > 0");
+    if (filter.dir === "out") where.push("t.amount < 0");
+    const sql = `SELECT ${select},
                 COALESCE(SUM(CASE WHEN COALESCE(tc.amount, t.amount) > 0 THEN COALESCE(tc.amount, t.amount) END), 0) AS income,
                 COALESCE(SUM(CASE WHEN COALESCE(tc.amount, t.amount) < 0 THEN COALESCE(tc.amount, t.amount) END), 0) AS expenses
             FROM transactions t
             LEFT JOIN transaction_categories tc ON tc.transaction_id = t.id
-            WHERE t.account_id IN (${ids.map(() => "?").join(",")}) AND t.booking_date BETWEEN ? AND ? AND t.${LIVE}
+            WHERE t.account_id IN (${ids.map(() => "?").join(",")}) AND t.booking_date BETWEEN ? AND ?
+              AND ${filter.deleted ? "t.deleted_at IS NOT NULL" : `t.${LIVE}`}
               AND ${NOT_RETURNED}
-              AND (${none}tc.category_id NOT IN (${EXCLUDED_CATEGORIES}))
+              AND ${where.join(" AND ")}
             ${tail}`;
+    return { sql, args };
+}
+
+/** What narrows the income and expenses of a flow series, as the filters of the list do. */
+export interface FlowFilter {
+    category?: string;
+    dir?: "all" | "in" | "out";
+    deleted?: boolean;
 }
 
 export function cashflow(db: Db, scope: AccountScope, from: string, to: string): { income: number; expenses: number; count: number } {
     const ids = accountsInScope(db, scope);
     if (!ids.length) return { income: 0, expenses: 0, count: 0 };
-    return db.prepare(flowQuery(db, ids, "count(DISTINCT t.id) AS count")).get(...ids, from, to) as { income: number; expenses: number; count: number };
+    const q = flowQuery(db, ids, "count(DISTINCT t.id) AS count");
+    return db.prepare(q.sql).get(...ids, from, to, ...q.args) as { income: number; expenses: number; count: number };
 }
 
-/** Income and expenses per day over the days of the balance series, as the cashflow counts them; every day has a point. */
-export function flowSeries(db: Db, scope: AccountScope, days: number, range?: TxRange, today = todayIso(), span?: SeriesSpan): { date: string; income: number; expenses: number }[] {
+/** Income and expenses per day over the days of the balance series, as the cashflow counts them or narrowed by `filter`; every day has a point. */
+export function flowSeries(
+    db: Db,
+    scope: AccountScope,
+    days: number,
+    range?: TxRange,
+    today = todayIso(),
+    span?: SeriesSpan,
+    filter?: FlowFilter,
+): { date: string; income: number; expenses: number }[] {
     const ids = accountsInScope(db, scope);
     const bounds = seriesBounds(db, ids, days, range, today, span);
     if (!bounds) return [];
     const byDay = new Map<string, { income: number; expenses: number }>();
     if (ids.length) {
-        const rows = db.prepare(flowQuery(db, ids, "t.booking_date AS d", "GROUP BY t.booking_date")).all(...ids, bounds.from, bounds.to) as { d: string; income: number; expenses: number }[];
+        const q = flowQuery(db, ids, "t.booking_date AS d", "GROUP BY t.booking_date", filter);
+        const rows = db.prepare(q.sql).all(...ids, bounds.from, bounds.to, ...q.args) as { d: string; income: number; expenses: number }[];
         for (const r of rows) byDay.set(r.d, { income: r.income, expenses: r.expenses });
     }
     const points: { date: string; income: number; expenses: number }[] = [];

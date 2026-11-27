@@ -104,7 +104,7 @@ export const routes = {
     deleteCounterBooking: r({ method: "DELETE", path: "/api/transactions/:id/counter", summary: "Remove the counter booking of a booking", tag: "Transactions", access: "user", params: IdParam, response: Ok }),
     payees: r({ method: "GET", path: "/api/payees", summary: "Counterparties used before, most used first", tag: "Transactions", access: "user", query: B.PayeeQuery, response: List(B.Payee) }),
     series: r({ method: "GET", path: "/api/stats/series", summary: "Daily balance", tag: "Transactions", access: "user", query: B.SeriesQuery, response: B.SeriesResponse }),
-    flows: r({ method: "GET", path: "/api/stats/flows", summary: "Daily income and expenses without own transfers", tag: "Transactions", access: "user", query: B.FlowsQuery, response: B.FlowsResponse }),
+    flows: r({ method: "GET", path: "/api/stats/flows", summary: "Daily income and expenses without own transfers, optionally filtered like the list", tag: "Transactions", access: "user", query: B.FlowsQuery, response: B.FlowsResponse }),
     cashflow: r({ method: "GET", path: "/api/stats/cashflow", summary: "Income and expenses without own transfers", tag: "Transactions", access: "user", query: B.StatsQuery, response: B.CashflowResponse }),
     categorySums: r({ method: "GET", path: "/api/stats/categories", summary: "Sums per category", tag: "Transactions", access: "user", query: B.StatsQuery, response: B.CategorySumsResponse }),
 
