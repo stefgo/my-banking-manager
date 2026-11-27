@@ -3,11 +3,11 @@ import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Check, RotateCcw, Scale, Tag } from "lucide-react";
-import { centsToInput, isOffline, isValidIsoDate, parseAmount, routes, todayIso, type Transaction } from "@mbm/shared";
+import { centsToInput, isOffline, isValidIsoDate, parseAmount, routes, todayIso, type Topic, type Transaction, type TxEditField } from "@mbm/shared";
 import { call } from "../lib/api";
 import { useAccounts, useAction, useCategoryIndex, usePayees, useTxById } from "../lib/queries";
 import { categoryPath } from "../lib/tree";
-import { dateText, fmt, fmtSigned, shownParty, shownPurpose } from "../lib/format";
+import { dateText, fmt, fmtSigned, partyName, shownParty, shownPurpose } from "../lib/format";
 import { fieldProps, focusFirstError, hasErrors, type FieldErrors } from "../lib/fields";
 import { ui } from "../lib/ui";
 import { Modal, Button } from "../components/common";
@@ -31,12 +31,12 @@ const BookingForm = z.object({
 type BookingForm = z.infer<typeof BookingForm>;
 
 /**
- * Books by hand, or changes a booking: one entered by hand as a whole, one from the bank, an import
- * or added by MBM in amount and date only.
+ * Books by hand, or changes a booking: one entered by hand as a whole; one from the bank, an import
+ * or added by MBM in amount and date, with own texts shown instead of its counterparty and purpose.
  */
 export function BookingDialog({ accountId, txId }: { accountId?: number; txId?: number }) {
     const tx = useTxById(txId);
-    if (tx && tx.source !== "manual") return <ValuesDialog tx={tx} />;
+    if (tx && tx.source !== "manual") return <TxDialog tx={tx} />;
     return <ManualDialog accountId={accountId} txId={txId} />;
 }
 
@@ -74,8 +74,8 @@ function ManualDialog({ accountId, txId }: { accountId?: number; txId?: number }
             dir: editTx.amount < 0 ? "out" : "in",
             amount: centsToInput(Math.abs(editTx.amount)),
             date: editTx.bookingDate,
-            name: editTx.counterpartyName,
-            purpose: editTx.remittance,
+            name: shownParty(editTx),
+            purpose: shownPurpose(editTx),
             pending: editTx.status === "pending",
         });
     }, [editTx, reset]);
@@ -85,18 +85,32 @@ function ManualDialog({ accountId, txId }: { accountId?: number; txId?: number }
     const submit = handleSubmit(async (v) => {
         const cents = parseAmount(v.amount)!;
         const amount = v.dir === "out" ? -cents : cents;
+        const name = v.name.trim();
+        const purpose = v.purpose.trim();
+        // The fields show what the booking shows: a text left as it was keeps the booking's own
+        const party = editTx && name === shownParty(editTx) ? editTx.counterpartyName : name;
+        const remittance = editTx && purpose === shownPurpose(editTx) ? editTx.remittance : purpose;
         const body = {
             bookingDate: v.date,
             amount,
-            counterpartyName: v.name.trim(),
-            remittance: v.purpose.trim(),
+            counterpartyName: party,
+            remittance,
             status: v.pending ? ("pending" as const) : ("booked" as const),
             ...(cat !== undefined ? { categoryId: cat } : {}),
         };
-        const name = accounts.find((a) => a.id === Number(v.accountId))?.name ?? "";
+        const accountName = accounts.find((a) => a.id === Number(v.accountId))?.name ?? "";
         const r = await action.run<Transaction>(
-            () => (editing ? call(routes.updateTransaction, { params: { id: txId! }, body }) : call(routes.createTransaction, { params: { id: Number(v.accountId) }, body })),
-            { topics: ["accounts", "transactions", "categories"], ok: `${editing ? "Buchung geändert" : "Buchung erfasst"} · ${name} ${fmtSigned(amount)}` },
+            async () => {
+                if (!editing) return call(routes.createTransaction, { params: { id: Number(v.accountId) }, body });
+                let t = await call(routes.updateTransaction, { params: { id: txId! }, body });
+                // A text typed as the booking already says it, while another one was shown instead
+                for (const [field, typed] of [["counterparty", name], ["remittance", purpose]] as [TxEditField, string][]) {
+                    const shown = field === "counterparty" ? shownParty(t) : shownPurpose(t);
+                    if (shown !== typed) t = await call(routes.setTransactionEdit, { params: { id: t.id, field }, body: { value: null } });
+                }
+                return t;
+            },
+            { topics: ["accounts", "transactions", "categories"], ok: `${editing ? "Buchung geändert" : "Buchung erfasst"} · ${accountName} ${fmtSigned(amount)}` },
         );
         if (r) ui.close();
     });
@@ -174,73 +188,112 @@ function ManualDialog({ accountId, txId }: { accountId?: number; txId?: number }
     );
 }
 
-const ValuesForm = z.object({
+const TxForm = z.object({
     dir: z.enum(["out", "in"]),
     amount: BookingForm.shape.amount,
     date: BookingForm.shape.date,
+    name: z.string().max(140, "Höchstens 140 Zeichen."),
+    purpose: BookingForm.shape.purpose,
 });
-type ValuesForm = z.infer<typeof ValuesForm>;
+type TxForm = z.infer<typeof TxForm>;
+
+const TX_TOPICS: Topic[] = ["accounts", "transactions", "categories"];
 
 /** Where the values a booking came with are from. */
 const ORIGIN_OF = (tx: Transaction): string => (tx.fundingOfId !== null ? "Von MBM berechnet" : tx.source === "import" ? "Aus der Datei" : "Von der Bank");
 
-/** Amount and date of a booking from the bank, an import or added by MBM; what it came with stays. */
-function ValuesDialog({ tx }: { tx: Transaction }) {
+/**
+ * Changes a booking from the bank, an import or added by MBM. Amount and date count instead of the
+ * ones it came with (booked only); counterparty and purpose are texts shown instead of its own,
+ * an emptied field shows its own again. What it came with stays.
+ */
+function TxDialog({ tx }: { tx: Transaction }) {
     const action = useAction();
     const accounts = useAccounts().data ?? [];
     const original = tx.original ?? { amount: tx.amount, bookingDate: tx.bookingDate };
-    const form = useForm<ValuesForm>({
-        resolver: zodResolver(ValuesForm),
-        defaultValues: { dir: tx.amount < 0 ? "out" : "in", amount: centsToInput(Math.abs(tx.amount)), date: tx.bookingDate },
+    const pending = tx.status === "pending";
+    const form = useForm<TxForm>({
+        resolver: zodResolver(TxForm),
+        defaultValues: { dir: tx.amount < 0 ? "out" : "in", amount: centsToInput(Math.abs(tx.amount)), date: tx.bookingDate, name: shownParty(tx), purpose: shownPurpose(tx) },
     });
     const { register, handleSubmit, setValue, formState, control } = form;
     const dir = useWatch({ control, name: "dir" });
     const err = formState.errors;
-    const name = shownParty(tx) || shownPurpose(tx) || "Umsatz";
+    const title = shownParty(tx) || shownPurpose(tx) || "Umsatz";
     const account = accounts.find((a) => a.id === tx.accountId);
 
-    const save = async (amount: number, bookingDate: string, ok: string) => {
-        const r = await action.run<Transaction>(() => call(routes.updateTransaction, { params: { id: tx.id }, body: { amount, bookingDate } }), {
-            topics: ["accounts", "transactions", "categories"],
-            ok,
+    const submit = handleSubmit(async (v) => {
+        const cents = parseAmount(v.amount)!;
+        const amount = v.dir === "out" ? -cents : cents;
+        const values = !pending && (amount !== tx.amount || v.date !== tx.bookingDate);
+        const texts = (
+            [
+                ["counterparty", v.name.trim(), shownParty(tx)],
+                ["remittance", v.purpose.trim(), shownPurpose(tx)],
+            ] as [TxEditField, string, string][]
+        ).filter(([, typed, shown]) => typed !== shown);
+        if (!values && texts.length === 0) return ui.close();
+        const r = await action.run(
+            async () => {
+                if (values) await call(routes.updateTransaction, { params: { id: tx.id }, body: { amount, bookingDate: v.date } });
+                // An emptied field goes back to the booking's own text
+                for (const [field, typed] of texts) await call(routes.setTransactionEdit, { params: { id: tx.id, field }, body: { value: typed || null } });
+                return true;
+            },
+            { topics: TX_TOPICS, ok: `Umsatz geändert · ${v.name.trim() || title} ${fmtSigned(values ? amount : tx.amount)}` },
+        );
+        if (r) ui.close();
+    });
+    const restore = async () => {
+        const r = await action.run<Transaction>(() => call(routes.updateTransaction, { params: { id: tx.id }, body: { amount: original.amount, bookingDate: original.bookingDate } }), {
+            topics: TX_TOPICS,
+            ok: "Ursprüngliche Werte wiederhergestellt",
         });
         if (r) ui.close();
     };
-    const submit = handleSubmit((v) => {
-        const cents = parseAmount(v.amount)!;
-        const amount = v.dir === "out" ? -cents : cents;
-        return save(amount, v.date, `Umsatz geändert · ${name} ${fmtSigned(amount)}`);
-    });
 
     return (
-        <Modal title="Datum und Betrag ändern" onClose={() => ui.close()} narrow>
+        <Modal title="Umsatz ändern" onClose={() => ui.close()} narrow>
             <form className="form-grid" style={{ gap: 16 }} onSubmit={submit} noValidate>
                 <p className="muted">
-                    <b>{name}</b>
+                    <b>{title}</b>
                     {account ? ` · ${account.name}` : ""}
                 </p>
                 <div className="seg" role="group" aria-label="Richtung" style={{ justifySelf: "start" }}>
-                    <button type="button" aria-pressed={dir === "out"} onClick={() => setValue("dir", "out")}>Ausgabe</button>
-                    <button type="button" aria-pressed={dir === "in"} onClick={() => setValue("dir", "in")}>Eingang</button>
+                    <button type="button" aria-pressed={dir === "out"} disabled={pending} onClick={() => setValue("dir", "out")}>Ausgabe</button>
+                    <button type="button" aria-pressed={dir === "in"} disabled={pending} onClick={() => setValue("dir", "in")}>Eingang</button>
                 </div>
                 <div className="bk-row">
-                    <Field id="vl-amount" label="Betrag" error={err.amount?.message}>
+                    <Field id="tx-amount" label="Betrag" error={err.amount?.message}>
                         <div className="amount-wrap">
-                            <input className="inp" inputMode="decimal" placeholder="0,00" autoComplete="off" autoFocus {...fieldProps("vl-amount", err.amount?.message)} {...register("amount")} />
+                            <input className="inp" inputMode="decimal" placeholder="0,00" autoComplete="off" autoFocus={!pending} readOnly={pending} {...fieldProps("tx-amount", err.amount?.message)} {...register("amount")} />
                             <span className="cur">€</span>
                         </div>
                     </Field>
-                    <Field id="vl-date" label="Datum" error={err.date?.message}>
-                        <input className="inp" type="date" {...fieldProps("vl-date", err.date?.message)} {...register("date")} />
+                    <Field id="tx-date" label="Datum" error={err.date?.message}>
+                        <input className="inp" type="date" readOnly={pending} {...fieldProps("tx-date", err.date?.message)} {...register("date")} />
                     </Field>
                 </div>
                 <p className="muted small">
-                    {ORIGIN_OF(tx)}: <span className="amt">{fmtSigned(original.amount)}</span> am {dateText(original.bookingDate)}.
-                    {account && !isOffline(account) ? " Der Kontostand der Bank bleibt; die Änderung verschiebt nur den Verlauf davor." : ""}
+                    {pending ? (
+                        "Datum und Betrag änderst du, sobald der Umsatz gebucht ist."
+                    ) : (
+                        <>
+                            {ORIGIN_OF(tx)}: <span className="amt">{fmtSigned(original.amount)}</span> am {dateText(original.bookingDate)}.
+                            {account && !isOffline(account) ? " Der Kontostand der Bank bleibt; eine Änderung verschiebt nur den Verlauf davor." : ""}
+                        </>
+                    )}
                 </p>
+                <Field id="tx-name" label="Gegenseite" error={err.name?.message}>
+                    <input className="inp" placeholder={partyName(tx) || "leer"} autoComplete="off" autoFocus={pending} {...fieldProps("tx-name", err.name?.message)} {...register("name")} />
+                </Field>
+                <Field id="tx-purpose" label="Verwendungszweck" error={err.purpose?.message}>
+                    <input className="inp" placeholder={tx.remittance || "leer"} autoComplete="off" {...fieldProps("tx-purpose", err.purpose?.message)} {...register("purpose")} />
+                </Field>
+                <p className="muted small">MBM zeigt Gegenseite und Zweck statt der Werte der Bank, ein leeres Feld zeigt wieder ihre.</p>
                 <div className="actions">
                     {tx.original && (
-                        <Button type="button" className="btn-ghost" icon={RotateCcw} busy={action.pending} onClick={() => void save(original.amount, original.bookingDate, "Ursprüngliche Werte wiederhergestellt")}>
+                        <Button type="button" className="btn-ghost" icon={RotateCcw} busy={action.pending} onClick={() => void restore()}>
                             Ursprüngliche Werte
                         </Button>
                     )}

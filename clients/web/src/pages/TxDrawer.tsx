@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Dialog as RDialog } from "radix-ui";
-import { CheckCheck, CircleDot, Copy, Link2, Pencil, PenLine, RotateCcw, Send, Tag, Trash2, Unlink, Wand2, X } from "lucide-react";
+import { CheckCheck, CircleDot, Copy, Link2, Pencil, RotateCcw, Send, Tag, Trash2, Unlink, Wand2, X } from "lucide-react";
 import { groupIban, isOffline, quoteTxQueryValue, returnReasonText, routes, type RuleEdit, type Transaction } from "@mbm/shared";
 import { call } from "../lib/api";
 import { useAccounts, useAction, useCategoryIndex, useGroups, useRules, useTransferAccounts, useTxById } from "../lib/queries";
@@ -17,7 +17,7 @@ import { Button } from "../components/common";
 import { CatTile, Ic, Sym } from "../components/icons";
 import { Picker, PickerButton } from "../components/pickers";
 import { useCategoryItems } from "../components/pickItems";
-import { TxOriginal, TxTextEditor } from "./TxOriginal";
+import { TxOriginal } from "./TxOriginal";
 
 /**
  * Details of a booking. On wide screens a panel beside the list: the list stays usable and J/K
@@ -57,7 +57,6 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
     // A first rule without a category keeps a new rule from ever winning, so it is named instead
     const [blockedFor, setBlockedFor] = useState<{ tx: number; rule: number; name: string } | null>(null);
     const blocked = blockedFor?.tx === id ? blockedFor : null;
-    const [editingFor, setEditingFor] = useState<number | null>(null);
 
     // Opening a booking reads it, once: marked as new again here, it stays new
     const readFor = useRef<number | null>(null);
@@ -278,7 +277,6 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                             )}
                     </dl>
                     <TxOriginal key={tx.id} tx={tx} />
-                    {editingFor === tx.id && <TxTextEditor tx={tx} onClose={() => setEditingFor(null)} />}
                     {blocked && (
                         <div className="offer">
                             <span>
@@ -345,20 +343,14 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                                         Überweisen an …
                                     </button>
                                 )}
-                                <button className="btn" onClick={() => setEditingFor(editingFor === tx.id ? null : tx.id)}>
-                                    <Ic icon={PenLine} size={16} />
-                                    Anzeige ändern
+                                <button className="btn" onClick={() => ui.open({ kind: "booking", txId: tx.id })}>
+                                    <Ic icon={Pencil} size={16} />
+                                    Bearbeiten
                                 </button>
                                 {!!bankParty && (
                                     <button className="btn" onClick={makeRule}>
                                         <Ic icon={Wand2} size={16} />
                                         Daraus eine Regel machen
-                                    </button>
-                                )}
-                                {(tx.source === "manual" || tx.status === "booked") && (
-                                    <button className="btn" onClick={() => ui.open({ kind: "booking", txId: tx.id })}>
-                                        <Ic icon={Pencil} size={16} />
-                                        {tx.source === "manual" ? "Bearbeiten" : "Datum und Betrag ändern"}
                                     </button>
                                 )}
                                 {!tx.counterTransactionId && offline.length > 0 && tx.status !== "pending" && (

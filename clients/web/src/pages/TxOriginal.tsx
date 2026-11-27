@@ -4,48 +4,9 @@ import { routes, type Transaction, type TxEditField } from "@mbm/shared";
 import { call } from "../lib/api";
 import { partyName, shownParty, shownPurpose } from "../lib/format";
 import { useAction } from "../lib/queries";
-import { Button } from "../components/common";
 import { Ic } from "../components/icons";
 
 const ORIGIN: Record<Transaction["source"], string> = { bank: "Abruf von der Bank", import: "CSV-Import", manual: "von Hand erfasst" };
-
-/** Sets the texts this booking shows; the bank's values stay untouched. */
-export function TxTextEditor({ tx, onClose }: { tx: Transaction; onClose: () => void }) {
-    const action = useAction();
-    const [party, setParty] = useState(shownParty(tx));
-    const [purpose, setPurpose] = useState(shownPurpose(tx));
-    const save = async (e: React.FormEvent) => {
-        e.preventDefault();
-        const changes: [TxEditField, string][] = [];
-        if (party.trim() !== shownParty(tx)) changes.push(["counterparty", party.trim()]);
-        if (purpose.trim() !== shownPurpose(tx)) changes.push(["remittance", purpose.trim()]);
-        const done = await action.run(
-            async () => {
-                // An emptied field goes back to the bank's value
-                for (const [field, value] of changes) await call(routes.setTransactionEdit, { params: { id: tx.id, field }, body: { value: value || null } });
-                return true;
-            },
-            { topics: ["transactions"] },
-        );
-        if (done) onClose();
-    };
-    return (
-        <form className="tx-edit" onSubmit={save}>
-            <label>
-                <span>Gegenseite</span>
-                <input className="inp inp-sm" maxLength={140} value={party} autoFocus onChange={(e) => setParty(e.target.value)} />
-            </label>
-            <label>
-                <span>Verwendungszweck</span>
-                <textarea className="inp inp-sm" rows={3} maxLength={400} value={purpose} onChange={(e) => setPurpose(e.target.value)} />
-            </label>
-            <div className="row">
-                <Button className="btn-primary btn-sm" type="submit" busy={action.pending}>Speichern</Button>
-                <button type="button" className="btn btn-sm btn-ghost" onClick={onClose}>Abbrechen</button>
-            </div>
-        </form>
-    );
-}
 
 /** The booking as it came in, shown when a text differs from it or was decided by hand. */
 export function TxOriginal({ tx }: { tx: Transaction }) {
