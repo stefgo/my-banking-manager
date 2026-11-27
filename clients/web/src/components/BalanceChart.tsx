@@ -1,11 +1,14 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis, type MouseHandlerDataParam } from "recharts";
 import type { AccountScope, TxDateBounds, TxRange } from "@mbm/shared";
 import { useFlows, useSeries } from "../lib/queries";
 import { dateText, dayLabel, fmt, monthYear, shortDate, shortEuro } from "../lib/format";
-import { axisLayout, groupFlows, groupPointLabel, groupSeries, niceScale, periodLabel, type ChartStyle, type FlowGroupPoint, type GroupPoint, type SeriesGroup } from "../lib/seriesGroups";
+import { axisLayout, groupFlows, groupPointLabel, groupSeries, niceScale, periodLabel, periodOf, type ChartStyle, type FlowGroupPoint, type GroupPoint, type SeriesGroup } from "../lib/seriesGroups";
 
 type ChartPoint = { date: string; balance?: number; forecast?: number; group?: GroupPoint; income?: number; expenses?: number; net?: number; flow?: FlowGroupPoint };
+/** The days a picked value covers. */
+export type ChartPeriod = { from: string; to: string };
+type PickHandler = (period: ChartPeriod) => void;
 
 const AXIS_WIDTH = 64;
 const MARGIN = { top: 8, right: 0, bottom: 0, left: 0 };
@@ -18,6 +21,7 @@ const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").match
  * With `group` every value has its own place, as a bar or a point of the line (`chartStyle`): daily balances
  * or averages per month, quarter or year; when they do not fit, the plot scrolls sideways under a fixed amount axis.
  * `chartStyle` "flow" shows instead the income and expenses of each period as bars, their total as a line.
+ * `onPick` gets the days of the value clicked, anywhere in its column; a value of the forecast is not picked.
  */
 export function BalanceChart(props: {
     scope: AccountScope;
@@ -28,12 +32,29 @@ export function BalanceChart(props: {
     forecastDays?: number;
     group?: SeriesGroup;
     chartStyle?: ChartStyle;
+    onPick?: PickHandler;
 }) {
     return props.chartStyle === "flow" ? <FlowChart {...props} group={props.group ?? "day"} /> : <BalanceSeriesChart {...props} />;
 }
 
 /** Income and expenses per period as bars up and down, the total of each period as a line; own transfers left out. */
-function FlowChart({ scope, days = 90, range, span, height = 210, group }: { scope: AccountScope; days?: number; range?: TxRange; span?: TxDateBounds; height?: number | "fill"; group: SeriesGroup }) {
+function FlowChart({
+    scope,
+    days = 90,
+    range,
+    span,
+    height = 210,
+    group,
+    onPick,
+}: {
+    scope: AccountScope;
+    days?: number;
+    range?: TxRange;
+    span?: TxDateBounds;
+    height?: number | "fill";
+    group: SeriesGroup;
+    onPick?: PickHandler;
+}) {
     const flows = useFlows(scope, days, range, span);
     const id = useId().replace(/:/g, "");
     const points = useMemo<ChartPoint[]>(
@@ -42,8 +63,8 @@ function FlowChart({ scope, days = 90, range, span, height = 210, group }: { sco
     );
     const style = height === "fill" ? undefined : ({ "--ch": `${height}px` } as React.CSSProperties);
     return (
-        <div className="chart-wrap amt" style={style}>
-            {points.length > 0 && <ScrollingChart id={id} points={points} group={group} chartStyle="flow" hasForecast={false} />}
+        <div className={`chart-wrap amt ${onPick ? "pick" : ""}`} style={style}>
+            {points.length > 0 && <ScrollingChart id={id} points={points} group={group} chartStyle="flow" hasForecast={false} onPick={onPick} />}
         </div>
     );
 }
@@ -57,6 +78,7 @@ function BalanceSeriesChart({
     forecastDays = 0,
     group,
     chartStyle = "bar",
+    onPick,
 }: {
     scope: AccountScope;
     days?: number;
@@ -66,6 +88,7 @@ function BalanceSeriesChart({
     forecastDays?: number;
     group?: SeriesGroup;
     chartStyle?: ChartStyle;
+    onPick?: PickHandler;
 }) {
     // Averages leave out the forecast: it would mix into the running period
     const series = useSeries(scope, days, range, span, group && group !== "day" ? 0 : forecastDays);
@@ -84,8 +107,8 @@ function BalanceSeriesChart({
 
     if (group) {
         return (
-            <div className="chart-wrap amt" style={style}>
-                {points.length > 0 && <ScrollingChart id={id} points={points} group={group} chartStyle={chartStyle} hasForecast={hasForecast} />}
+            <div className={`chart-wrap amt ${onPick ? "pick" : ""}`} style={style}>
+                {points.length > 0 && <ScrollingChart id={id} points={points} group={group} chartStyle={chartStyle} hasForecast={hasForecast} onPick={onPick} />}
             </div>
         );
     }
@@ -93,11 +116,11 @@ function BalanceSeriesChart({
     // Over more than about a year the axis shows months with the year
     const tick = points.length > 400 ? monthYear : shortDate;
     return (
-        <div className={`chart-wrap amt ${height === "fill" ? "fill" : ""}`} style={style}>
+        <div className={`chart-wrap amt ${height === "fill" ? "fill" : ""} ${onPick ? "pick" : ""}`} style={style}>
             {points.length > 0 && (
                 <ResponsiveContainer width="100%" height="100%">
                     {/* No accessibility layer: it makes the chart a tab stop (tabIndex 0) that takes focus on click */}
-                    <AreaChart data={points} margin={MARGIN} accessibilityLayer={false}>
+                    <AreaChart data={points} margin={MARGIN} accessibilityLayer={false} onClick={onPick && pickFrom(points, "day", onPick)}>
                         {chartDefs(id)}
                         <XAxis dataKey="date" tickFormatter={tick} tickLine={false} axisLine={false} minTickGap={40} tick={TICK} />
                         <YAxis orientation="right" tickFormatter={shortEuro} tickLine={false} axisLine={false} width={AXIS_WIDTH} domain={["auto", "auto"]} tick={TICK} />
@@ -112,7 +135,21 @@ function BalanceSeriesChart({
 }
 
 /** Bars or a line with fixed room per value in a sideways scroller, the amount axis beside it; starts at the newest value. */
-function ScrollingChart({ id, points, group, chartStyle, hasForecast }: { id: string; points: ChartPoint[]; group: SeriesGroup; chartStyle: ChartStyle; hasForecast: boolean }) {
+function ScrollingChart({
+    id,
+    points,
+    group,
+    chartStyle,
+    hasForecast,
+    onPick,
+}: {
+    id: string;
+    points: ChartPoint[];
+    group: SeriesGroup;
+    chartStyle: ChartStyle;
+    hasForecast: boolean;
+    onPick?: PickHandler;
+}) {
     const scroller = useRef<HTMLDivElement>(null);
     const [box, setBox] = useState({ width: 0, height: 0 });
     useLayoutEffect(() => {
@@ -145,7 +182,7 @@ function ScrollingChart({ id, points, group, chartStyle, hasForecast }: { id: st
     }, [endKey, ready, width]);
 
     const chartHeight = Math.max(0, box.height);
-    const size = { width, height: chartHeight, data: points, margin: MARGIN, accessibilityLayer: false };
+    const size = { width, height: chartHeight, data: points, margin: MARGIN, accessibilityLayer: false, onClick: onPick && pickFrom(points, group, onPick) };
     // Bars fill their band; points of the line sit in the middle of their room
     const pad = chartStyle === "line" ? edge + slot / 2 : edge;
     const xAxis = <XAxis dataKey="date" tickFormatter={tickText} tickLine={false} axisLine={false} interval={0} padding={{ left: pad, right: pad }} tick={TICK} />;
@@ -227,6 +264,17 @@ function ScrollingChart({ id, points, group, chartStyle, hasForecast }: { id: st
             </div>
         </div>
     );
+}
+
+/** Click handler of a chart: the whole period of the value under the pointer, none for a value of the forecast. */
+function pickFrom(points: readonly ChartPoint[], group: SeriesGroup, onPick: PickHandler) {
+    return (state: MouseHandlerDataParam) => {
+        const p = state.activeTooltipIndex == null ? undefined : points[Number(state.activeTooltipIndex)];
+        if (!p || (p.balance === undefined && !p.flow)) return;
+        if (group === "day") return onPick({ from: p.date, to: p.date });
+        const { start, end } = periodOf(p.date, group);
+        onPick({ from: start, to: end });
+    };
 }
 
 // Plain functions, not components: Recharts reads its own elements among the chart's children

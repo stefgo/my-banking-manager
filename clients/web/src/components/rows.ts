@@ -28,6 +28,22 @@ export function buildRows(items: Transaction[], balances?: ReadonlyMap<string, n
     return rows;
 }
 
+/**
+ * Pure: index of the head of the newest booked day on or before `to`, where a period ending on `to`
+ * starts in the newest-first list. A period older than every booking gets the oldest day, the end
+ * of the list; -1 without booked days. Pending bookings never count.
+ */
+export function dayRowAtOrBefore(rows: readonly ListRow[], to: string): number {
+    let oldest = -1;
+    for (let i = 0; i < rows.length; i++) {
+        const r = rows[i]!;
+        if (r.type !== "head" || r.key === "h-pending") continue;
+        if (r.key.slice(1) <= to) return i;
+        oldest = i;
+    }
+    return oldest;
+}
+
 /** Bookings in the order of the list (pending first), for keyboard navigation. */
 export const listOrder = (items: Transaction[]): Transaction[] => [...items.filter((t) => t.status === "pending"), ...items.filter((t) => t.status !== "pending")];
 

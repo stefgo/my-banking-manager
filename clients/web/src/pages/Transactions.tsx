@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowDownUp, BarChart3, CalendarDays, ChartColumn, ChartLine, ChartNoAxesCombined, Check, CheckCheck, ChevronDown, CircleDot, Folder, Landmark, Plus, RefreshCw, Search, Send, Tag, Trash2, Wand2, X } from "lucide-react";
 import { isActive, startSync, useConnections, useSyncRuns } from "../lib/bank";
@@ -19,7 +19,7 @@ import { Field } from "../components/form";
 import { Ic, Sym } from "../components/icons";
 import { Choice, Picker, PickerButton, StylePicker } from "../components/pickers";
 import { useCategoryItems, useScopeItems } from "../components/pickItems";
-import { BalanceChart } from "../components/BalanceChart";
+import { BalanceChart, type ChartPeriod } from "../components/BalanceChart";
 import { CHART_STYLE_IDS, CHART_STYLES, SERIES_GROUP_IDS, SERIES_GROUPS, type ChartStyle } from "../lib/seriesGroups";
 import { InfoPanel, InfoToggle } from "../components/InfoPanel";
 import { QueryHelp } from "../components/QueryHelp";
@@ -232,6 +232,15 @@ function TransactionList() {
     // view they stay: a counter booking is not in the list, and a booking that just left it by a
     // new category still shows the offer of a rule.
     const listView = JSON.stringify([search.scope, search.cat, validQ, search.dir, search.deleted, listRange]);
+
+    // A period clicked in the chart scrolls the list to its newest day; a new view does not scroll again
+    const [jump, setJump] = useState<{ to: string; n: number } | null>(null);
+    const [jumpView, setJumpView] = useState(listView);
+    if (jumpView !== listView) {
+        setJumpView(listView);
+        setJump(null);
+    }
+    const jumpToPeriod = useCallback((p: ChartPeriod) => setJump((j) => ({ to: p.to, n: (j?.n ?? 0) + 1 })), []);
     const checkedView = useRef(listView);
     useEffect(() => {
         if (!list.data || list.isPlaceholderData || checkedView.current === listView) return;
@@ -344,7 +353,14 @@ function TransactionList() {
 
     return (
         <>
-            <ContextHeader search={search} range={range} span={span} rangeLabel={dateInSearch ? "Zeitraum aus Suche" : RANGE_LABELS[range]} total={list.data?.total ?? 0} />
+            <ContextHeader
+                search={search}
+                range={range}
+                span={span}
+                rangeLabel={dateInSearch ? "Zeitraum aus Suche" : RANGE_LABELS[range]}
+                total={list.data?.total ?? 0}
+                onPickPeriod={jumpToPeriod}
+            />
             <div className="toolbar" ref={toolbar}>
                 <label className="search">
                     <Ic icon={Search} />
@@ -464,6 +480,7 @@ function TransactionList() {
                         onCatOpen={setCatFor}
                         onClick={onRowClick}
                         onLongPress={onLongPress}
+                        jumpTo={jump}
                     />
                 ) : list.isPending ? (
                     <SkeletonRows />
@@ -590,12 +607,14 @@ function ContextHeader({
     span,
     rangeLabel,
     total,
+    onPickPeriod,
 }: {
     search: TxSearch;
     range: TxRange;
     span?: TxDateBounds;
     rangeLabel: string;
     total: number;
+    onPickPeriod: (period: ChartPeriod) => void;
 }) {
     const groups = useGroups().data ?? [];
     const accounts = useAccounts().data ?? [];
@@ -826,7 +845,7 @@ function ContextHeader({
                             ))}
                         </div>
                     </div>
-                    <BalanceChart scope={scope} range={range} span={span} group={chartGroup} chartStyle={chartStyle} />
+                    <BalanceChart scope={scope} range={range} span={span} group={chartGroup} chartStyle={chartStyle} onPick={onPickPeriod} />
                 </div>
             )}
             {node && infoOpen && <InfoPanel info={node.info} onEdit={() => ui.open({ kind: "info", target: account ? "account" : "group", id: node.id })} />}

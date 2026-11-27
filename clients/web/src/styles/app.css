@@ -1373,6 +1373,8 @@ body { margin: 0; }
 /* A click on a bar focuses one of Recharts' layers (tabindex -1): no browser ring around the whole
    chart. Focus by keyboard (Tab onto the chart, arrow keys move the tooltip) keeps its ring. */
 .chart-wrap :focus:not(:focus-visible) { outline: none; }
+/* A click on a value scrolls the list to its period */
+.chart-wrap.pick .recharts-surface { cursor: pointer; }
 /* Balance chart with a value per day, month, quarter or year: the plot scrolls, the amount axis stays */
 /* Chart switches in a column right of the chart */
 .chart-row { display: flex; align-items: flex-start; gap: 12px; margin-top: 14px; }

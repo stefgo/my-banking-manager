@@ -141,6 +141,11 @@ die Darstellung und gruppierst nach **T**ag, **M**onat, **Q**uartal oder **J**ah
 Ein Zeitraum, den der Filter anschneidet (etwa der laufende Monat), ist blasser. Fährst du über
 einen Wert, zeigt MBM die Beträge.
 
+Klickst du auf einen Wert, scrollt die Umsatzliste zu seinem Zeitraum: Oben steht der jüngste Tag
+darin mit Buchungen, darunter folgen die älteren Tage. Hat der Zeitraum keine Buchungen, etwa wegen
+eines Filters, scrollt sie zum nächsten älteren Tag; liegt er vor der ersten Buchung, ans Ende der
+Liste. Die Werte der Vorschau führen nirgendwohin.
+
 ![Eingänge und Ausgaben des Girokontos je Monat, mit dem Saldo als Linie](../assets/screenshots/umsaetze-verlauf-dark.png)
 
 *Eingänge und Ausgaben der letzten zwölf Monate; der laufende November ist blasser.*
