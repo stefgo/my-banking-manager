@@ -5,7 +5,7 @@ import { isActive, startSync, useConnections, useSyncRuns } from "../lib/bank";
 import { addDaysIso, dateBounds, groupCardNumber, groupIban, isOffline, isValidIsoDate, parseTxQuery, routes, todayIso, TxRange, type AccountScope, type Transaction, type TxDateBounds } from "@mbm/shared";
 import { transactionsRoute } from "../router";
 import { call } from "../lib/api";
-import { useAccounts, useAction, useCategoryIndex, useGroups, useRules, useSeries, useTransactions, useTransferAccounts } from "../lib/queries";
+import { useAccounts, useAction, useCategoryIndex, useGroups, useRules, useSeries, useTransactions, useTransferAccounts, type FlowFilter } from "../lib/queries";
 import { useStartTransfer } from "../lib/transfer";
 import { readLocalSetting, useLocalSetting, writeLocalSetting } from "../lib/localSettings";
 import { accountsInScope, categoryColor, categoryPath, categorySubtree, scopeName, sumBalance } from "../lib/tree";
@@ -19,7 +19,7 @@ import { Field } from "../components/form";
 import { Ic, Sym } from "../components/icons";
 import { Choice, Picker, PickerButton, StylePicker } from "../components/pickers";
 import { useCategoryItems, useScopeItems } from "../components/pickItems";
-import { BalanceChart, type ChartPeriod } from "../components/BalanceChart";
+import { BalanceChart, type ChartMeasure, type ChartPeriod } from "../components/BalanceChart";
 import { CHART_STYLE_IDS, CHART_STYLES, SERIES_GROUP_IDS, SERIES_GROUPS, type ChartStyle } from "../lib/seriesGroups";
 import { InfoPanel, InfoToggle } from "../components/InfoPanel";
 import { QueryHelp } from "../components/QueryHelp";
@@ -607,8 +607,6 @@ function ContextHeader({
     const navigate = useNavigate();
     const chart = useLocalSetting("showBalanceChart");
     const setChart = (on: boolean) => writeLocalSetting("showBalanceChart", on);
-    const chartGroup = useLocalSetting("balanceChartGroup");
-    const chartStyle = useLocalSetting("balanceChartStyle");
     const infoOpen = useLocalSetting("showInfo");
     const toggleInfo = () => writeLocalSetting("showInfo", !infoOpen);
     const [styleOpen, setStyleOpen] = useState(false);
@@ -682,8 +680,10 @@ function ContextHeader({
                             Regeln<span className="muted">{ruleN}</span>
                         </button>
                     )}
+                    <ChartToggle on={chart} onToggle={setChart} />
                     {c && <InfoToggle info={c.info} open={infoOpen} onToggle={toggleInfo} />}
                 </div>
+                {chart && <ChartRow scope={search.scope} range={range} span={span} filter={{ category: search.cat, dir: search.dir }} measure="sum" onPick={onPickPeriod} />}
                 {c && infoOpen && <InfoPanel info={c.info} onEdit={() => ui.open({ kind: "info", target: "category", id: c.id })} />}
             </section>
         );
@@ -795,12 +795,7 @@ function ContextHeader({
                         Überweisen
                     </button>
                 )}
-                {ids.length > 0 && (
-                    <button className="btn btn-sm" aria-pressed={chart} onClick={() => setChart(!chart)}>
-                        <Ic icon={BarChart3} size={14} />
-                        Verlauf
-                    </button>
-                )}
+                {ids.length > 0 && <ChartToggle on={chart} onToggle={setChart} />}
                 {node && <InfoToggle info={node.info} open={infoOpen} onToggle={toggleInfo} />}
                 {node && (
                     <MenuButton
@@ -810,35 +805,7 @@ function ContextHeader({
                     />
                 )}
             </div>
-            {chart && (
-                <div className="chart-row">
-                    <div className="chart-head">
-                        <div className="seg" role="group" aria-label="Verlauf darstellen">
-                            {CHART_STYLE_IDS.map((s) => (
-                                <button key={s} className="seg-icon" aria-pressed={chartStyle === s} aria-label={CHART_STYLES[s]} title={CHART_STYLES[s]} onClick={() => writeLocalSetting("balanceChartStyle", s)}>
-                                    <Ic icon={STYLE_ICON[s]} size={15} />
-                                </button>
-                            ))}
-                        </div>
-                        <div className="seg" role="group" aria-label="Verlauf gruppieren">
-                            {SERIES_GROUP_IDS.map((g) => (
-                                <button key={g} aria-pressed={chartGroup === g} aria-label={SERIES_GROUPS[g].label} title={SERIES_GROUPS[g].label} onClick={() => writeLocalSetting("balanceChartGroup", g)}>
-                                    {SERIES_GROUPS[g].short}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                    <BalanceChart
-                        scope={scope}
-                        range={range}
-                        span={span}
-                        filter={{ category: search.cat, dir: search.dir }}
-                        group={chartGroup}
-                        chartStyle={chartStyle}
-                        onPick={onPickPeriod}
-                    />
-                </div>
-            )}
+            {chart && <ChartRow scope={scope} range={range} span={span} filter={{ category: search.cat, dir: search.dir }} measure="balance" onPick={onPickPeriod} />}
             {node && infoOpen && <InfoPanel info={node.info} onEdit={() => ui.open({ kind: "info", target: account ? "account" : "group", id: node.id })} />}
         </section>
     );
@@ -865,6 +832,46 @@ function HeadPeek({ icon, color, name, children }: { icon: React.ReactNode; colo
 
 /** Symbol of each way to draw the chart in the switch above it. */
 const STYLE_ICON: Record<ChartStyle, typeof ChartLine> = { bar: ChartColumn, line: ChartLine, flow: ChartNoAxesCombined };
+
+/** "Verlauf" in the actions of the head: shows or hides the chart below them. */
+function ChartToggle({ on, onToggle }: { on: boolean; onToggle: (on: boolean) => void }) {
+    return (
+        <button className="btn btn-sm" aria-pressed={on} onClick={() => onToggle(!on)}>
+            <Ic icon={BarChart3} size={14} />
+            Verlauf
+        </button>
+    );
+}
+
+/**
+ * The chart of the head with its switches for style and grouping: the balance of an account or group, or the sum of a
+ * category (`measure` "sum"); "Eingänge und Ausgaben" follows `filter` in both.
+ */
+function ChartRow({ scope, range, span, filter, measure, onPick }: { scope: AccountScope; range: TxRange; span?: TxDateBounds; filter: FlowFilter; measure: ChartMeasure; onPick: (period: ChartPeriod) => void }) {
+    const chartGroup = useLocalSetting("balanceChartGroup");
+    const chartStyle = useLocalSetting("balanceChartStyle");
+    return (
+        <div className="chart-row">
+            <div className="chart-head">
+                <div className="seg" role="group" aria-label="Verlauf darstellen">
+                    {CHART_STYLE_IDS.map((s) => (
+                        <button key={s} className="seg-icon" aria-pressed={chartStyle === s} aria-label={CHART_STYLES[s]} title={CHART_STYLES[s]} onClick={() => writeLocalSetting("balanceChartStyle", s)}>
+                            <Ic icon={STYLE_ICON[s]} size={15} />
+                        </button>
+                    ))}
+                </div>
+                <div className="seg" role="group" aria-label="Verlauf gruppieren">
+                    {SERIES_GROUP_IDS.map((g) => (
+                        <button key={g} aria-pressed={chartGroup === g} aria-label={SERIES_GROUPS[g].label} title={SERIES_GROUPS[g].label} onClick={() => writeLocalSetting("balanceChartGroup", g)}>
+                            {SERIES_GROUPS[g].short}
+                        </button>
+                    ))}
+                </div>
+            </div>
+            <BalanceChart scope={scope} range={range} span={span} filter={filter} group={chartGroup} chartStyle={chartStyle} measure={measure} onPick={onPick} />
+        </div>
+    );
+}
 
 /** A set filter with × to remove it; unset filters show the picker alone. */
 function Removable({ label, onClear, children }: { label: string; onClear?: () => void; children: React.ReactNode }) {

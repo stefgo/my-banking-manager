@@ -94,6 +94,11 @@ export function groupFlows(points: readonly { date: string; income: number; expe
     return out;
 }
 
+/** Total of income and expenses per day, month, quarter or year as the value of a grouped series (the sum of a category). */
+export function groupSums(points: readonly { date: string; income: number; expenses: number }[], group: SeriesGroup): GroupPoint[] {
+    return groupFlows(points, group).map(({ date, from, to, partial, net }) => ({ date, from, to, partial, balance: net }));
+}
+
 /** Name of a period for the tooltip: "November 2026", with the days when the period is cut. */
 export function periodLabel(p: { date: string; from: string; to: string; partial: boolean }, group: Exclude<SeriesGroup, "day">): string {
     const name = group === "month" ? monthYearLong(p.date) : group === "quarter" ? quarterLabel(p.date) : yearLabel(p.date);

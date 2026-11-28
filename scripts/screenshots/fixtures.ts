@@ -642,9 +642,17 @@ export function cashflow(q: { scope: string; from: string; to: string }) {
 }
 
 /** Income and expenses per day over the days of the balance series, counted like the cashflow. */
-export function flows(q: { scope: string; days: number; range?: TxRange; from?: string; to?: string }) {
+export function flows(q: { scope: string; days: number; range?: TxRange; from?: string; to?: string; category?: string; dir?: "all" | "in" | "out" }) {
     const ids = new Set(accountsInScope(q.scope));
-    const rows = transactions.filter((t) => ids.has(t.accountId) && counts(t));
+    let rows = transactions.filter((t) => ids.has(t.accountId));
+    // Picked categories count even when left out of figures otherwise, as on the server
+    if (q.category && q.category !== "all") {
+        const picked = q.category.split(",");
+        const cats = new Set(picked.filter((x) => x !== "none").flatMap((x) => categorySubtree(Number(x))));
+        rows = rows.filter((t) => (t.categoryId === null ? picked.includes("none") : cats.has(t.categoryId)));
+    } else rows = rows.filter(counts);
+    if (q.dir === "in") rows = rows.filter((t) => t.amount > 0);
+    if (q.dir === "out") rows = rows.filter((t) => t.amount < 0);
     return {
         points: series({ ...q, forecastDays: 0 }).points.map(({ date }) => {
             const day = rows.filter((t) => t.bookingDate === date);

@@ -12,6 +12,10 @@ Nothing inside an HTML comment is published.
 
 ### Verbessert
 
+- **Verlauf bei Kategorien:** Auch der Kopf einer Kategorie hat jetzt **Verlauf**. Balken und
+  Linie zeigen die Summe der Kategorie je Tag, Monat, Quartal oder Jahr, „Eingänge und Ausgaben“
+  beide getrennt. Kontofilter, Richtung und Zeitraum der Liste gelten mit, und ein Klick auf einen
+  Wert springt in der Liste zu seinem Zeitraum.
 - **Kontoauswahl:** Beim Importieren von Umsätzen, in einer Buchung von Hand und in der
   Gegenbuchung stehen die Konten in derselben Reihenfolge wie in der Seitenleiste.
 
