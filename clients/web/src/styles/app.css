@@ -942,6 +942,8 @@ a.mini { text-decoration: none; }
 .bank-item:hover, .bank-item.on { background: var(--surface-2); }
 .bank-item b { display: block; font-weight: 500; }
 .bank-item small { color: var(--faint); font-size: 12px; }
+/* PSD2 setup: the banks an own application already serves, one per line */
+.psd2-app-banks { display: grid; }
 .spin { animation: spin 0.9s linear infinite; }
 
 @keyframes spin { to { transform: rotate(360deg); } }

@@ -79,8 +79,9 @@ Einmalig, für alle Banken zusammen:
 1. **Konto hinzufügen → Bank über PSD2 (Enable Banking)**. MBM erklärt, was über Enable Banking
    läuft; weiter geht es erst mit deinem Einverständnis.
 2. **Application-ID** eintragen und die **`.pem`-Datei** wählen (oder ihren Inhalt einfügen). MBM
-   prüft beides sofort bei Enable Banking. Hast du schon einen PSD2-Zugang, nimmst du dessen
-   Anwendung („Wie bei PayPal“); eine reicht für alle Banken.
+   prüft beides sofort bei Enable Banking. Hast du schon einen PSD2-Zugang, wählst du stattdessen
+   dessen Anwendung: MBM zeigt jede deiner Anwendungen einmal („Anwendung (App ••••de23)“),
+   darunter die Banken, die sie schon nutzen. Eine Anwendung reicht für alle Banken.
 3. **Land und Bank** wählen. Die Liste kommt von Enable Banking; „Beta“ heißt, Enable Banking
    bietet die Bank noch nicht lange an.
 4. **Bei der Bank freigeben:** MBM öffnet die Freigabeseite. Du meldest dich bei der Bank an und
