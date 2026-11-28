@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Id, Name, Timestamp } from "./common.js";
+import { ConnectorStatus } from "./bankaccess.js";
 import { Theme } from "./profile.js";
 
 /**
@@ -19,6 +20,22 @@ export const StatusResponse = z.object({
     webTheme: Theme,
 });
 export type StatusResponse = z.infer<typeof StatusResponse>;
+
+/** Versions of all modules of this installation, for signed-in users only. */
+export const VersionsResponse = z.object({
+    server: z.string(),
+    /** Build of the web client the server delivers (null without one). */
+    webBuild: z.string().nullable(),
+    /** The configured connectors; one that is not configured is missing. */
+    connectors: z.array(ConnectorStatus),
+    node: z.string(),
+    sqlite: z.string(),
+    /** Version of SQLite3 Multiple Ciphers, which encrypts the database. */
+    sqliteCiphers: z.string(),
+    /** Last applied migration of the database, e.g. "0017-booking-edits". */
+    schema: z.string().nullable(),
+});
+export type VersionsResponse = z.infer<typeof VersionsResponse>;
 
 /** A user's password also wraps the key of the database, so it has to be long. */
 export const Password = z.string().min(12, "Mindestens 12 Zeichen").max(1024);

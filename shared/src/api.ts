@@ -45,6 +45,7 @@ export const routes = {
     recoverTotp: r({ method: "POST", path: "/api/recover/totp", summary: "Phone lost: start a new second factor with password and recovery key, confirmed with `confirmTotp`. The bank logins stay", tag: "System", access: "none", body: S.RecoverTotpRequest, response: S.TotpSetup }),
     lock: r({ method: "POST", path: "/api/lock", summary: "Lock the database until a user enters their password", tag: "System", access: "user", response: Ok }),
     newRecoveryKey: r({ method: "POST", path: "/api/system/recovery-key", summary: "Replace the recovery key of the installation; confirmed with the signed-in user's password and TOTP code", tag: "System", access: "user", body: S.NewRecoveryKeyRequest, response: S.RecoveryKeyResponse }),
+    versions: r({ method: "GET", path: "/api/system/versions", summary: "Versions of server, web client, connectors, runtime and database schema", tag: "System", access: "user", response: S.VersionsResponse }),
     activity: r({ method: "GET", path: "/api/activity", summary: "Activity log", tag: "System", access: "user", query: S.ActivityQuery, response: List(S.ActivityEntry) }),
 
     // ---------- Sign-in ----------

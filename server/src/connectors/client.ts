@@ -201,10 +201,10 @@ export class ConnectorRegistry {
         );
     }
 
-    status(): { name: string; reachable: boolean; version: string | null; productConfigured: boolean }[] {
+    status(): { name: string; embedded: boolean; reachable: boolean; version: string | null; productConfigured: boolean }[] {
         return [...this.clients.keys()].map((name) => {
             const info = this.infos.get(name);
-            return { name, reachable: !!info, version: info?.version ?? null, productConfigured: info?.productConfigured ?? false };
+            return { name, embedded: this.embedded.has(name), reachable: !!info, version: info?.version ?? null, productConfigured: info?.productConfigured ?? false };
         });
     }
 }

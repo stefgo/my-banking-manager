@@ -5,8 +5,9 @@ import { isOffline, routes } from "@mbm/shared";
 import { settingsRoute } from "../router";
 import { SETTINGS_TABS } from "../lib/settingsTabs";
 import { call } from "../lib/api";
-import { useAccounts, useAction, useActivity, useGroups, useImportFormats, useImports, useStatus } from "../lib/queries";
-import { useConnectorStatus } from "../lib/bank";
+import { useAccounts, useAction, useActivity, useGroups, useImportFormats, useImports } from "../lib/queries";
+import { useVersions, versionsText } from "../lib/versions";
+import { copyText } from "../lib/clipboard";
 import { dateTime, plural } from "../lib/format";
 import { copyName } from "../lib/importFormat";
 import { openImport } from "../lib/importNav";
@@ -22,6 +23,7 @@ import { RulesTab } from "./Rules";
 import { DeletedTab } from "./settings/DeletedTab";
 import { ProfileTab } from "./settings/ProfileTab";
 import { SystemTab } from "./settings/SystemTab";
+import { VersionsTab } from "./settings/VersionsTab";
 import { NewUserDialog, UsersTab } from "./settings/UsersTab";
 
 export function SettingsPage() {
@@ -33,7 +35,7 @@ export function SettingsPage() {
             <div className="page-head">
                 <div>
                     <h1>Einstellungen</h1>
-                    <p className="muted">Konten, Regeln, Importe, gelöschte Umsätze, dein Profil, Benutzer und System</p>
+                    <p className="muted">Konten, Regeln, Importe, gelöschte Umsätze, dein Profil, Benutzer, System, Protokoll und Versionen</p>
                 </div>
                 {tab === "accounts" && (
                     <div className="head-actions">
@@ -59,6 +61,7 @@ export function SettingsPage() {
                         </button>
                     </div>
                 )}
+                {tab === "versions" && <CopyVersionsButton />}
                 {tab === "imports" && (
                     <div className="head-actions">
                         <button className="btn btn-primary" onClick={() => openImport()}>
@@ -83,19 +86,23 @@ export function SettingsPage() {
             {tab === "users" && <UsersTab />}
             {tab === "system" && <SystemTab />}
             {tab === "activity" && <ActivityTab />}
-            <Versions />
+            {tab === "versions" && <VersionsTab />}
             {addingUser && <NewUserDialog onClose={() => setAddingUser(false)} />}
         </>
     );
 }
 
-/** Which versions run: the server and, if configured, the FinTS connector. */
-function Versions() {
-    const server = useStatus().data?.version;
-    const fints = useConnectorStatus().data?.find((s) => s.name === "fints");
-    if (!server) return null;
-    const connector = !fints ? null : fints.reachable && fints.version ? `FinTS-Konnektor ${fints.version}` : "FinTS-Konnektor nicht erreichbar";
-    return <p className="muted small app-version">{[`My Banking Manager ${server}`, connector].filter(Boolean).join(" · ")}</p>;
+/** „Versionen kopieren“ in the head of the tab, e.g. for an error report. */
+function CopyVersionsButton() {
+    const versions = useVersions().data;
+    return (
+        <div className="head-actions">
+            <button className="btn" disabled={!versions} onClick={() => versions && copyText(versionsText(versions))}>
+                <Ic icon={Copy} size={16} />
+                Versionen kopieren
+            </button>
+        </div>
+    );
 }
 
 // ---------- Accounts ----------

@@ -8,6 +8,7 @@ export const SETTINGS_TABS = [
     { id: "users", label: "Benutzer" },
     { id: "system", label: "System" },
     { id: "activity", label: "Protokoll" },
+    { id: "versions", label: "Versionen" },
 ] as const;
 export type SettingsTab = (typeof SETTINGS_TABS)[number]["id"];
 

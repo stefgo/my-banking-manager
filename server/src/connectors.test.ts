@@ -54,7 +54,7 @@ describe("embedded connector calls", () => {
         await registry.start({ info: (m) => lines.push(m) });
         expect(lines).toEqual(["MBM FinTS connector 1.2.3 embedded (no product ID: banks will not be contacted)"]);
         await registry.refresh();
-        expect(registry.status()).toEqual([{ name: "fints", reachable: true, version: "1.2.3", productConfigured: false }]);
+        expect(registry.status()).toEqual([{ name: "fints", embedded: true, reachable: true, version: "1.2.3", productConfigured: false }]);
         await registry.close();
     });
 
@@ -77,7 +77,7 @@ describe("embedded connector calls", () => {
         await registry.start({ info: (m) => lines.push(m) });
         expect(lines).toContain("MBM Enable Banking connector 1.2.3 embedded");
         await registry.refresh();
-        expect(registry.status()).toContainEqual({ name: "enablebanking", reachable: true, version: "1.2.3", productConfigured: true });
+        expect(registry.status()).toContainEqual({ name: "enablebanking", embedded: true, reachable: true, version: "1.2.3", productConfigured: true });
         await registry.close();
     });
 });

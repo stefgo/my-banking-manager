@@ -1,7 +1,6 @@
 # Einstellungen
 
-Die Einstellungen (++g++ dann ++e++) haben acht Bereiche. Unten auf jeder Seite stehen die
-Versionen von MBM und vom FinTS-Konnektor.
+Die Einstellungen (++g++ dann ++e++) haben neun Bereiche.
 
 | Bereich | Inhalt |
 |---|---|
@@ -13,6 +12,7 @@ Versionen von MBM und vom FinTS-Konnektor.
 | **Benutzer** | Was andere betrifft: Benutzer anlegen und entfernen, ihnen beim Zugang helfen, ihre Geräte abmelden |
 | **System** | Was alle betrifft: Wiederherstellungsschlüssel, MBM für alle sperren |
 | **Protokoll** | Wer wann was getan hat |
+| **Versionen** | Versionen aller Module, Zustand der Konnektoren, Laufzeit und Datenbankschema |
 
 ## Gelöschte
 
@@ -76,3 +76,25 @@ getrennt vom Backup auf. Mehr unter [Sicherheit](../sicherheit.md).
 *Anmeldungen, Entsperren, angelegte Benutzer und Geräte, Importe und mehr, mit Zeit und Benutzer.*
 
 Auch fehlgeschlagene Anmeldungen und Bestätigungen stehen hier.
+
+## Versionen
+
+![Einstellungen, Versionen](../assets/screenshots/einstellungen-versionen-dark.png)
+
+*Server, Web-Client und Konnektoren mit ihren Versionen, darunter die Laufzeit.*
+
+Unter **Module** stehen der Server, der Web-Client, der FinTS-Konnektor und der
+Enable-Banking-Konnektor. Bei jedem Konnektor siehst du, ob er im Server eingebettet ist
+(Image `mbm-server-full`) oder als eigener Dienst läuft. Ein gelber Punkt zeigt ein Problem: Der
+Konnektor antwortet nicht, oder für den FinTS-Konnektor ist keine
+[Produkt-ID](../konfiguration.md#fints-produkt-id) eingetragen. Solange das so ist, ruft MBM bei
+dieser Art von Bankzugang nichts ab. Ein grauer Punkt heißt: Der Konnektor ist nicht eingerichtet.
+
+Zeigt dein Browserfenster noch eine ältere Oberfläche, als der Server ausliefert, steht beim
+Web-Client **veraltet**. Ein Klick auf den Pfeil daneben lädt die neue Oberfläche.
+
+Unter **Laufzeit** stehen die Versionen von Node.js, SQLite und SQLite3 Multiple Ciphers, das die
+Datenbank verschlüsselt, dazu die letzte Migration der Datenbank.
+
+**Versionen kopieren** legt alles als Text in die Zwischenablage, etwa für eine Fehlermeldung. Der
+Text enthält nur Versionen, keine Bank- oder Personendaten.

@@ -188,7 +188,8 @@ export const CompleteConsentRequest = z.object({
 export const BankOperationParam = z.object({ id: z.string().uuid() });
 export const BankTanRequest = z.object({ tan: z.string().trim().min(1).max(64) });
 
-export const ConnectorStatus = z.object({ name: z.string(), reachable: z.boolean(), version: z.string().nullable(), productConfigured: z.boolean() });
+/** `embedded`: runs inside the server's process; otherwise a service of its own behind a socket. */
+export const ConnectorStatus = z.object({ name: z.string(), embedded: z.boolean(), reachable: z.boolean(), version: z.string().nullable(), productConfigured: z.boolean() });
 
 // ---------- Fetching (sync) ----------
 

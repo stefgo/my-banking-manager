@@ -896,6 +896,78 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /api/system/versions:
+    get:
+      operationId: versions
+      summary: Versions of server, web client, connectors, runtime and database schema
+      tags:
+        - System
+      security:
+        - session: []
+        - device: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  server:
+                    type: string
+                  webBuild:
+                    type:
+                      - string
+                      - "null"
+                  connectors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        embedded:
+                          type: boolean
+                        reachable:
+                          type: boolean
+                        version:
+                          type:
+                            - string
+                            - "null"
+                        productConfigured:
+                          type: boolean
+                      required:
+                        - name
+                        - embedded
+                        - reachable
+                        - version
+                        - productConfigured
+                      additionalProperties: false
+                  node:
+                    type: string
+                  sqlite:
+                    type: string
+                  sqliteCiphers:
+                    type: string
+                  schema:
+                    type:
+                      - string
+                      - "null"
+                required:
+                  - server
+                  - webBuild
+                  - connectors
+                  - node
+                  - sqlite
+                  - sqliteCiphers
+                  - schema
+                additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /api/activity:
     get:
       operationId: activity
@@ -10241,6 +10313,8 @@ paths:
                   properties:
                     name:
                       type: string
+                    embedded:
+                      type: boolean
                     reachable:
                       type: boolean
                     version:
@@ -10251,6 +10325,7 @@ paths:
                       type: boolean
                   required:
                     - name
+                    - embedded
                     - reachable
                     - version
                     - productConfigured
