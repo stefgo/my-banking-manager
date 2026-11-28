@@ -67,6 +67,13 @@ describe("bookings by hand on a bank account", () => {
         expect(rowCount()).toBe(1);
         expect(await balance()).toBe(100_000);
     });
+
+    it("is booked with an amount other than 0 and may be changed to 0", async () => {
+        const url = `/api/accounts/${accountId}/transactions`;
+        expect((await api("POST", url, { bookingDate: "2026-11-02", amount: 0, counterpartyName: "Null" })).status).toBe(400);
+        const made = (await api<Transaction>("POST", url, { bookingDate: "2026-11-02", amount: -350, counterpartyName: "Café Probe" })).body;
+        expect((await api<Transaction>("PATCH", `/api/transactions/${made.id}`, { amount: 0 })).body).toMatchObject({ amount: 0 });
+    });
 });
 
 describe("deleting bookings of the bank", () => {
@@ -142,6 +149,14 @@ describe("changing amount and date of a booking of the bank", () => {
         // The bank's values again: unchanged
         expect((await api<Transaction>("PATCH", `/api/transactions/${cup!.id}`, { amount: -350, bookingDate: "2026-11-02" })).body.original).toBeNull();
         expect(await balanceAt("2026-10-31")).toBe(before);
+    });
+
+    it("may set the amount to 0", async () => {
+        fetched([booking(), coffee()], 100_000);
+        const [, cup] = await list();
+        const changed = (await api<Transaction>("PATCH", `/api/transactions/${cup!.id}`, { amount: 0 })).body;
+        expect(changed).toMatchObject({ amount: 0, original: { amount: -350, bookingDate: "2026-11-02" } });
+        expect(await balance()).toBe(100_000);
     });
 
     it("refuses other fields and pending bookings", async () => {

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Check, ChevronRight, Folder, Globe, Info, Landmark } from "lucide-react";
-import { centsToInput, parseAmount, routes, type Account } from "@mbm/shared";
+import { centsToInput, completeAmountInput, parseAmount, routes, type Account } from "@mbm/shared";
 import { call } from "../lib/api";
 import { useConnectorStatus } from "../lib/bank";
 import { useAccounts, useAction } from "../lib/queries";
@@ -95,7 +95,7 @@ export function AddAccountDialog({ offline = false }: { offline?: boolean }) {
                 </Field>
                 <Field id="wz-bal" label="Anfangssaldo" error={errors["wz-bal"]} hint="Kontostand vor der ersten Buchung. Jede Buchung, auch eine importierte, ändert den Kontostand.">
                     <div className="amount-wrap">
-                        <input className="inp" inputMode="decimal" placeholder="0,00" autoComplete="off" value={opening} onChange={(e) => setOpening(e.target.value)} {...fieldProps("wz-bal", errors["wz-bal"], true)} />
+                        <input className="inp" inputMode="decimal" placeholder="0,00" autoComplete="off" value={opening} onChange={(e) => setOpening(e.target.value)} onBlur={(e) => setOpening(completeAmountInput(e.target.value))} {...fieldProps("wz-bal", errors["wz-bal"], true)} />
                         <span className="cur">€</span>
                     </div>
                 </Field>
@@ -153,7 +153,7 @@ export function OpeningBalanceDialog({ accountId }: { accountId: number }) {
                 <p className="muted">Kontostand von „{account.name}“ vor der ersten Buchung. Alle Buchungen werden darauf gerechnet.</p>
                 <Field id="ob-amount" label="Anfangssaldo" error={error}>
                     <div className="amount-wrap">
-                        <input className="inp" inputMode="decimal" placeholder="0,00" autoComplete="off" autoFocus value={value} onChange={(e) => setValue(e.target.value)} {...fieldProps("ob-amount", error)} />
+                        <input className="inp" inputMode="decimal" placeholder="0,00" autoComplete="off" autoFocus value={value} onChange={(e) => setValue(e.target.value)} onBlur={(e) => setValue(completeAmountInput(e.target.value))} {...fieldProps("ob-amount", error)} />
                         <span className="cur">€</span>
                     </div>
                 </Field>

@@ -2,12 +2,18 @@ import { routes, type Transaction } from "@mbm/shared";
 import { call } from "./api";
 import { fmtSigned, shownParty, shownPurpose } from "./format";
 import type { useAction } from "./queries";
-import { ui } from "./ui";
+import { getUi, ui } from "./ui";
 
 type Action = ReturnType<typeof useAction>;
 
 /** Only a deleted booking from an import can go for good; in a PayPal account the server refuses it. */
 export const canPurge = (tx: Transaction): boolean => tx.deletedAt !== null && tx.source === "import";
+
+/** Brings a deleted booking back; its details, if open, close, since they showed it as deleted. */
+export async function restoreTx(tx: Transaction, action: Action): Promise<void> {
+    const ok = await action.succeeds(() => call(routes.restoreTransaction, { params: { id: tx.id } }), { topics: ["accounts", "transactions", "categories"], ok: "Umsatz wiederhergestellt" });
+    if (ok && getUi().drawerTx === tx.id) ui.openTx(null);
+}
 
 /** Asks before a deleted booking from an import goes for good; `done` runs once it is gone. */
 export function confirmPurge(tx: Transaction, action: Action, done?: () => void): void {

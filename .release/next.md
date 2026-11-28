@@ -20,6 +20,10 @@ Nothing inside an HTML comment is published.
   aus der Seitenleiste („…“ oder Rechtsklick): umbenennen direkt in der Zeile, Symbol und Farbe
   (auch per Klick auf das Symbol), Infos, bei Offline-Konten Anfangssaldo, Saldo abgleichen,
   Importieren und Löschen.
+- **Betrag eingeben:** Beträge stehen in den Eingabefeldern jetzt rechtsbündig. „1“ oder „1,1“
+  ergänzt MBM beim Verlassen des Felds zu „1,00“ und „1,10“, in Buchungen, Überweisungen,
+  Anfangssaldo und Saldo-Abgleich. Beim Ändern einer Buchung oder eines Umsatzes ist auch 0,00
+  erlaubt.
 - **Kontoauswahl:** Beim Importieren von Umsätzen, in einer Buchung von Hand und in der
   Gegenbuchung stehen die Konten in derselben Reihenfolge wie in der Seitenleiste.
 
@@ -29,6 +33,15 @@ Nothing inside an HTML comment is published.
   Bank-Umsätze und Umsätze in PayPal-Konten bleiben ausgenommen.
 
 ### Behoben
+
+- **PayPal-Details:** Der Text bei „Für Zahlung“ steht jetzt linksbündig, auch wenn er
+  umbricht. Bisher stand er mittig.
+- **Gelöschte wiederherstellen:** Stellst du einen gelöschten Umsatz wieder her, schließen sich
+  seine Details, auch beim Wiederherstellen aus der Liste unter Einstellungen → Gelöschte. Bisher
+  blieben sie offen.
+- **Gelöschte, Spalten:** Unter Einstellungen → Gelöschte stehen Betrag, „Wiederherstellen“ und
+  „Endgültig löschen“ jetzt über alle Konten hinweg untereinander, auch wenn ein Umsatz nicht
+  endgültig gelöscht werden kann.
 
 - **Importe entfernen:** „Entfernen“ und „Rückgängig“ unter Einstellungen → Importe fragen jetzt
   nach, wenn dabei gelöschte Umsätze des Imports endgültig verschwinden. Bisher entfernte

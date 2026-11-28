@@ -3,7 +3,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Check, RotateCcw, Scale, Tag } from "lucide-react";
-import { centsToInput, isOffline, isValidIsoDate, parseAmount, routes, todayIso, type Topic, type Transaction, type TxEditField } from "@mbm/shared";
+import { centsToInput, completeAmountInput, isOffline, isValidIsoDate, parseAmount, routes, todayIso, type Topic, type Transaction, type TxEditField } from "@mbm/shared";
 import { call } from "../lib/api";
 import { useAccounts, useAction, useCategoryIndex, useGroups, usePayees, useTxById } from "../lib/queries";
 import { accountsInTreeOrder, categoryPath } from "../lib/tree";
@@ -16,19 +16,27 @@ import { CatTile, Ic, Tile } from "../components/icons";
 import { Picker, PickerButton } from "../components/pickers";
 import { accountPickItems, useCategoryItems } from "../components/pickItems";
 
+/** The amount as typed: a new booking needs more than 0, a change may set it to 0. */
+const amountField = (zero: boolean) =>
+    z.string().refine(
+        (s) => {
+            const c = parseAmount(s);
+            return c !== null && (zero ? c >= 0 : c > 0);
+        },
+        zero ? "Bitte einen Betrag eingeben." : "Bitte einen Betrag größer als 0 eingeben.",
+    );
+
 const BookingForm = z.object({
     accountId: z.string().min(1, "Bitte ein Konto wählen."),
     dir: z.enum(["out", "in"]),
-    amount: z.string().refine((s) => {
-        const c = parseAmount(s);
-        return c !== null && c > 0;
-    }, "Bitte einen Betrag größer als 0 eingeben."),
+    amount: amountField(false),
     date: z.string().refine(isValidIsoDate, "Bitte ein Datum wählen."),
     name: z.string().trim().min(1, "Bitte eine Gegenseite angeben.").max(140, "Höchstens 140 Zeichen."),
     purpose: z.string().max(400, "Höchstens 400 Zeichen."),
     pending: z.boolean(),
 });
 type BookingForm = z.infer<typeof BookingForm>;
+const EditBookingForm = BookingForm.extend({ amount: amountField(true) });
 
 /**
  * Books by hand, or changes a booking: one entered by hand as a whole; one from the bank, an import
@@ -59,7 +67,7 @@ function ManualDialog({ accountId, txId }: { accountId?: number; txId?: number }
     // Without an account given, an offline one first: that is where bookings by hand belong most
     const startAccount = accountId && accounts.some((a) => a.id === accountId) ? accountId : (accounts.find((a) => isOffline(a)) ?? accounts[0])?.id;
     const form = useForm<BookingForm>({
-        resolver: zodResolver(BookingForm),
+        resolver: zodResolver(txId !== undefined ? EditBookingForm : BookingForm),
         defaultValues: { accountId: String(startAccount ?? ""), dir: "out", amount: "", date: todayIso(), name: "", purpose: "", pending: false },
     });
     const { register, handleSubmit, setValue, reset, formState, control } = form;
@@ -145,7 +153,7 @@ function ManualDialog({ accountId, txId }: { accountId?: number; txId?: number }
                 <div className="bk-row">
                     <Field id="bk-amount" label="Betrag" error={err.amount?.message}>
                         <div className="amount-wrap">
-                            <input className="inp" inputMode="decimal" placeholder="0,00" autoComplete="off" autoFocus {...fieldProps("bk-amount", err.amount?.message)} {...register("amount")} />
+                            <input className="inp" inputMode="decimal" placeholder="0,00" autoComplete="off" autoFocus {...fieldProps("bk-amount", err.amount?.message)} {...register("amount", { onBlur: (e) => setValue("amount", completeAmountInput(e.target.value)) })} />
                             <span className="cur">€</span>
                         </div>
                     </Field>
@@ -192,7 +200,7 @@ function ManualDialog({ accountId, txId }: { accountId?: number; txId?: number }
 
 const TxForm = z.object({
     dir: z.enum(["out", "in"]),
-    amount: BookingForm.shape.amount,
+    amount: amountField(true),
     date: BookingForm.shape.date,
     name: z.string().max(140, "Höchstens 140 Zeichen."),
     purpose: BookingForm.shape.purpose,
@@ -268,7 +276,7 @@ function TxDialog({ tx }: { tx: Transaction }) {
                 <div className="bk-row">
                     <Field id="tx-amount" label="Betrag" error={err.amount?.message}>
                         <div className="amount-wrap">
-                            <input className="inp" inputMode="decimal" placeholder="0,00" autoComplete="off" autoFocus={!pending} readOnly={pending} {...fieldProps("tx-amount", err.amount?.message)} {...register("amount")} />
+                            <input className="inp" inputMode="decimal" placeholder="0,00" autoComplete="off" autoFocus={!pending} readOnly={pending} {...fieldProps("tx-amount", err.amount?.message)} {...register("amount", { onBlur: (e) => setValue("amount", completeAmountInput(e.target.value)) })} />
                             <span className="cur">€</span>
                         </div>
                     </Field>
@@ -340,7 +348,7 @@ export function ReconcileDialog({ accountId }: { accountId: number }) {
                 <div className="bk-row">
                     <Field id="rec-amount" label="Tatsächlicher Bestand" error={errors["rec-amount"]}>
                         <div className="amount-wrap">
-                            <input className="inp" inputMode="decimal" placeholder="0,00" autoComplete="off" autoFocus value={value} onChange={(e) => setValue(e.target.value)} {...fieldProps("rec-amount", errors["rec-amount"])} />
+                            <input className="inp" inputMode="decimal" placeholder="0,00" autoComplete="off" autoFocus value={value} onChange={(e) => setValue(e.target.value)} onBlur={(e) => setValue(completeAmountInput(e.target.value))} {...fieldProps("rec-amount", errors["rec-amount"])} />
                             <span className="cur">€</span>
                         </div>
                     </Field>

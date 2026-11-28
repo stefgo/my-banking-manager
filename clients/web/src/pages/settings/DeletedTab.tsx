@@ -1,10 +1,9 @@
 import { useMemo } from "react";
 import { RotateCcw, Trash2 } from "lucide-react";
-import { routes, type Account, type Transaction } from "@mbm/shared";
-import { call } from "../../lib/api";
+import type { Account, Transaction } from "@mbm/shared";
 import { useAccounts, useAction, useGroups, useTransactions } from "../../lib/queries";
 import { dateText, dateTime, plural, shownParty, shownPurpose } from "../../lib/format";
-import { canPurge, confirmPurge } from "../../lib/purge";
+import { canPurge, confirmPurge, restoreTx } from "../../lib/purge";
 import { accountsInTreeOrder } from "../../lib/tree";
 import { ui } from "../../lib/ui";
 import { Amt, Empty } from "../../components/common";
@@ -70,14 +69,14 @@ function DeletedPanel({ account, items }: { account: Account | undefined; items:
                             <button
                                 className="btn btn-sm btn-ghost"
                                 disabled={action.pending}
-                                onClick={() => void action.run(() => call(routes.restoreTransaction, { params: { id: tx.id } }), { topics: ["accounts", "transactions", "categories"], ok: "Umsatz wiederhergestellt" })}
+                                onClick={() => void restoreTx(tx, action)}
                             >
                                 <Ic icon={RotateCcw} size={14} />
                                 Wiederherstellen
                             </button>
-                            {canPurge(tx) && (
+                            {canPurge(tx) ? (
                                 <button
-                                    className="btn btn-sm btn-ghost btn-danger"
+                                    className="btn btn-sm btn-ghost btn-danger del-purge"
                                     disabled={action.pending}
                                     aria-label="Endgültig löschen"
                                     title="Endgültig löschen"
@@ -85,6 +84,9 @@ function DeletedPanel({ account, items }: { account: Account | undefined; items:
                                 >
                                     <Ic icon={Trash2} size={14} />
                                 </button>
+                            ) : (
+                                // Keeps the columns in line with the rows that can be removed for good
+                                <span aria-hidden="true" />
                             )}
                         </span>
                     </div>

@@ -547,7 +547,7 @@ button.av:hover { box-shadow: inset 0 0 0 1px var(--c); }
 .inp-sm { height: 38px; font-size: 14px; border-radius: 10px; }
 select.inp { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 34px; }
 .amount-wrap { position: relative; }
-.amount-wrap .inp { height: 60px; font-size: 28px; font-weight: 500; letter-spacing: -0.02em; padding-right: 44px; font-variant-numeric: tabular-nums; }
+.amount-wrap .inp { height: 60px; font-size: 28px; font-weight: 500; letter-spacing: -0.02em; padding-right: 44px; text-align: right; font-variant-numeric: tabular-nums; }
 .amount-wrap .cur { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-size: 20px; color: var(--faint); }
 .recent { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .pchip { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 10px 0 4px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 12.5px; font-weight: 500; }
@@ -568,7 +568,7 @@ select.inp { appearance: none; background-image: linear-gradient(45deg, transpar
 .tf-edit .field { gap: 5px; }
 .tf-edit .inp { height: 40px; font-size: 14.5px; border-radius: 10px; }
 .tf-edit .inp.mono { font-size: 14px; }
-.tf-edit .amount-wrap .inp { height: 46px; font-size: 22px; text-align: right; }
+.tf-edit .amount-wrap .inp { height: 46px; font-size: 22px; }
 .tf-edit .amount-wrap .cur { font-size: 17px; }
 .tf-edit .from-opt { padding: 7px 12px; border-radius: 11px; }
 .tf-edit .rem-lines { border-radius: 10px; }
@@ -871,6 +871,7 @@ a.mini { text-decoration: none; }
 .d-list > div { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line-soft); font-size: 13.5px; align-items: center; }
 .d-list dt { color: var(--faint); }
 .d-list dd { margin: 0; min-width: 0; overflow-wrap: anywhere; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.d-list dd .link { text-align: left; }
 /* The full category path stays visible: it wraps between levels first, the button grows in height */
 .d-list .picker-btn { min-width: 0; max-width: 100%; height: auto; min-height: 30px; padding-top: 5px; padding-bottom: 5px; border-radius: 15px; text-align: left; }
 .d-list .picker-btn > * { flex: none; }
@@ -1352,15 +1353,21 @@ body { margin: 0; }
 .row-item b { font-weight: 500; }
 .row-item small { display: block; color: var(--faint); font-size: 12px; }
 .row-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-/* Deleted bookings in the settings: account in the head, amount beside the restore button */
+/* Deleted bookings in the settings: account in the head, amount beside the restore button.
+   Fixed columns keep amount and buttons in line across all accounts. */
 .del-head { display: flex; align-items: center; gap: 8px; }
 .del-main { display: block; }
-.del-actions { align-items: center; gap: 12px; }
+.del-actions { display: grid; grid-template-columns: minmax(13ch, max-content) max-content 32px; align-items: center; gap: 12px; }
+.del-actions .amt { text-align: right; }
+.del-purge { width: 32px; padding: 0; justify-content: center; }
 .row-sub { margin: 0 0 8px 14px; padding-left: 12px; border-left: 2px solid var(--line-soft); }
 .row-sub .row-item { padding: 6px 2px; }
 @media (max-width: 640px) {
     .row-item:has(> .row-actions > :nth-child(3)) { grid-template-columns: minmax(0, 1fr); }
     .row-item:has(> .row-actions > :nth-child(3)) .row-actions { justify-content: flex-start; }
+    /* Below the name: amount on the left, buttons at the right edge, still in line on narrow phones */
+    .del-actions { grid-template-columns: minmax(0, 1fr) max-content 32px; }
+    .del-actions .amt { text-align: left; }
 }
 .form-grid { display: grid; gap: 14px; max-width: 520px; }
 .pal-item[data-selected="true"] { background: var(--surface-2); }
