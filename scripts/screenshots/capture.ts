@@ -17,7 +17,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { chromium, type BrowserContext, type Page } from "playwright";
+import { chromium, type Browser, type Page } from "playwright";
 import { routes, type RouteDef } from "@mbm/shared";
 import { serve } from "./serve.js";
 import * as fx from "./fixtures.js";
@@ -337,7 +337,21 @@ async function fitToContent(page: Page): Promise<void> {
     await page.waitForTimeout(300);
 }
 
-async function capture(context: BrowserContext, origin: string, shot: Shot, theme: Theme): Promise<void> {
+/**
+ * Each shot in a browser of its own: settings the app keeps in localStorage (such as "Verlauf")
+ * would otherwise carry over from one shot to the next and make it depend on the order.
+ */
+async function capture(browser: Browser, origin: string, shot: Shot, theme: Theme): Promise<void> {
+    const phone = !!shot.phone;
+    const context = await browser.newContext({
+        viewport: phone ? PHONE : { width: WIDTH, height: START_HEIGHT },
+        deviceScaleFactor: SCALE,
+        isMobile: phone,
+        hasTouch: phone,
+        locale: "de-DE",
+        timezoneId: fx.TIMEZONE,
+        reducedMotion: "reduce",
+    });
     const page = await context.newPage();
     reportPageErrors(page);
     await page.clock.setFixedTime(fx.FIXED_NOW);
@@ -357,7 +371,7 @@ async function capture(context: BrowserContext, origin: string, shot: Shot, them
     await page.screenshot({ path: file, animations: "disabled" });
     const { width, height } = page.viewportSize()!;
     console.log(`  ✓ ${path.relative(REPO, file)}  (${width}x${height})`);
-    await page.close();
+    await context.close();
 }
 
 async function main(): Promise<void> {
@@ -376,19 +390,9 @@ async function main(): Promise<void> {
     const browser = await chromium.launch();
     try {
         for (const phone of [false, true]) {
-            const context = await browser.newContext({
-                viewport: phone ? PHONE : { width: WIDTH, height: START_HEIGHT },
-                deviceScaleFactor: SCALE,
-                isMobile: phone,
-                hasTouch: phone,
-                locale: "de-DE",
-                timezoneId: fx.TIMEZONE,
-                reducedMotion: "reduce",
-            });
             for (const shot of SHOTS.filter((s) => !!s.phone === phone && (only.length === 0 || only.includes(s.name)))) {
-                for (const theme of shot.themes ?? (["light", "dark"] as Theme[])) await capture(context, site.origin, shot, theme);
+                for (const theme of shot.themes ?? (["light", "dark"] as Theme[])) await capture(browser, site.origin, shot, theme);
             }
-            await context.close();
         }
     } finally {
         await browser.close();
