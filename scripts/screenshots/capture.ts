@@ -155,6 +155,7 @@ const SHOTS: Shot[] = [
     { name: "einstellungen-benutzer", route: "/settings?tab=users", themes: ["dark"] },
     { name: "einstellungen-system", route: "/settings?tab=system", themes: ["dark"] },
     { name: "einstellungen-importe", route: "/settings?tab=imports", themes: ["dark"] },
+    { name: "einstellungen-geloeschte", route: "/settings?tab=deleted", themes: ["dark"] },
     {
         name: "import-pruefen",
         route: `/import?account=${fx.CASH}`,

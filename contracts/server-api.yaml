@@ -6893,7 +6893,7 @@ paths:
   /api/stats/flows:
     get:
       operationId: flows
-      summary: Daily income and expenses without own transfers
+      summary: Daily income and expenses without own transfers, optionally filtered like the list
       tags:
         - Transactions
       security:
@@ -6939,6 +6939,25 @@ paths:
           schema:
             description: "Takes precedence over range and days; missing with from: today"
             type: string
+        - name: category
+          in: query
+          required: false
+          schema:
+            default: all
+            description: "all, or a comma-separated list of category ids and none: only the shares in these categories, which then count even if left out of figures otherwise"
+            type: string
+            pattern: ^(all|(none|\d+)(,(none|\d+)){0,99})$
+        - name: dir
+          in: query
+          required: false
+          schema:
+            default: all
+            description: "in or out: only bookings with a positive or negative amount"
+            type: string
+            enum:
+              - all
+              - in
+              - out
       responses:
         "200":
           description: OK

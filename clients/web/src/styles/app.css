@@ -1342,6 +1342,10 @@ body { margin: 0; }
 .row-item b { font-weight: 500; }
 .row-item small { display: block; color: var(--faint); font-size: 12px; }
 .row-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+/* Deleted bookings in the settings: account in the head, amount beside the restore button */
+.del-head { display: flex; align-items: center; gap: 8px; }
+.del-main { display: block; }
+.del-actions { align-items: center; gap: 12px; }
 .row-sub { margin: 0 0 8px 14px; padding-left: 12px; border-left: 2px solid var(--line-soft); }
 .row-sub .row-item { padding: 6px 2px; }
 @media (max-width: 640px) {
@@ -1376,9 +1380,9 @@ body { margin: 0; }
 /* A click on a value scrolls the list to its period */
 .chart-wrap.pick .recharts-surface { cursor: pointer; }
 /* Balance chart with a value per day, month, quarter or year: the plot scrolls, the amount axis stays */
-/* Chart switches in a column right of the chart */
-.chart-row { display: flex; align-items: flex-start; gap: 12px; margin-top: 14px; }
-.chart-row > .chart-wrap { flex: 1; min-width: 0; margin-top: 0; }
+/* Chart switches in a column right of the chart; the switches set the height, the chart takes it */
+.chart-row { display: flex; align-items: stretch; gap: 12px; margin-top: 14px; }
+.chart-row > .chart-wrap { flex: 1; min-width: 0; height: auto; margin-top: 0; }
 .chart-head { display: flex; flex-direction: column; gap: 8px; flex: none; order: 1; }
 .chart-head .seg { flex-direction: column; flex-wrap: nowrap; }
 /* Out of the flow: the wide plot must not widen the page around it */
@@ -1427,9 +1431,6 @@ body { margin: 0; }
     .icon-btn { width: 44px; height: 44px; }
     .rail-btn, .sb-user.compact { width: 44px; height: 44px; }
     .seg button { height: 40px; }
-    /* The taller switches set the height; the chart grows with them */
-    .chart-row { align-items: stretch; }
-    .chart-row > .chart-wrap { height: auto; min-height: var(--ch, 210px); }
     .chip, .picker-btn, .btn-sm { height: 40px; }
     .fchip-x { min-width: 40px; }
     .tw { width: 32px; height: 40px; }

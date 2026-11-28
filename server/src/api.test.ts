@@ -1131,6 +1131,43 @@ describe("transaction search", () => {
         expect(flow).toMatchObject({ income: march.reduce((s, p) => s + p.income, 0), expenses: march.reduce((s, p) => s + p.expenses, 0) });
         expect((await api<Flows>("GET", `/api/stats/flows?scope=account:${cash.id}&from=2026-04-01&to=2026-03-31`)).body.points).toEqual([]);
     });
+
+    it("narrows income and expenses by the filters of the list", async () => {
+        const { api } = await setUpSignedIn(t);
+        const cats = (await api<CategoryList>("GET", "/api/categories")).body.items;
+        const transfer = cats.find((c) => c.name === "Umbuchung")!;
+        const food = cats.find((c) => c.name === "Lebensmittel")!;
+        const market = cats.find((c) => c.name === "Supermarkt")!;
+        const cash = (await api<Account>("POST", "/api/accounts", { name: "Bargeld", openingBalance: 10000 })).body;
+        const book = (amount: number, categoryId: number | null = null) =>
+            api("POST", `/api/accounts/${cash.id}/transactions`, { bookingDate: "2026-03-02", amount, counterpartyName: "X", categoryId });
+        await book(250000);
+        await book(-4000, market.id);
+        await book(-1500);
+        await book(50000, transfer.id);
+        type Flows = { points: { date: string; income: number; expenses: number }[] };
+        const day = async (filter: string) =>
+            (await api<Flows>("GET", `/api/stats/flows?scope=account:${cash.id}&from=2026-03-02&to=2026-03-02${filter}`)).body.points[0];
+        expect(await day("")).toEqual({ date: "2026-03-02", income: 250000, expenses: -5500 });
+        // A category with its subcategories; "none" for bookings without one
+        expect(await day(`&category=${food.id}`)).toMatchObject({ income: 0, expenses: -4000 });
+        expect(await day("&category=none")).toMatchObject({ income: 250000, expenses: -1500 });
+        // A picked category counts even if it does not count in figures otherwise
+        expect(await day(`&category=${transfer.id}`)).toMatchObject({ income: 50000, expenses: 0 });
+        expect(await day(`&category=${transfer.id},${market.id}`)).toMatchObject({ income: 50000, expenses: -4000 });
+        expect(await day("&dir=in")).toMatchObject({ income: 250000, expenses: 0 });
+        expect(await day("&dir=out")).toMatchObject({ income: 0, expenses: -5500 });
+        expect(await day("&category=none&dir=out")).toMatchObject({ income: 0, expenses: -1500 });
+        // A deleted booking no longer counts
+        await api("POST", `/api/accounts/${cash.id}/import`, { fileName: "a.csv", content: "Datum;Betrag;Name\n02.03.2026;-7,00;Kiosk\n" });
+        const imported = (await api<TransactionList>("GET", `/api/transactions?scope=account:${cash.id}&q=Kiosk&range=all`)).body.items[0]!;
+        expect(await day("")).toMatchObject({ expenses: -6200 });
+        await api("DELETE", `/api/transactions/${imported.id}`);
+        expect(await day("")).toMatchObject({ expenses: -5500 });
+        // The cashflow of the overview stays unfiltered
+        const flow = (await api<{ income: number; expenses: number }>("GET", `/api/stats/cashflow?scope=account:${cash.id}&from=2026-03-02&to=2026-03-02`)).body;
+        expect(flow).toMatchObject({ income: 250000, expenses: -5500 });
+    });
 });
 
 describe("figures", () => {
@@ -1199,6 +1236,17 @@ describe("split bookings", () => {
         expect(await ids(String(a))).toEqual([split.id]);
         expect(await ids(String(b))).toEqual([split.id]);
         expect(await ids("none")).not.toContain(split.id);
+    });
+
+    it("counts only the shares of the picked categories in the income and expenses of the chart", async () => {
+        const { api, a, b } = await setUpSplit();
+        type Flows = { points: { date: string; income: number; expenses: number }[] };
+        const day = async (category: string) => (await api<Flows>("GET", `/api/stats/flows?scope=all&from=2026-02-01&to=2026-02-01&category=${category}`)).body.points[0];
+        expect(await day("all")).toMatchObject({ expenses: -1000 });
+        expect(await day(String(a))).toMatchObject({ expenses: -300 });
+        expect(await day(String(b))).toMatchObject({ expenses: -700 });
+        expect(await day(`${a},${b}`)).toMatchObject({ expenses: -1000 });
+        expect(await day("none")).toMatchObject({ expenses: 0 });
     });
 
     it("counts each share in its category and the booking once", async () => {

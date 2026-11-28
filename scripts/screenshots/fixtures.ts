@@ -389,6 +389,21 @@ book({ account: GIRO, date: "2026-11-20", amount: -3745, name: "Frischemarkt Son
 
 transactions.sort((a, b) => b.bookingDate.localeCompare(a.bookingDate) || b.id - a.id);
 
+/** A booking the user deleted: kept apart from the others, so that it counts nowhere, as on the server. */
+function deleted(b: Booking, when: string): Transaction {
+    const t = book(b)!;
+    transactions.pop();
+    return { ...t, unread: false, deletedAt: when };
+}
+
+/** For the deleted bookings in the settings; only those of the bank, one entered by hand goes for good. */
+export const deletedTransactions: Transaction[] = [
+    deleted({ account: GIRO, date: "2026-11-14", amount: -3745, name: "Frischemarkt Sonnenhof", remittance: "Kartenzahlung", category: "Supermarkt" }, at("2026-11-15", "17:42:08")),
+    deleted({ account: GIRO, date: "2026-10-02", amount: -1999, name: "Streamingdienst Flimmer", remittance: "Lastschrift Probeabo", category: null }, at("2026-10-05", "08:12:40")),
+    deleted({ account: CARD, date: "2026-11-09", amount: -12900, name: "Hotel Seeblick", remittance: "Reservierung, storniert", category: null }, at("2026-11-11", "19:03:51")),
+    deleted({ account: PAYPAL, date: "2026-11-03", amount: -2450, name: "Kleinanzeigen Versand", remittance: "Doppelt gebucht", category: null }, at("2026-11-04", "09:27:15")),
+].sort((a, b) => b.bookingDate.localeCompare(a.bookingDate) || b.id - a.id);
+
 // ---------- Derived: accounts, categories ----------
 
 const sumOf = (list: Transaction[]) => list.reduce((s, t) => s + t.amount, 0);
@@ -552,6 +567,7 @@ export interface TxQuery {
     category: string;
     dir: "all" | "in" | "out";
     pending?: boolean;
+    deleted?: boolean;
     limit: number;
 }
 
@@ -560,7 +576,7 @@ export function listTransactions(f: TxQuery) {
     const bounds = f.range ? rangeBounds(f.range) : { from: null, to: null };
     const from = f.from ?? bounds.from;
     const to = f.to ?? bounds.to;
-    let rows = transactions.filter((t) => ids.has(t.accountId) && (!from || t.bookingDate >= from) && (!to || t.bookingDate <= to));
+    let rows = (f.deleted ? deletedTransactions : transactions).filter((t) => ids.has(t.accountId) && (!from || t.bookingDate >= from) && (!to || t.bookingDate <= to));
     if (f.category !== "all") {
         const picked = f.category.split(",");
         const cats = new Set(picked.filter((x) => x !== "none").flatMap((x) => categorySubtree(Number(x))));

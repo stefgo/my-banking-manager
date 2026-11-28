@@ -107,8 +107,9 @@ Alles andere bleibt, wie die Bank es geliefert hat.
 anderen blendet MBM nur aus: Sie verschwinden aus Liste und Auswertungen, kommen aber auch beim
 nächsten Abruf oder Import nicht wieder. Das gilt auch für einen vorgemerkten Umsatz, sobald die
 Bank ihn bucht. Löschst du eine PayPal-Zahlung, verschwindet die Abbuchung, die MBM dazu ergänzt
-hat, mit ihr. Eine Gegenbuchung im Offline-Konto entfernt MBM. Über den Filter **Gelöschte** findest
-du ausgeblendete Umsätze wieder, **Wiederherstellen** in ihren Details holt sie zurück. Das
+hat, mit ihr. Eine Gegenbuchung im Offline-Konto entfernt MBM. Unter
+[Einstellungen → Gelöschte](einstellungen.md#gelöschte) findest du ausgeblendete Umsätze wieder,
+**Wiederherstellen** dort oder in ihren Details holt sie zurück. Das
 [Protokoll](einstellungen.md#protokoll) hält Löschen und Wiederherstellen fest.
 
 !!! note "Der Kontostand bleibt der der Bank"
@@ -119,9 +120,9 @@ du ausgeblendete Umsätze wieder, **Wiederherstellen** in ihren Details holt sie
 
 ## Filter
 
-Über der Liste stehen vier Filter: **Kategorien**, **Eingänge und Ausgaben**, **Zeitraum**
-(dieser Monat, Vormonat, 30, 90 oder 365 Tage, alle) und **Gelöschte**. Der letzte zeigt nur
-die gelöschten Umsätze und bleibt nicht für das Konto gespeichert.
+Über der Liste stehen drei Filter: **Kategorien**, **Eingänge und Ausgaben** und **Zeitraum**
+(dieser Monat, Vormonat, 30, 90 oder 365 Tage, alle). Gelöschte Umsätze zeigt die Liste nie; sie
+stehen unter [Einstellungen → Gelöschte](einstellungen.md#gelöschte).
 Scrollst du die Liste, bleiben Suchfeld und Filter am oberen Rand stehen.
 
 ## Verlauf
@@ -137,6 +138,12 @@ die Darstellung und gruppierst nach **T**ag, **M**onat, **Q**uartal oder **J**ah
   also Eingänge minus Ausgaben. Gezählt wird wie bei der Karte „Eingänge und Ausgaben“ der
   Übersicht: ohne Umbuchungen und andere Kategorien, die [nicht in Auswertungen](kategorien-regeln.md) zählen, ohne
   zurückgegebene Lastschriften, eine aufgeteilte Buchung mit jedem Anteil.
+
+**Eingänge und Ausgaben** folgt den Filtern der Liste: Mit einer Kategorie zählen nur die Anteile in
+dieser Kategorie und ihren Unterkategorien, bei einer aufgeteilten Buchung also nur der passende
+Anteil. Eine Kategorie, die du so wählst, zählt auch dann, wenn sie sonst nicht in Auswertungen
+zählt, etwa Umbuchungen. Mit der Richtung siehst du nur die Eingänge oder nur die Ausgaben. Der Suchtext wirkt nicht, nur ein Datum darin. **Balken**
+und **Linie** zeigen immer den Kontostand, ohne Filter.
 
 Ein Zeitraum, den der Filter anschneidet (etwa der laufende Monat), ist blasser. Fährst du über
 einen Wert, zeigt MBM die Beträge.

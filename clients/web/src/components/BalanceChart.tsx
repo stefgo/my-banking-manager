@@ -1,7 +1,7 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis, type MouseHandlerDataParam } from "recharts";
 import type { AccountScope, TxDateBounds, TxRange } from "@mbm/shared";
-import { useFlows, useSeries } from "../lib/queries";
+import { useFlows, useSeries, type FlowFilter } from "../lib/queries";
 import { dateText, dayLabel, fmt, monthYear, shortDate, shortEuro } from "../lib/format";
 import { axisLayout, groupFlows, groupPointLabel, groupSeries, niceScale, periodLabel, periodOf, type ChartStyle, type FlowGroupPoint, type GroupPoint, type SeriesGroup } from "../lib/seriesGroups";
 
@@ -20,7 +20,8 @@ const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").match
  * `height: "fill"` takes the room left in a flex column (a card of fixed height).
  * With `group` every value has its own place, as a bar or a point of the line (`chartStyle`): daily balances
  * or averages per month, quarter or year; when they do not fit, the plot scrolls sideways under a fixed amount axis.
- * `chartStyle` "flow" shows instead the income and expenses of each period as bars, their total as a line.
+ * `chartStyle` "flow" shows instead the income and expenses of each period as bars, their total as a line; only these
+ * follow `filter`, the balance stays the account's.
  * `onPick` gets the days of the value clicked, anywhere in its column; a value of the forecast is not picked.
  */
 export function BalanceChart(props: {
@@ -28,6 +29,7 @@ export function BalanceChart(props: {
     days?: number;
     range?: TxRange;
     span?: TxDateBounds;
+    filter?: FlowFilter;
     height?: number | "fill";
     forecastDays?: number;
     group?: SeriesGroup;
@@ -37,12 +39,13 @@ export function BalanceChart(props: {
     return props.chartStyle === "flow" ? <FlowChart {...props} group={props.group ?? "day"} /> : <BalanceSeriesChart {...props} />;
 }
 
-/** Income and expenses per period as bars up and down, the total of each period as a line; own transfers left out. */
+/** Income and expenses per period as bars up and down, the total of each period as a line; own transfers left out unless `filter` picks them. */
 function FlowChart({
     scope,
     days = 90,
     range,
     span,
+    filter,
     height = 210,
     group,
     onPick,
@@ -51,11 +54,12 @@ function FlowChart({
     days?: number;
     range?: TxRange;
     span?: TxDateBounds;
+    filter?: FlowFilter;
     height?: number | "fill";
     group: SeriesGroup;
     onPick?: PickHandler;
 }) {
-    const flows = useFlows(scope, days, range, span);
+    const flows = useFlows(scope, days, range, span, filter);
     const id = useId().replace(/:/g, "");
     const points = useMemo<ChartPoint[]>(
         () => groupFlows(flows.data?.points ?? [], group).map((f) => ({ date: f.date, income: f.income, expenses: f.expenses, net: f.net, flow: f })),

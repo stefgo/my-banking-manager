@@ -111,11 +111,17 @@ export const useSeries = (scope: AccountScope, days: number, range?: TxRange, sp
         queryFn: () => call(routes.series, { query: { scope, days, range, from: span?.from, to: span?.to, forecastDays } }),
     });
 
-/** Income and expenses per day over the days of the balance series; `enabled` false leaves it unasked. */
-export const useFlows = (scope: AccountScope, days: number, range?: TxRange, span?: TxDateBounds, enabled = true) =>
+/** What narrows the income and expenses of `useFlows`, as the filters of the list do. */
+export type FlowFilter = { category?: string; dir?: "all" | "in" | "out" };
+
+/** Income and expenses per day over the days of the balance series, narrowed by `filter`; `enabled` false leaves it unasked. */
+export const useFlows = (scope: AccountScope, days: number, range?: TxRange, span?: TxDateBounds, filter?: FlowFilter, enabled = true) =>
     useQuery({
-        queryKey: ["stats", "flows", scope, days, range, span?.from, span?.to],
-        queryFn: () => call(routes.flows, { query: { scope, days, range, from: span?.from, to: span?.to } }),
+        queryKey: ["stats", "flows", scope, days, range, span?.from, span?.to, filter?.category, filter?.dir],
+        queryFn: () =>
+            call(routes.flows, {
+                query: { scope, days, range, from: span?.from, to: span?.to, category: filter?.category, dir: filter?.dir },
+            }),
         enabled,
     });
 

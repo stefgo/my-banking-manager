@@ -190,6 +190,10 @@ export const Transaction = z.object({
 });
 export type Transaction = z.infer<typeof Transaction>;
 
+const TxCategoryFilter = z.string().regex(/^(all|(none|\d+)(,(none|\d+)){0,99})$/).default("all").describe("all, or a comma-separated list of category ids and none");
+const TxDirFilter = z.enum(["all", "in", "out"]).default("all");
+const TxDeletedFilter = z.enum(["true", "false"]).transform((v) => v === "true").optional().describe("true: only deleted bookings, which are left out otherwise");
+
 export const TransactionQuery = z.object({
     scope: AccountScope.default("all"),
     range: TxRange.optional(),
@@ -209,10 +213,10 @@ export const TransactionQuery = z.object({
                 "fields gegenseite: zweck: iban: konto: kategorie: betrag: datum: (or counterparty: purpose: account: category: amount: date:), " +
                 "comparisons > >= < <= = for amounts and dates, ist:neu (or is:new) for new bookings",
         ),
-    category: z.string().regex(/^(all|(none|\d+)(,(none|\d+)){0,99})$/).default("all").describe("all, or a comma-separated list of category ids and none"),
-    dir: z.enum(["all", "in", "out"]).default("all"),
+    category: TxCategoryFilter,
+    dir: TxDirFilter,
     pending: z.enum(["true", "false"]).transform((v) => v === "true").optional(),
-    deleted: z.enum(["true", "false"]).transform((v) => v === "true").optional().describe("true: only deleted bookings, which are left out otherwise"),
+    deleted: TxDeletedFilter,
     limit: z.coerce.number().int().min(1).max(20000).default(5000),
 });
 export type TransactionQuery = z.input<typeof TransactionQuery>;
@@ -294,8 +298,11 @@ export const SeriesResponse = z.object({
     forecast: z.array(SeriesPoint),
 });
 
-/** The days of a balance series, without a forecast. */
-export const FlowsQuery = SeriesQuery.omit({ forecastDays: true });
+/** The days of a balance series, without a forecast; optionally only the bookings the filters of the list keep. */
+export const FlowsQuery = SeriesQuery.omit({ forecastDays: true }).extend({
+    category: TxCategoryFilter.describe("all, or a comma-separated list of category ids and none: only the shares in these categories, which then count even if left out of figures otherwise"),
+    dir: TxDirFilter.describe("in or out: only bookings with a positive or negative amount"),
+});
 export const FlowPoint = z.object({ date: IsoDate, income: Cents, expenses: Cents.describe("Negative or zero") });
 export const FlowsResponse = z.object({
     /** One point per day of the series, days without bookings with zero; own transfers left out as in the cashflow. */

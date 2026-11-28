@@ -5,6 +5,7 @@ describe("settingsTabFrom", () => {
     it("keeps a known tab", () => {
         expect(settingsTabFrom("profile")).toBe("profile");
         expect(settingsTabFrom("system")).toBe("system");
+        expect(settingsTabFrom("deleted")).toBe("deleted");
     });
 
     it("sends links of earlier versions to where their content lives now", () => {
