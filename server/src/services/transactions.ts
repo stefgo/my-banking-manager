@@ -90,10 +90,10 @@ const TX_SELECT = `
     SELECT t.*, ${RETURNED_BY}, ${FUNDED_BY}, c.category_id, c.source AS category_source, ${EDIT_COLUMNS}
     FROM ${TX_JOINS}`;
 
-/** Like TX_SELECT, with `unread` for the user given as the first parameter. */
+/** Like TX_SELECT, with `unread` for the user given as the first parameter; a deleted booking is never new. */
 const TX_SELECT_FOR_USER = `
     SELECT t.*, ${RETURNED_BY}, ${FUNDED_BY}, c.category_id, c.source AS category_source, ${EDIT_COLUMNS},
-           EXISTS (SELECT 1 FROM transaction_unread u WHERE u.transaction_id = t.id AND u.user_id = ?) AS unread
+           (t.deleted_at IS NULL AND EXISTS (SELECT 1 FROM transaction_unread u WHERE u.transaction_id = t.id AND u.user_id = ?)) AS unread
     FROM ${TX_JOINS}`;
 
 export const toTransaction = (r: TxRow): Transaction => ({

@@ -25,6 +25,10 @@ Nothing inside an HTML comment is published.
 
 ### Behoben
 
+- **Neue Umsätze:** Gelöschte Umsätze zählen nicht mehr als neu, weder in der Zahl an
+  „Umsätze“ und an den Konten noch bei der Suche `ist:neu`. Sie lassen sich auch nicht mehr als
+  neu markieren.
+
 - **Mehrere PayPal-Konten:** Ein PSD2-Zugang hält jetzt mehrere Freigaben, bei PayPal eine je
   Konto. „Weiteres Konto freigeben“ beim Bankzugang fügt ein zweites PayPal-Konto hinzu, ohne die
   Freigabe des ersten zu beenden. Bisher ersetzte eine neue Freigabe die alte, und das erste Konto
