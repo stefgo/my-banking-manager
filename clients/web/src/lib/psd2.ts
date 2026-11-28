@@ -2,7 +2,7 @@
 // only in the state of the open dialog and in the request that carries them; the approval at the
 // bank comes back over /bank-callback, whose code and state never go into browser storage.
 
-import type { BankConnection } from "@mbm/shared";
+import type { BankConnection, BankLogin } from "@mbm/shared";
 import { refreshBank } from "./bank";
 import { dateText } from "./format";
 import { ui } from "./ui";
@@ -58,6 +58,22 @@ export function consentText(until: string | null, now: number = Date.now()): { t
     return { text: `Freigabe bis ${dateText(until.slice(0, 10))}`, attn: false };
 }
 
+/**
+ * The approval to point out at a login: with several approvals (PayPal: one per account) the one
+ * that ends first, named after its accounts; else as `consentText`. `names`: account id → name.
+ */
+export function loginConsentText(login: Pick<BankLogin, "consentUntil" | "accountConsents">, names: ReadonlyMap<number, string>, now: number = Date.now()): { text: string; attn: boolean } | null {
+    const ends = login.accountConsents;
+    if (new Set(ends.map((e) => e.until)).size < 2) return consentText(ends[0]?.until ?? login.consentUntil, now);
+    const first = ends.reduce((a, b) => (Date.parse(b.until) < Date.parse(a.until) ? b : a));
+    const t = consentText(first.until, now)!;
+    const who = ends.filter((e) => e.until === first.until).map((e) => names.get(e.accountId)).filter(Boolean);
+    return who.length ? { text: `${who.map((n) => `„${n}“`).join(", ")}: ${t.text}`, attn: t.attn } : t;
+}
+
+/** Several approvals with different ends: each account then shows its own. */
+export const hasSeveralConsents = (login: Pick<BankLogin, "accountConsents"> | null | undefined): boolean => new Set((login?.accountConsents ?? []).map((e) => e.until)).size > 1;
+
 export const isPsd2 = (c: Pick<BankConnection, "kind">): boolean => c.kind === "psd2";
 
 /** Countries Enable Banking serves (EEA), German names; Germany first. */
@@ -82,11 +98,12 @@ export async function readKeyFile(file: File): Promise<string> {
 }
 
 /**
- * After an approval: a new access goes on with taking over its accounts, a renewed one says so.
+ * After an approval: a new access, or one the approval brought new accounts to, goes on with taking
+ * over accounts; a renewed one says so.
  */
-export function afterConsent(c: BankConnection): void {
+export function afterConsent(c: BankConnection & { newAccounts: number }): void {
     refreshBank();
-    if (c.myLogin?.status === "setup") {
+    if (c.myLogin?.status === "setup" || c.newAccounts > 0) {
         ui.open({ kind: "bankSetup", connectionId: c.id, start: "accounts" });
         return;
     }

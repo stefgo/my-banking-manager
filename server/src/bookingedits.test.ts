@@ -1,7 +1,7 @@
 // Bookings by hand on a bank account, deleting any booking, changing amount and date: the balance
 // stays the bank's and the fetch neither brings back nor doubles a booking.
 
-import { ConnectorTransaction, formatSignedCents, type Account, type Transaction, type TransactionList } from "@mbm/shared";
+import { ConnectorTransaction, formatSignedCents, type Account, type ImportRecord, type Transaction, type TransactionList } from "@mbm/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { applyFetch } from "./services/fetchimport.js";
 import { createTestApp, setUpSignedIn, type TestApp } from "./testing/testApp.js";
@@ -163,5 +163,63 @@ describe("changing amount and date of a booking of the bank", () => {
         const csv = "Datum;Betrag;Name;IBAN\n30.10.2026;-50,00;Stadtwerke;" + WERKE + "\n";
         const preview = await api<{ rows: { state: string }[] }>("POST", `/api/accounts/${accountId}/import/preview`, { fileName: "a.csv", content: csv });
         expect(preview.body.rows.map((r) => r.state)).toEqual(["duplicate"]);
+    });
+});
+
+describe("deleting bookings from an import for good", () => {
+    const CSV = "Datum;Betrag;Name\n01.02.2026;-5,00;Kiosk\n05.02.2026;5,00;Kiosk\n";
+    const importFile = async () => (await api<{ importId: number; imported: number }>("POST", `/api/accounts/${accountId}/import`, { fileName: "a.csv", content: CSV })).body;
+    const purge = (id: number) => api<{ error: string }>("DELETE", `/api/transactions/${id}/purge`);
+    const record = async (id: number) => (await api<ImportRecord[]>("GET", "/api/imports")).body.find((i) => i.id === id)!;
+
+    it("removes a deleted booking with all it holds; the same file brings it back", async () => {
+        const { importId } = await importFile();
+        const [paid, refund] = await list();
+        await api("PUT", `/api/transactions/${paid!.id}/edits/remittance`, { value: "Zeitung" });
+        // The second row gives the first back
+        t.vault.database.prepare("UPDATE transactions SET return_of_id = ? WHERE id = ?").run(paid!.id, refund!.id);
+        await api("DELETE", `/api/transactions/${paid!.id}`);
+        expect(await record(importId)).toMatchObject({ remaining: 1, deleted: 1 });
+        const before = await balance();
+
+        expect((await purge(paid!.id)).status).toBe(200);
+        expect(rowCount()).toBe(1);
+        expect(t.vault.database.prepare("SELECT count(*) AS n FROM transaction_edits WHERE transaction_id = ?").get(paid!.id)).toEqual({ n: 0 });
+        expect(t.vault.database.prepare("SELECT return_of_id FROM transactions WHERE id = ?").get(refund!.id)).toEqual({ return_of_id: null });
+        expect(await balance()).toBe(before);
+        expect(await record(importId)).toMatchObject({ remaining: 1, deleted: 0 });
+        expect((await list("&deleted=true")).length).toBe(0);
+        const log = (await api<{ action: string; target: string; details: string }[]>("GET", "/api/activity")).body;
+        expect(log.find((e) => e.action === "transaction_purged")).toMatchObject({ target: "Giro", details: `01.02.2026, ${formatSignedCents(-500)}` });
+
+        // Nothing stands for its row any more
+        expect((await importFile()).imported).toBe(1);
+        expect((await purge(paid!.id)).status).toBe(404);
+    });
+
+    it("refuses a booking that is not deleted, one of the bank and one in a PayPal account", async () => {
+        await importFile();
+        const [paid] = await list();
+        const refused = await purge(paid!.id);
+        expect(refused.status).toBe(409);
+        expect(refused.body.error).toBe("not_deleted");
+
+        fetched([coffee()], null);
+        const cup = (await list()).find((x) => x.source === "bank")!;
+        await api("DELETE", `/api/transactions/${cup.id}`);
+        const bank = await purge(cup.id);
+        expect(bank.status).toBe(409);
+        expect(bank.body.error).toBe("not_purgeable");
+
+        await api("DELETE", `/api/transactions/${paid!.id}`);
+        const db = t.vault.database;
+        const conn = db
+            .prepare("INSERT INTO bank_connections (name, connector, bank_name, blz, fints_url, icon, color, created_at, aspsp, country) VALUES ('PayPal', 'enablebanking', 'PayPal', '', '', 'wallet', 'blue', '2026-01-01T00:00:00Z', 'PayPal', 'DE')")
+            .run().lastInsertRowid;
+        db.prepare("UPDATE accounts SET connection_id = ?, external_id = ? WHERE id = ?").run(conn, OWN, accountId);
+        const paypal = await purge(paid!.id);
+        expect(paypal.status).toBe(409);
+        expect(paypal.body.error).toBe("not_purgeable");
+        expect(rowCount()).toBe(3);
     });
 });

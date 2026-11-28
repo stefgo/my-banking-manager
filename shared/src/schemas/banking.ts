@@ -740,5 +740,6 @@ export const ImportRecord = z.object({
     imported: z.number().int(),
     skipped: z.number().int(),
     remaining: z.number().int().describe("Bookings of this import that still exist"),
+    deleted: z.number().int().describe("Bookings of this import that were deleted; they keep a new import from bringing them back until the import is removed"),
 });
 export type ImportRecord = z.infer<typeof ImportRecord>;

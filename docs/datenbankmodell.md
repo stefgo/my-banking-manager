@@ -1,7 +1,7 @@
 # Datenbankmodell
 
 Alle Tabellen, Spalten und Beziehungen der Server-Datenbank und die Schlüssel, die sie schützen.
-Stand: Schema nach Migration `0017-booking-edits`. Maßgeblich bleibt der Code in
+Stand: Schema nach Migration `0018-psd2-account-consents`. Maßgeblich bleibt der Code in
 `server/src/db/migrations/`. Wie du die Seite nach einer neuen Migration nachziehst, steht unter
 [Diese Seite pflegen](#diese-seite-pflegen).
 
@@ -148,7 +148,7 @@ Protokoll: wer wann was getan hat. Bleibt lesbar, wenn Benutzer oder Gerät gel�
 | `user_id` | INTEGER | `→ users SET NULL` |  |
 | `user_name` | TEXT |  | Name zum Zeitpunkt des Eintrags; bleibt, wenn der Benutzer gelöscht wird. |
 | `device_id` | INTEGER | `→ devices SET NULL` |  |
-| `action` | TEXT | `NOT NULL` | Was geschah, z. B. login_failed, password_changed, totp_set_up, import, import_undone, sync, sync_failed, transaction_deleted, rules_applied, user_created. |
+| `action` | TEXT | `NOT NULL` | Was geschah, z. B. login_failed, password_changed, totp_set_up, import, import_undone, sync, sync_failed, transaction_deleted, transaction_purged, rules_applied, user_created. |
 | `target` | TEXT |  | Worauf es sich bezog, z. B. der Name des Bankzugangs. |
 | `details` | TEXT |  | Kurzer Text, z. B. »12 neue Umsätze« oder die Fehlermeldung. |
 
@@ -209,7 +209,7 @@ Die Anmeldung eines Benutzers an einem Bankzugang: Zugangsdaten, TAN-Verfahren u
 | `last_sync_at` | TEXT |  | Letzter erfolgreicher Abruf. |
 | `last_error` | TEXT |  | Letzte Fehlermeldung. |
 | `created_at` | TEXT | `NOT NULL` |  |
-| `consent_until` | TEXT |  | PSD2: wann die Zustimmung bei der Bank endet; NULL bei FinTS und vor der ersten Zustimmung. *Seit 0015.* |
+| `consent_until` | TEXT |  | PSD2: wann die letzte Zustimmung bei der Bank endet (ein Zugang kann mehrere halten); NULL bei FinTS und vor der ersten Zustimmung. *Seit 0015.* |
 
 **Bedingungen:**
 
@@ -227,6 +227,7 @@ Welche Anmeldung welches Konto erreicht, wie der Konnektor es anspricht und welc
 | `allowed_operations` | TEXT | `NOT NULL` | JSON: was die Bank dieser Anmeldung für das Konto erlaubt (Umsätze, Überweisung, Daueraufträge …). |
 | `last_seen_at` | TEXT |  | Zuletzt von der Bank gemeldet. |
 | `missing_since` | TEXT |  | Seit wann die Bank das Konto nicht mehr meldet. |
+| `consent_until` | TEXT |  | PSD2: wann die Zustimmung endet, die das Konto erreicht (bei PayPal eine je Konto); NULL bei FinTS. *Seit 0018.* |
 
 **Indizes:**
 
@@ -708,7 +709,7 @@ Die Löschregeln der Fremdschlüssel, nach dem Gelöschten geordnet. SQLite prü
 | Benutzer | `devices`, `user_settings`, `dashboard_cards`, `bank_logins` (und deren `bank_login_accounts`), `transaction_unread` | `imports.user_id`, `transactions.created_by`, `activity_log.user_id`, `sync_runs.user_id`, `transfers.created_by` | Namen bleiben in `activity_log.user_name` und `transfers.created_by_name`. |
 | Bankzugang | `bank_logins`, `bank_ignored_accounts`, `sync_runs` | – | Gesperrt, solange Konten daran hängen: `deleteConnection` löst sie vorher (dann Offline-Konten) oder löscht sie. |
 | Konto | `transactions` mit allem, was daran hängt, `imports`, `balances`, `bank_login_accounts`, `standing_orders`, `scheduled_transfers`, `transfers`, `rule_accounts` | `accounts.reference_account_id` anderer Konten, `sync_runs.account_id` | |
-| Buchung, endgültig | `transaction_categories`, `transaction_edits`, `transaction_unread`, PayPal-Finanzierungsbuchungen (`funding_of_id`) | `counter_transaction_id` und `return_of_id` anderer Buchungen, `transfers.transaction_id` | Buchungen von Bank, Import und PayPal-Ergänzung löscht MBM nur weich (`deleted_at`); endgültig nur die von Hand angelegten. |
+| Buchung, endgültig | `transaction_categories`, `transaction_edits`, `transaction_unread`, PayPal-Finanzierungsbuchungen (`funding_of_id`) | `counter_transaction_id` und `return_of_id` anderer Buchungen, `transfers.transaction_id` | Buchungen von Bank, Import und PayPal-Ergänzung löscht MBM nur weich (`deleted_at`); endgültig die von Hand angelegten und, auf Wunsch, weich gelöschte Import-Buchungen (nicht in PayPal-Konten). |
 | Import | – | `transactions.import_id` | Die Buchungen bleiben. „Import rückgängig“ löscht sie im Dienst ausdrücklich. |
 | Kategorie | Unterkategorien, `transaction_categories` | `rules.category_id`, `uncategorized_slot.parent_id` | Betroffene Buchungen stehen danach unter „Ohne Kategorie“. |
 | Regel | `rule_accounts` | `transaction_categories.rule_id` | Gesetzte Kategorien und Texte bleiben. |
@@ -741,6 +742,7 @@ kann Spalten nicht ändern), läuft die Migration mit abgeschalteten Fremdschlü
 | `0015-psd2-connections` | PSD2 über Enable Banking: aspsp, country, consent_until, Status consent_needed. |
 | `0016-paypal-funding` | transactions.funding_of_id und accounts.refetch_all für PayPal. |
 | `0017-booking-edits` | Weiches Löschen (deleted_at) und geänderte Beträge und Daten mit Originalwert. |
+| `0018-psd2-account-consents` | bank_login_accounts.consent_until: mehrere Zustimmungen je PSD2-Zugang, jede mit eigenem Ende. |
 
 ## Diese Seite pflegen
 

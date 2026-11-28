@@ -62,6 +62,22 @@ describe("new bookings", () => {
         expect(await counts()).toEqual({ accounts: [{ accountId: cash.id, count: 2 }], total: 2 });
     });
 
+    it("never count deleted bookings, even with a row left over", async () => {
+        const { api, cash, other, list, counts } = await setUp();
+        const db = t.vault.database;
+        const anna = (await api<{ id: number }>("GET", "/api/auth/me")).body.id;
+        db.prepare("INSERT INTO transaction_unread (user_id, transaction_id) SELECT ?, id FROM transactions WHERE source = 'import'").run(anna);
+        const rent = (await list(`&scope=account:${cash.id}`)).items.find((x) => x.counterpartyName === "Hausverwaltung")!;
+        expect((await api("DELETE", `/api/transactions/${rent.id}`)).status).toBe(200);
+        // A row left over from older data, or a deleted booking marked as new: neither counts
+        db.prepare("INSERT OR IGNORE INTO transaction_unread (user_id, transaction_id) VALUES (?, ?)").run(anna, rent.id);
+        expect(await counts()).toEqual({ accounts: [{ accountId: cash.id, count: 1 }, { accountId: other.id, count: 2 }], total: 3 });
+        expect((await list("&deleted=true")).items.find((x) => x.id === rent.id)!.unread).toBe(false);
+        expect((await list("&q=ist:neu")).count).toBe(3);
+        db.prepare("DELETE FROM transaction_unread WHERE transaction_id = ?").run(rent.id);
+        expect((await api("POST", "/api/transactions/read", { ids: [rent.id], unread: true })).body).toEqual({ changed: 0 });
+    });
+
     it("refuses unclear requests", async () => {
         const { api, cash } = await setUp();
         expect((await api("POST", "/api/transactions/read", {})).status).toBe(400);

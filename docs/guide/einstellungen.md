@@ -7,7 +7,7 @@ Die Einstellungen (++g++ dann ++e++) haben neun Bereiche.
 | **Konten** | Status der Kontoabfrage, Bankzugänge mit den Anmeldungen, Offline-Konten, BLZ-Verzeichnis. Siehe [Konten](konten.md). |
 | **Regeln** | Die Regeln für Kategorien. Siehe [Kategorien und Regeln](kategorien-regeln.md#regeln). |
 | **Importe** | Importformate anlegen und bearbeiten, alle CSV-Importe mit Rückgängig und **CSV importieren** für einen neuen Import. Siehe [CSV-Import](import.md). |
-| **Gelöschte** | Alle gelöschten Umsätze nach Konto, mit **Wiederherstellen** |
+| **Gelöschte** | Alle gelöschten Umsätze nach Konto, mit **Wiederherstellen** und bei Importen **Endgültig löschen** |
 | **Profil** | Was nur dich betrifft: Passwort, Authenticator, deine Geräte, Darstellung |
 | **Benutzer** | Was andere betrifft: Benutzer anlegen und entfernen, ihnen beim Zugang helfen, ihre Geräte abmelden |
 | **System** | Was alle betrifft: Wiederherstellungsschlüssel, MBM für alle sperren |
@@ -26,6 +26,20 @@ Umsätze, gruppiert nach Konto und je Konto der jüngste zuerst, mit Buchungstag
 Löschens und Betrag. Ein Klick auf einen Umsatz öffnet seine Details, **Wiederherstellen** holt ihn
 in Liste und Auswertungen zurück. Eine Buchung, die du selbst erfasst hast, ist nach dem Löschen
 weg und steht hier nicht.
+
+### Endgültig löschen
+
+Ein gelöschter Umsatz bleibt mit allen Angaben gespeichert, damit ein erneuter Import ihn als
+vorhanden erkennt und ein Abruf ihn nicht wiederbringt. Bei einem Umsatz aus einem
+[CSV-Import](import.md) entfernt ihn der Papierkorb in seiner Zeile oder **Endgültig löschen** in
+seinen Details ganz. Danach lässt er sich nicht mehr wiederherstellen. Importierst du
+eine Datei, die ihn enthält, noch einmal, oder liefert ihn die Bank bei einem Abruf, kommt er als
+neuer Umsatz wieder. Am Kontostand ändert das nichts, denn ein gelöschter Umsatz zählt schon nicht
+mehr.
+
+Umsätze von der Bank und solche, die MBM für PayPal ergänzt hat, lassen sich nicht endgültig
+löschen: Der nächste Abruf brächte sie wieder. Bei PayPal-Konten geht es auch für importierte
+Umsätze nicht, denn MBM rechnet die ergänzten Buchungen aus allem, was PayPal geliefert hat.
 
 ## Profil
 

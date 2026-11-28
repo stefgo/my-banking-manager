@@ -4,6 +4,7 @@ import { routes, type Account, type Transaction } from "@mbm/shared";
 import { call } from "../../lib/api";
 import { useAccounts, useAction, useGroups, useTransactions } from "../../lib/queries";
 import { dateText, dateTime, plural, shownParty, shownPurpose } from "../../lib/format";
+import { canPurge, confirmPurge } from "../../lib/purge";
 import { accountsInTreeOrder } from "../../lib/tree";
 import { ui } from "../../lib/ui";
 import { Amt, Empty } from "../../components/common";
@@ -74,6 +75,17 @@ function DeletedPanel({ account, items }: { account: Account | undefined; items:
                                 <Ic icon={RotateCcw} size={14} />
                                 Wiederherstellen
                             </button>
+                            {canPurge(tx) && (
+                                <button
+                                    className="btn btn-sm btn-ghost btn-danger"
+                                    disabled={action.pending}
+                                    aria-label="Endgültig löschen"
+                                    title="Endgültig löschen"
+                                    onClick={() => confirmPurge(tx, action)}
+                                >
+                                    <Ic icon={Trash2} size={14} />
+                                </button>
+                            )}
                         </span>
                     </div>
                 ))}

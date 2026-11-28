@@ -31,12 +31,6 @@ export const FUNDING_TEXTS = {
 } as const;
 type Kind = keyof typeof FUNDING_TEXTS;
 
-export function isPaypalAccount(db: Db, accountId: number): boolean {
-    return !!db
-        .prepare("SELECT 1 FROM accounts a JOIN bank_connections c ON c.id = a.connection_id WHERE a.id = ? AND c.connector = 'enablebanking' AND lower(c.aspsp) = 'paypal'")
-        .get(accountId);
-}
-
 interface Row {
     id: number;
     /** Day and amount as PayPal sent them (or as MBM worked them out). */

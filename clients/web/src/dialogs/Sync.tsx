@@ -3,7 +3,7 @@ import { AlertTriangle, Check, RefreshCw } from "lucide-react";
 import { routes, type SyncRun } from "@mbm/shared";
 import { call, errorText } from "../lib/api";
 import { isActive, setSyncRuns, startSync, useSyncRuns } from "../lib/bank";
-import { queryClient } from "../lib/queries";
+import { queryClient, useAccounts } from "../lib/queries";
 import { ui } from "../lib/ui";
 import { plural } from "../lib/format";
 import { Modal, Button, Spinner } from "../components/common";
@@ -11,7 +11,7 @@ import { Ic } from "../components/icons";
 import { Approval } from "../components/Approval";
 
 /** A finished run with nothing to read beyond its toast. */
-const quietlyDone = (r: SyncRun): boolean => r.status === "done" && r.newAccounts.length === 0 && r.missingAccounts.length === 0 && r.foreignCurrency === 0;
+const quietlyDone = (r: SyncRun): boolean => r.status === "done" && r.newAccounts.length === 0 && r.missingAccounts.length === 0 && r.consentEndedAccounts.length === 0 && r.foreignCurrency === 0;
 /** The approval at the bank has ended (PSD2): fetching again does not help, approving again does. */
 const consentEnded = (r: SyncRun): boolean => r.status === "error" && (r.error === "consent_expired" || r.error === "consent_needed");
 
@@ -49,6 +49,8 @@ export function SyncDialog() {
 
 function RunRow({ run }: { run: SyncRun }) {
     const [pin, setPin] = useState("");
+    const accounts = useAccounts().data ?? [];
+    const ended = run.consentEndedAccounts.map((id) => accounts.find((a) => a.id === id)?.name ?? `Konto ${id}`);
     const update = (r: SyncRun) => setSyncRuns([r, ...(queryClient.getQueryData<SyncRun[]>(["sync"]) ?? []).filter((x) => x.id !== r.id)]);
     const retry = (pins?: Record<string, string>) => {
         const target = run.accountIds.length === 1 ? { accountId: run.accountIds[0] } : { connectionId: run.connectionId };
@@ -104,6 +106,14 @@ function RunRow({ run }: { run: SyncRun }) {
             {run.status === "done" && run.ordersMessage && <p className="muted small">{run.ordersMessage}</p>}
             {run.foreignCurrency > 0 && <p className="muted small">{plural(run.foreignCurrency, "Umsatz", "Umsätze")} in einer anderen Währung als der des Kontos {run.foreignCurrency === 1 ? "hat" : "haben"} MBM nicht übernommen.</p>}
             {run.newAccounts.length > 0 && <p className="muted small">Neu bei der Bank: {run.newAccounts.join(", ")}. In den Einstellungen unter „Bankzugänge“ zeigt „Konten abrufen“ sie unter „Weitere Konten bei der Bank“; dort kannst du sie übernehmen oder ausblenden.</p>}
+            {ended.length > 0 && (
+                <>
+                    <p className="muted small">
+                        Die Freigabe für {ended.map((n) => `„${n}“`).join(", ")} ist abgelaufen; {ended.length === 1 ? "dieses Konto hat" : "diese Konten haben"} MBM übersprungen. Erneuere sie und melde dich dabei bei der Bank mit {ended.length === 1 ? "diesem Konto" : "jedem dieser Konten"} an.
+                    </p>
+                    {!consentEnded(run) && <Button className="btn-sm" style={{ justifySelf: "start" }} onClick={() => ui.open({ kind: "psd2Setup", connectionId: run.connectionId, mode: "consent" })}>Freigabe erneuern</Button>}
+                </>
+            )}
             {run.missingAccounts.length > 0 && <p className="muted small">{plural(run.missingAccounts.length, "Konto meldet", "Konten melden")} die Bank nicht mehr. Gelöscht wird nichts.</p>}
         </section>
     );

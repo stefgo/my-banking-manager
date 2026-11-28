@@ -12,6 +12,7 @@ const run = (patch: Partial<SyncRun>): SyncRun => ({
     newTransactions: 0,
     newAccounts: [],
     missingAccounts: [],
+    consentEndedAccounts: [],
     ordersOnly: false,
     ordersMessage: null,
     foreignCurrency: 0,

@@ -489,7 +489,8 @@ export function listImports(db: Db): ImportRecord[] {
         .prepare(
             `SELECT i.id, i.account_id AS accountId, i.file_name AS fileName, i.imported_at AS importedAt, u.name AS userName,
                     i.rows, i.imported, i.skipped,
-                    (SELECT count(*) FROM transactions t WHERE t.import_id = i.id AND t.deleted_at IS NULL) AS remaining
+                    (SELECT count(*) FROM transactions t WHERE t.import_id = i.id AND t.deleted_at IS NULL) AS remaining,
+                    (SELECT count(*) FROM transactions t WHERE t.import_id = i.id AND t.deleted_at IS NOT NULL) AS deleted
              FROM imports i LEFT JOIN users u ON u.id = i.user_id ORDER BY i.id DESC`,
         )
         .all() as ImportRecord[];

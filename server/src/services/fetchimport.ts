@@ -29,11 +29,11 @@
 import { createHash } from "node:crypto";
 import { duplicateKey, normalizeText, sameCounterparty, type ConnectorBalance, type ConnectorTransaction } from "@mbm/shared";
 import type { Db } from "../db/database.js";
-import { alignBankBalance } from "./accounts.js";
+import { alignBankBalance, isPaypalAccount } from "./accounts.js";
 import { evaluateNew, writeRuleCategories, writeRuleTexts } from "./rules.js";
 import { cleanIban, inheritReturnCategories, linkReturns } from "./returns.js";
 import { counterDefaultCategoryId } from "./transactions.js";
-import { deriveFunding, isPaypalAccount } from "./paypalfunding.js";
+import { deriveFunding } from "./paypalfunding.js";
 import { linkBookedTransfers } from "./transfers.js";
 import { markNew, markNewFor } from "./unread.js";
 

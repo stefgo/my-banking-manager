@@ -127,6 +127,7 @@ export const connections: BankConnection[] = [
             lastSyncAt: LAST_SYNC,
             lastError: null,
             consentUntil: null,
+            accountConsents: [],
         },
         otherLogins: [{ userName: "Sam", status: "ready" }],
         accountCount: 3,
@@ -152,6 +153,7 @@ export const connections: BankConnection[] = [
             lastSyncAt: LAST_SYNC,
             lastError: null,
             consentUntil: "2027-05-14T09:31:00.000Z",
+            accountConsents: [{ accountId: PAYPAL, until: "2027-05-14T09:31:00.000Z" }],
         },
         otherLogins: [],
         accountCount: 1,
@@ -169,7 +171,7 @@ export const versions = {
     node: "26.13.1",
     sqlite: "3.53.4",
     sqliteCiphers: "2.4.0",
-    schema: "0017-booking-edits",
+    schema: "0018-psd2-account-consents",
 };
 
 export const bankDirectory = {
@@ -399,18 +401,19 @@ book({ account: GIRO, date: "2026-11-20", amount: -3745, name: "Frischemarkt Son
 transactions.sort((a, b) => b.bookingDate.localeCompare(a.bookingDate) || b.id - a.id);
 
 /** A booking the user deleted: kept apart from the others, so that it counts nowhere, as on the server. */
-function deleted(b: Booking, when: string): Transaction {
+function deleted(b: Booking, when: string, from: Partial<Transaction> = {}): Transaction {
     const t = book(b)!;
     transactions.pop();
-    return { ...t, unread: false, deletedAt: when };
+    return { ...t, ...from, unread: false, deletedAt: when };
 }
 
-/** For the deleted bookings in the settings; only those of the bank, one entered by hand goes for good. */
+/** For the deleted bookings in the settings: those of the bank and one from the import; one entered by hand goes for good. */
 export const deletedTransactions: Transaction[] = [
     deleted({ account: GIRO, date: "2026-11-14", amount: -3745, name: "Frischemarkt Sonnenhof", remittance: "Kartenzahlung", category: "Supermarkt" }, at("2026-11-15", "17:42:08")),
     deleted({ account: GIRO, date: "2026-10-02", amount: -1999, name: "Streamingdienst Flimmer", remittance: "Lastschrift Probeabo", category: null }, at("2026-10-05", "08:12:40")),
     deleted({ account: CARD, date: "2026-11-09", amount: -12900, name: "Hotel Seeblick", remittance: "Reservierung, storniert", category: null }, at("2026-11-11", "19:03:51")),
     deleted({ account: PAYPAL, date: "2026-11-03", amount: -2450, name: "Kleinanzeigen Versand", remittance: "Doppelt gebucht", category: null }, at("2026-11-04", "09:27:15")),
+    deleted({ account: CASH, date: "2026-04-18", amount: -1200, name: "Flohmarkt", remittance: "Doppelt erfasst", category: null }, at("2026-11-12", "20:14:33"), { source: "import", importId: 1 }),
 ].sort((a, b) => b.bookingDate.localeCompare(a.bookingDate) || b.id - a.id);
 
 // ---------- Derived: accounts, categories ----------
@@ -944,7 +947,7 @@ export const importPreview: ImportPreview = {
 };
 
 export const imports = [
-    { id: 1, accountId: CASH, fileName: "kassenbuch-2026.csv", importedAt: at("2026-05-02", "17:52:00"), userName: "Alex", rows: 48, imported: 46, skipped: 2, remaining: 46 },
+    { id: 1, accountId: CASH, fileName: "kassenbuch-2026.csv", importedAt: at("2026-05-02", "17:52:00"), userName: "Alex", rows: 48, imported: 46, skipped: 2, remaining: 45, deleted: 1 },
 ];
 
 const ACTIVITY: [string, string, string, string | null, string | null][] = [

@@ -406,16 +406,18 @@ export function registerBankRoutes(app: FastifyInstance, ctx: AppContext): void 
         const conn = bank.requireConnection(db, pendingConsent.connectionId);
         const row = bank.loginById(db, pendingConsent.loginId);
         if (!row || row.user_id !== session.userId) throw new HttpError(404, "consent_unknown", "Diese Freigabe ist unbekannt oder abgelaufen. Bitte noch einmal freigeben.");
-        let out: { state: string; validUntil: string };
+        let out: { state: string; validUntil: string; accounts: ConnectorAccount[] };
         try {
-            out = await psd2().call("psd2Session", { body: { bank: bank.psd2Bank(conn), login: bank.readPsd2Credentials(row, key), code: body.code } });
+            // With the approvals so far: the new one joins them (several PayPal accounts at one access)
+            out = await psd2().call("psd2Session", { body: { bank: bank.psd2Bank(conn), login: bank.psd2Login(row, key), code: body.code } });
         } catch (e) {
             return fromConnector(db, row.id, e, true);
         }
-        bank.setConsent(db, row.id, key, out.state, out.validUntil);
-        logActivity(db, actor, "bank_consent_given", conn.name, `gültig bis ${out.validUntil.slice(0, 10)}`);
-        events.changed("connections", "activity");
-        return bank.getConnection(db, conn.id, session.userId);
+        bank.setConsent(db, row.id, key, out);
+        const until = out.accounts.map((a) => a.consentUntil).find(Boolean) ?? out.validUntil;
+        logActivity(db, actor, "bank_consent_given", conn.name, `gültig bis ${until.slice(0, 10)}`);
+        events.changed("connections", "accounts", "activity");
+        return { ...bank.getConnection(db, conn.id, session.userId), newAccounts: bank.newAccountCount(db, row.id, out.accounts) };
     });
 
     // ---------- Fetching ----------

@@ -118,10 +118,11 @@ export function MenuButton({ items, label = "Aktionen", className = "mini", tabI
 
 // ---------- Inline rename ----------
 
-function RenameInput({ value, onSave }: { value: string; onSave: (name: string) => void }) {
+/** `onDone` ends the renaming; by default the one of the trees. */
+export function RenameInput({ value, onSave, onDone = () => ui.setRenaming(null) }: { value: string; onSave: (name: string) => void; onDone?: () => void }) {
     const [v, setV] = useState(value);
     const done = (save: boolean) => {
-        ui.setRenaming(null);
+        onDone();
         if (save && v.trim() && v.trim() !== value) onSave(v.trim());
     };
     return (

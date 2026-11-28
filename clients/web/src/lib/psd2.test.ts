@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { consentDaysLeft, consentText, LOCALHOST_CALLBACK, ownCallback, PSD2_COUNTRIES, readRedirect, redirectErrorText } from "./psd2";
+import { consentDaysLeft, consentText, hasSeveralConsents, LOCALHOST_CALLBACK, loginConsentText, ownCallback, PSD2_COUNTRIES, readRedirect, redirectErrorText } from "./psd2";
 
 const STATE = "a".repeat(32);
 const NOW = Date.parse("2026-11-26T10:00:00Z");
@@ -39,6 +39,24 @@ describe("consentText", () => {
         expect(consentText("2026-11-26T18:00:00.000Z", NOW)).toEqual({ text: "Freigabe läuft heute ab", attn: true });
         expect(consentText("2026-11-26T09:00:00.000Z", NOW)).toEqual({ text: "Freigabe abgelaufen", attn: true });
         expect(consentDaysLeft("2026-12-10T10:00:00.000Z", NOW)).toBe(14);
+    });
+});
+
+describe("loginConsentText", () => {
+    const names = new Map([[6, "PayPal"], [7, "PayPal · Kim"]]);
+    const LATE = "2027-05-25T10:00:00.000Z";
+    const SOON = "2026-12-01T12:00:00.000Z";
+
+    it("shows the one approval as before", () => {
+        expect(loginConsentText({ consentUntil: LATE, accountConsents: [] }, names, NOW)).toEqual({ text: "Freigabe bis 25.05.2027", attn: false });
+        expect(loginConsentText({ consentUntil: LATE, accountConsents: [{ accountId: 6, until: LATE }, { accountId: 7, until: LATE }] }, names, NOW)).toEqual({ text: "Freigabe bis 25.05.2027", attn: false });
+        expect(hasSeveralConsents({ accountConsents: [{ accountId: 6, until: LATE }, { accountId: 7, until: LATE }] })).toBe(false);
+    });
+
+    it("with several approvals names the accounts of the one that ends first", () => {
+        const login = { consentUntil: LATE, accountConsents: [{ accountId: 6, until: LATE }, { accountId: 7, until: SOON }] };
+        expect(loginConsentText(login, names, NOW)).toEqual({ text: "„PayPal · Kim“: Freigabe läuft in 5 Tagen ab (01.12.2026)", attn: true });
+        expect(hasSeveralConsents(login)).toBe(true);
     });
 });
 

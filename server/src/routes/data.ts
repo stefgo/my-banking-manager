@@ -166,6 +166,15 @@ export function registerDataRoutes(app: FastifyInstance, ctx: AppContext): void 
         return OK;
     });
 
+    handle(app, ctx, routes.purgeTransaction, ({ db, actor, params }) => {
+        db.transaction(() => {
+            const t = tx.purgeTransaction(db, params.id);
+            logActivity(db, actor, "transaction_purged", ...describe(db, t));
+        })();
+        events.changed("transactions", "imports", "activity");
+        return OK;
+    });
+
     handle(app, ctx, routes.restoreTransaction, ({ db, actor, params }) => {
         const t = db.transaction(() => {
             const restored = tx.restoreTransaction(db, params.id);

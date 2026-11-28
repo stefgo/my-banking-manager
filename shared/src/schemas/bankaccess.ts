@@ -36,8 +36,10 @@ export const BankLogin = z.object({
     savePin: z.boolean(),
     lastSyncAt: Timestamp.nullable(),
     lastError: z.string().nullable(),
-    /** PSD2: when the approval at the bank ends; null for FinTS and before the first approval. */
+    /** PSD2: when the last approval at the bank ends; null for FinTS and before the first approval. */
     consentUntil: Timestamp.nullable(),
+    /** PSD2: per account taken over, when the approval that reaches it ends (one access may hold several approvals). */
+    accountConsents: z.array(z.object({ accountId: Id, until: Timestamp })),
 });
 export type BankLogin = z.infer<typeof BankLogin>;
 
@@ -184,6 +186,8 @@ export const CompleteConsentRequest = z.object({
     state: z.string().regex(/^[A-Za-z0-9_-]{16,128}$/, "Die Adresse gehört zu keiner Freigabe"),
     code: z.string().min(1).max(2_000),
 });
+/** The access after the approval; `newAccounts`: accounts of the approval not taken over or hidden yet. */
+export const CompleteConsentResponse = BankConnection.extend({ newAccounts: z.number().int() });
 
 export const BankOperationParam = z.object({ id: z.string().uuid() });
 export const BankTanRequest = z.object({ tan: z.string().trim().min(1).max(64) });
@@ -220,6 +224,8 @@ export const SyncRun = z.object({
     newAccounts: z.array(z.string()),
     /** Accounts of MBM the bank no longer reports. */
     missingAccounts: z.array(Id),
+    /** PSD2: accounts left out because the approval that reaches them has ended; the others are fetched. */
+    consentEndedAccounts: z.array(Id),
     /** The run fetches only standing orders and scheduled transfers. */
     ordersOnly: z.boolean(),
     /** Set when bookings arrived but the orders could not be fetched; the run still counts as done. */

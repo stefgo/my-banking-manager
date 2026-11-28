@@ -17,14 +17,16 @@ type Step = "intro" | "credentials" | "bank" | "consent" | "paste";
  * Enable Banking application (ID and private key, or taken from another own PSD2 access), the bank,
  * and the approval at the bank. The approval comes back over /bank-callback, or as an address the
  * user pastes. Without `connectionId` a new access; with it the own login (`mode` "credentials":
- * a new application) or just a new approval (`mode` "consent"). Key and ID stay in this dialog's
- * state only.
+ * a new application) or just a new approval (`mode` "consent", or "add" for a further account). A
+ * new approval joins those the access already holds. Key and ID stay in this dialog's state only.
  */
-export function Psd2SetupDialog({ connectionId, mode }: { connectionId?: number; mode?: "consent" | "credentials" }) {
+export function Psd2SetupDialog({ connectionId, mode }: { connectionId?: number; mode?: "consent" | "credentials" | "add" }) {
     const connections = useConnections().data;
     const existing = connections?.find((c) => c.id === connectionId);
-    const [step, setStep] = useState<Step>(() => (!connectionId ? "intro" : mode === "consent" || (existing?.myLogin?.status === "setup" && !mode) ? "consent" : "credentials"));
+    const [step, setStep] = useState<Step>(() => (!connectionId ? "intro" : mode === "consent" || mode === "add" || (existing?.myLogin?.status === "setup" && !mode) ? "consent" : "credentials"));
     const [conn, setConn] = useState<BankConnection | null>(existing ?? null);
+    // A further account at an access that already has approvals
+    const [adding, setAdding] = useState(mode === "add");
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
 
@@ -106,6 +108,14 @@ export function Psd2SetupDialog({ connectionId, mode }: { connectionId?: number;
 
     const pickBank = (b: Psd2BankInfo) =>
         run(async () => {
+            // The access exists with an own approval: a further account joins it; a new application would end the approvals
+            const own = (connections ?? []).find((c) => c.psd2?.aspsp === b.name && c.psd2.country === b.country && c.myLogin?.consentUntil && c.myLogin.status !== "credentials_lost");
+            if (own) {
+                setConn(own);
+                setAdding(true);
+                setStep("consent");
+                return;
+            }
             const c = await call(routes.createPsd2Connection, { body: { aspsp: b.name, country: b.country } });
             await call(routes.setPsd2Login, { params: { id: c.id }, body: credentials });
             setPrivateKey("");
@@ -139,7 +149,9 @@ export function Psd2SetupDialog({ connectionId, mode }: { connectionId?: number;
 
     const shownBanks = (banks ?? []).filter((b) => b.name.toLowerCase().includes(filter.trim().toLowerCase()));
     const hasAccess = (b: Psd2BankInfo) => (connections ?? []).some((c) => c.psd2?.aspsp === b.name && c.psd2.country === b.country && c.myLogin);
-    const title = step === "intro" ? "Bank über PSD2" : step === "credentials" ? "Enable-Banking-Anwendung" : step === "bank" ? "Bank wählen" : step === "consent" ? `Bei ${bankName} freigeben` : "Freigabe abschließen";
+    const title = step === "intro" ? "Bank über PSD2" : step === "credentials" ? "Enable-Banking-Anwendung" : step === "bank" ? "Bank wählen" : step === "consent" ? (adding ? `Weiteres Konto bei ${bankName} freigeben` : `Bei ${bankName} freigeben`) : "Freigabe abschließen";
+    // The access already holds approvals: the new one joins them, or renews the one of the same account
+    const hasApprovals = !!(conn ?? existing)?.myLogin?.consentUntil;
 
     return (
         <Modal title={title} onClose={() => ui.close()}>
@@ -255,6 +267,12 @@ export function Psd2SetupDialog({ connectionId, mode }: { connectionId?: number;
                 {step === "consent" && (
                     <>
                         <p className="muted">MBM öffnet die Freigabeseite von Enable Banking. Dort meldest du dich bei {bankName} an und bestätigst den Zugriff. Danach schickt die Bank dich zurück.</p>
+                        {hasApprovals && (
+                            <Hint>
+                                {adding ? <>„{bankName}“ ist schon eingerichtet. </> : null}
+                                Melde dich mit dem Konto an, das du {adding ? "hinzufügen" : "erneuern oder hinzufügen"} willst. Deine übrigen Freigaben bleiben bestehen; die neue ersetzt nur eine frühere Freigabe desselben Kontos.
+                            </Hint>
+                        )}
                         <div className="kind-list" role="radiogroup" aria-label="Rückleitung">
                             <button type="button" role="radio" aria-checked={via === "own"} className={`bank-item ${via === "own" ? "on" : ""}`} onClick={() => setVia("own")}>
                                 <span className="acc-ic">{via === "own" ? <Ic icon={Check} size={16} /> : null}</span>

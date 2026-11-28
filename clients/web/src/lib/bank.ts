@@ -68,6 +68,7 @@ export function receiveSyncRuns(runs: SyncRun[]): void {
         if (r.status !== "done") continue;
         if (r.ordersMessage) ui.toast(`${r.connectionName}: ${r.ordersMessage}`, "error");
         if (r.foreignCurrency > 0) ui.toast(`${r.connectionName}: ${plural(r.foreignCurrency, "Umsatz", "Umsätze")} in Fremdwährung nicht übernommen`, "error");
+        if (r.consentEndedAccounts.length > 0) ui.toast(`${r.connectionName}: Freigabe für ${plural(r.consentEndedAccounts.length, "Konto", "Konten")} abgelaufen, bitte erneuern`, "error");
         if (r.ordersOnly) ui.toast(`${r.connectionName}: Aufträge abgerufen`);
         else if (r.newTransactions > 0) ui.toast(`${r.connectionName}: ${plural(r.newTransactions, "neuer Umsatz", "neue Umsätze")}`);
     }

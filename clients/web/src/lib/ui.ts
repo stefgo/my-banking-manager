@@ -13,7 +13,7 @@ export type Dialog =
     | { kind: "addAccount"; offline?: boolean }
     | { kind: "bankSetup"; connectionId?: number; start?: "accounts" }
     /** PSD2 through Enable Banking: new access, own login at an access, new approval, or new application. */
-    | { kind: "psd2Setup"; connectionId?: number; mode?: "consent" | "credentials" }
+    | { kind: "psd2Setup"; connectionId?: number; mode?: "consent" | "credentials" | "add" }
     | { kind: "detachAccount"; accountId: number }
     | { kind: "sync" }
     | { kind: "openingBalance"; accountId: number }
