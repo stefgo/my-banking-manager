@@ -5493,6 +5493,43 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /api/transactions/{id}/purge:
+    delete:
+      operationId: purgeTransaction
+      summary: Delete a deleted booking from an import for good; a new import or fetch may bring it back
+      tags:
+        - Transactions
+      security:
+        - session: []
+        - device: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            exclusiveMinimum: 0
+            maximum: 9007199254740991
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    const: true
+                required:
+                  - ok
+                additionalProperties: false
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /api/transactions/{id}/restore:
     post:
       operationId: restoreTransaction
@@ -9836,6 +9873,11 @@ paths:
                       minimum: -9007199254740991
                       maximum: 9007199254740991
                       description: Bookings of this import that still exist
+                    deleted:
+                      type: integer
+                      minimum: -9007199254740991
+                      maximum: 9007199254740991
+                      description: Bookings of this import that were deleted; they keep a new import from bringing them back until the import is removed
                   required:
                     - id
                     - accountId
@@ -9846,6 +9888,7 @@ paths:
                     - imported
                     - skipped
                     - remaining
+                    - deleted
                   additionalProperties: false
         default:
           description: Error

@@ -23,7 +23,16 @@ Nothing inside an HTML comment is published.
 - **Kontoauswahl:** Beim Importieren von Umsätzen, in einer Buchung von Hand und in der
   Gegenbuchung stehen die Konten in derselben Reihenfolge wie in der Seitenleiste.
 
+- **Gelöschte endgültig löschen:** Einen gelöschten Umsatz aus einem CSV-Import kannst du unter
+  Einstellungen → Gelöschte oder in seinen Details jetzt endgültig löschen. Er lässt sich dann nicht
+  mehr wiederherstellen, und ein erneuter Import derselben Datei bringt ihn als neuen Umsatz wieder.
+  Bank-Umsätze und Umsätze in PayPal-Konten bleiben ausgenommen.
+
 ### Behoben
+
+- **Importe entfernen:** „Entfernen“ und „Rückgängig“ unter Einstellungen → Importe fragen jetzt
+  nach, wenn dabei gelöschte Umsätze des Imports endgültig verschwinden. Bisher entfernte
+  „Entfernen“ sie ohne Hinweis, und ein erneuter Import brachte sie wieder.
 
 - **Neue Umsätze:** Gelöschte Umsätze zählen nicht mehr als neu, weder in der Zahl an
   „Umsätze“ und an den Konten noch bei der Suche `ist:neu`. Sie lassen sich auch nicht mehr als

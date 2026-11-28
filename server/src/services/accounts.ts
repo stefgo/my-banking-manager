@@ -284,3 +284,10 @@ export function alignBankBalance(db: Db, accountId: number, booked: number): voi
 export function keepBankBalance(db: Db, accountId: number, change: number): void {
     db.prepare("UPDATE accounts SET opening_balance = COALESCE(opening_balance, 0) - ? WHERE id = ? AND EXISTS (SELECT 1 FROM balances b WHERE b.account_id = accounts.id)").run(change, accountId);
 }
+
+/** An account fetched from PayPal; MBM adds bookings to it for where the money of a payment came from. */
+export function isPaypalAccount(db: Db, accountId: number): boolean {
+    return !!db
+        .prepare("SELECT 1 FROM accounts a JOIN bank_connections c ON c.id = a.connection_id WHERE a.id = ? AND c.connector = 'enablebanking' AND lower(c.aspsp) = 'paypal'")
+        .get(accountId);
+}

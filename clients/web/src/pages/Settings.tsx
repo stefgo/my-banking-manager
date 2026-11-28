@@ -196,7 +196,7 @@ function ImportsTab() {
                                     onClick={() =>
                                         ui.confirm({
                                             title: `Import „${i.fileName}“ rückgängig machen?`,
-                                            text: `${plural(i.remaining, "Buchung", "Buchungen")} aus dieser Datei ${i.remaining === 1 ? "wird" : "werden"} gelöscht. Das lässt sich nicht rückgängig machen.`,
+                                            text: `${plural(i.remaining, "Buchung", "Buchungen")} aus dieser Datei ${i.remaining === 1 ? "wird" : "werden"} gelöscht.${i.deleted > 0 ? ` ${deletedGoText(i.deleted)}` : ""} Das lässt sich nicht rückgängig machen.`,
                                             confirm: i.remaining === 1 ? "Buchung löschen" : "Buchungen löschen",
                                             danger: true,
                                             onConfirm: () => action.succeeds(() => call(routes.undoImport, { params: { id: i.id } }), { topics: ["imports", "accounts", "transactions", "categories"], ok: "Import rückgängig gemacht" }),
@@ -210,7 +210,12 @@ function ImportsTab() {
                             {i.remaining === 0 && (
                                 <button
                                     className="btn btn-sm btn-ghost"
-                                    onClick={() => action.succeeds(() => call(routes.undoImport, { params: { id: i.id } }), { topics: ["imports", "accounts", "transactions", "categories"], ok: "Import aus der Liste entfernt" })}
+                                    onClick={() => {
+                                        const remove = () => action.succeeds(() => call(routes.undoImport, { params: { id: i.id } }), { topics: ["imports", "accounts", "transactions", "categories"], ok: "Import aus der Liste entfernt" });
+                                        // Deleted bookings keep a new import of the file from bringing them back; removing them is asked first
+                                        if (i.deleted === 0) void remove();
+                                        else ui.confirm({ title: `Import „${i.fileName}“ entfernen?`, text: deletedGoText(i.deleted), confirm: "Entfernen", danger: true, onConfirm: remove });
+                                    }}
                                 >
                                     <Ic icon={Trash2} size={14} />
                                     Entfernen
@@ -223,6 +228,13 @@ function ImportsTab() {
         </section>
         </>
     );
+}
+
+/** What removing an import does to its deleted bookings. */
+function deletedGoText(n: number): string {
+    return n === 1
+        ? "Die gelöschte Buchung aus dieser Datei wird endgültig gelöscht. Importierst du die Datei noch einmal, kommt sie wieder."
+        : `Die ${n} gelöschten Buchungen aus dieser Datei werden endgültig gelöscht. Importierst du die Datei noch einmal, kommen sie wieder.`;
 }
 
 /** Formats of the app and own ones; editing happens on a page of its own, with or without a file. */
@@ -325,6 +337,7 @@ const ACTION_LABELS: Record<string, string> = {
     counter_booking: "Gegenbuchung angelegt",
     transaction_deleted: "Umsatz gelöscht",
     transaction_restored: "Umsatz wiederhergestellt",
+    transaction_purged: "Umsatz endgültig gelöscht",
     category_deleted: "Kategorie gelöscht",
     import: "CSV importiert",
     import_undone: "Import rückgängig",

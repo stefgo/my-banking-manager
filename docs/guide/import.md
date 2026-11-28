@@ -209,6 +209,11 @@ Unter **Einstellungen → Importe** steht jeder Import mit Datei, Zeitpunkt, Ben
 „Rückgängig“ löscht die Umsätze dieses Imports, die noch da sind. Kategorien und Angaben, die der
 Import bei vorhandenen Umsätzen geändert oder ergänzt hat, bleiben erhalten.
 
+Ist von einem Import nichts mehr da, steht statt „Rückgängig“ **Entfernen**. Es nimmt den Eintrag
+aus der Liste. Hast du Umsätze des Imports [gelöscht](umsaetze.md#buchungen-erfassen-ändern-und-löschen),
+löschen „Rückgängig“ und „Entfernen“ sie endgültig mit und fragen vorher nach. Importierst du die
+Datei danach noch einmal, kommen diese Umsätze wieder.
+
 ![Einstellungen, Importe: ein Import mit Datei und Anzahl](../assets/screenshots/einstellungen-importe-dark.png)
 
 *Einstellungen → Importe: jeder Import lässt sich rückgängig machen.*

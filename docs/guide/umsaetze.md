@@ -109,8 +109,9 @@ nächsten Abruf oder Import nicht wieder. Das gilt auch für einen vorgemerkten 
 Bank ihn bucht. Löschst du eine PayPal-Zahlung, verschwindet die Abbuchung, die MBM dazu ergänzt
 hat, mit ihr. Eine Gegenbuchung im Offline-Konto entfernt MBM. Unter
 [Einstellungen → Gelöschte](einstellungen.md#gelöschte) findest du ausgeblendete Umsätze wieder,
-**Wiederherstellen** dort oder in ihren Details holt sie zurück. Das
-[Protokoll](einstellungen.md#protokoll) hält Löschen und Wiederherstellen fest.
+**Wiederherstellen** dort oder in ihren Details holt sie zurück. Einen gelöschten Umsatz aus
+einem Import kannst du dort auch [endgültig löschen](einstellungen.md#endgültig-löschen). Das
+[Protokoll](einstellungen.md#protokoll) hält Löschen, Wiederherstellen und endgültiges Löschen fest.
 
 !!! note "Der Kontostand bleibt der der Bank"
 

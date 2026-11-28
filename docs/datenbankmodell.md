@@ -148,7 +148,7 @@ Protokoll: wer wann was getan hat. Bleibt lesbar, wenn Benutzer oder Gerät gel�
 | `user_id` | INTEGER | `→ users SET NULL` |  |
 | `user_name` | TEXT |  | Name zum Zeitpunkt des Eintrags; bleibt, wenn der Benutzer gelöscht wird. |
 | `device_id` | INTEGER | `→ devices SET NULL` |  |
-| `action` | TEXT | `NOT NULL` | Was geschah, z. B. login_failed, password_changed, totp_set_up, import, import_undone, sync, sync_failed, transaction_deleted, rules_applied, user_created. |
+| `action` | TEXT | `NOT NULL` | Was geschah, z. B. login_failed, password_changed, totp_set_up, import, import_undone, sync, sync_failed, transaction_deleted, transaction_purged, rules_applied, user_created. |
 | `target` | TEXT |  | Worauf es sich bezog, z. B. der Name des Bankzugangs. |
 | `details` | TEXT |  | Kurzer Text, z. B. »12 neue Umsätze« oder die Fehlermeldung. |
 
@@ -709,7 +709,7 @@ Die Löschregeln der Fremdschlüssel, nach dem Gelöschten geordnet. SQLite prü
 | Benutzer | `devices`, `user_settings`, `dashboard_cards`, `bank_logins` (und deren `bank_login_accounts`), `transaction_unread` | `imports.user_id`, `transactions.created_by`, `activity_log.user_id`, `sync_runs.user_id`, `transfers.created_by` | Namen bleiben in `activity_log.user_name` und `transfers.created_by_name`. |
 | Bankzugang | `bank_logins`, `bank_ignored_accounts`, `sync_runs` | – | Gesperrt, solange Konten daran hängen: `deleteConnection` löst sie vorher (dann Offline-Konten) oder löscht sie. |
 | Konto | `transactions` mit allem, was daran hängt, `imports`, `balances`, `bank_login_accounts`, `standing_orders`, `scheduled_transfers`, `transfers`, `rule_accounts` | `accounts.reference_account_id` anderer Konten, `sync_runs.account_id` | |
-| Buchung, endgültig | `transaction_categories`, `transaction_edits`, `transaction_unread`, PayPal-Finanzierungsbuchungen (`funding_of_id`) | `counter_transaction_id` und `return_of_id` anderer Buchungen, `transfers.transaction_id` | Buchungen von Bank, Import und PayPal-Ergänzung löscht MBM nur weich (`deleted_at`); endgültig nur die von Hand angelegten. |
+| Buchung, endgültig | `transaction_categories`, `transaction_edits`, `transaction_unread`, PayPal-Finanzierungsbuchungen (`funding_of_id`) | `counter_transaction_id` und `return_of_id` anderer Buchungen, `transfers.transaction_id` | Buchungen von Bank, Import und PayPal-Ergänzung löscht MBM nur weich (`deleted_at`); endgültig die von Hand angelegten und, auf Wunsch, weich gelöschte Import-Buchungen (nicht in PayPal-Konten). |
 | Import | – | `transactions.import_id` | Die Buchungen bleiben. „Import rückgängig“ löscht sie im Dienst ausdrücklich. |
 | Kategorie | Unterkategorien, `transaction_categories` | `rules.category_id`, `uncategorized_slot.parent_id` | Betroffene Buchungen stehen danach unter „Ohne Kategorie“. |
 | Regel | `rule_accounts` | `transaction_categories.rule_id` | Gesetzte Kategorien und Texte bleiben. |
