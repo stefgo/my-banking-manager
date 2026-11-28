@@ -1,3 +1,164 @@
+## [0.7.0](https://github.com/stefgo/my-banking-manager/compare/v0.6.0...v0.7.0) (2026-11-28)
+
+### Neu
+
+- **Dauer- und Terminaufträge anlegen, ändern und löschen:** Im Dialog „Überweisen“ wählst du die
+  Ausführung **Sofort**, **Am Datum** oder **Regelmäßig** (Turnus, Ausführungstag, erste und
+  optional letzte Ausführung, mit Vorschau der nächsten Termine). Auf der Seite „Aufträge“ legst du
+  über **Neuer Auftrag** einen an und änderst oder löschst einen Auftrag in seinen Details. Alles
+  geht mit Empfängerüberprüfung und Freigabe wie eine Überweisung und nur so, wie deine Bank es für
+  das Konto erlaubt. Danach ruft MBM die Aufträge neu ab; kam die Antwort der Bank nicht an, klärt
+  der neue Bestand, ob der Auftrag angekommen ist.
+- **PayPal und weitere Banken über PSD2:** Unter „Konto hinzufügen → Bank über PSD2 (Enable
+  Banking)“ richtest du Banken ohne FinTS ein, allen voran PayPal. MBM ruft sie über die
+  PSD2-Schnittstelle ab, die jede Bank in der EU anbieten muss. Dazwischen steht der zugelassene
+  Dienst Enable Banking, durch dessen Server die Umsätze dieser Banken laufen. Du brauchst dafür
+  eine eigene, kostenlose Anwendung bei Enable Banking. Du gibst den Zugriff bei der Bank frei, und
+  danach ruft MBM Saldo und Umsätze wie bei jeder Bank ab, nur lesend. Der erste Abruf holt so weit
+  zurück, wie die Bank erlaubt (bei PayPal zwei Jahre). Die Freigabe gilt höchstens 180 Tage; zwei
+  Wochen vorher erinnert MBM daran, und „Freigabe erneuern“ verlängert sie.
+- **PayPal: woher das Geld kam.** PayPal meldet über PSD2 nur die Zahlung an den Händler, nicht die
+  Abbuchung von deinem Bankkonto oder deiner Karte. MBM ergänzt sie nach der Regel „Guthaben
+  zuerst“ als „Abbuchung von Bankkonto oder Karte“; Liste und Saldoverlauf des PayPal-Kontos stimmen
+  damit. Ein Kauf mit **Später bezahlen** zählt einmal, am Tag des Kaufs; die Rückzahlung rund
+  30 Tage später zählt nicht und trägt die Abbuchung. Auszahlungen aufs Bankkonto und Erstattungen zu
+  abgelehnten Zahlungen zählen ebenfalls nicht als Einnahme oder Ausgabe. Sie alle bekommen die
+  Vorbelegung für Gegenbuchungen (anfangs „Umbuchung“).
+- **Buchungen erfassen, ändern und löschen bei jedem Konto:** „Buchung erfassen“ gibt es jetzt
+  auch bei Bankkonten, dort im Menü des Kontos und mit B; den Button im Kopf der Umsatzliste
+  haben nur Offline-Konten. **Bearbeiten** in den Details öffnet bei jedem Umsatz einen Dialog für
+  Betrag, Datum, Gegenseite und Verwendungszweck; er ersetzt „Anzeige ändern“. Bei Umsätzen von
+  der Bank, aus einem Import oder von MBM für PayPal ergänzt zählen geänderte Werte statt der
+  ursprünglichen, die Details zeigen diese, und „Ursprüngliche Werte“ nimmt die Änderung zurück.
+  Datum und Betrag vorgemerkter Umsätze änderst du, sobald sie gebucht sind. **Löschen** geht bei jedem Umsatz: Umsätze
+  der Bank und aus Importen blendet MBM aus, sie kommen bei keinem Abruf und keinem Import wieder.
+  Unter **Einstellungen → Gelöschte** stehen sie nach Konto, dort stellst du sie wieder her. Bei Bankkonten bleibt der
+  Kontostand der Bank; was du erfasst, änderst oder löschst, verschiebt nur den Saldoverlauf davor.
+  Liefert die Bank eine Buchung, die du schon von Hand erfasst hast, übernimmt sie diese, statt sie
+  doppelt anzulegen.
+- **Import: nach Datum suchen:** Im Schritt „Prüfen“ findet die Suche Zeilen auch nach dem
+  Buchungsdatum, mit derselben Schreibweise wie die Umsatzliste: `datum>=1.3.2026`,
+  `datum<1.4.2026`, `datum:3.2026` oder `datum:vormonat`, auch zusammen mit Suchtext.
+- **Verlauf: Eingänge und Ausgaben:** Der Verlauf im Kopf der Umsatzliste hat eine dritte
+  Darstellung. Sie zeigt je Tag, Monat, Quartal oder Jahr die Summe der Eingänge als grünen und die
+  der Ausgaben als roten Balken, dazu den Saldo des Zeitraums als Linie. Umbuchungen zählen wie bei
+  der Karte „Eingänge und Ausgaben“ der Übersicht nicht mit. Die Darstellung folgt den Filtern
+  Kategorie (bei aufgeteilten Buchungen nur der passende Anteil) und Richtung, nicht dem
+  Suchtext. Das Diagramm ist jetzt immer so hoch wie die Schalter daneben.
+- **Vom Verlauf in die Liste:** Ein Klick auf einen Balken oder Punkt im Verlauf scrollt die
+  Umsatzliste zu diesem Tag, Monat, Quartal oder Jahr. Oben steht der jüngste Tag des Zeitraums
+  mit Buchungen, darunter folgen die älteren.
+- **Kopf der Umsatzliste beim Scrollen:** Scrollt der Kopf aus dem Bild, bleibt oben eine schmale
+  Leiste mit Symbol, Name und Kontostand bzw. Summe. Fährst du mit der Maus darüber, gleitet der
+  ganze Kopf mit Abrufen, Überweisen, Verlauf und Menü herein. Am Handy tippst du die Leiste an.
+- **Hinweis auf eine neue Oberfläche:** Nach einem Update merkt ein offenes Browserfenster, dass der
+  Server eine neue Version der Oberfläche ausliefert, und bietet **Neu laden** an. Vor der Anmeldung
+  lädt es von selbst neu.
+- **Einstellungen → Versionen:** Ein eigener Bereich zeigt die Versionen von Server, Web-Client,
+  FinTS- und Enable-Banking-Konnektor, ob ein Konnektor eingebettet ist oder als eigener Dienst
+  läuft, und ob er antwortet. Darunter stehen Node.js, SQLite, die Verschlüsselung und das
+  Datenbankschema. **Versionen kopieren** legt alles als Text in die Zwischenablage. Die Zeile mit
+  den Versionen unten auf jeder Einstellungsseite und die Hinweise auf Konnektor-Probleme über den
+  Bankzugängen gibt es dafür nicht mehr.
+
+### Behoben
+
+- **Reihenfolge der Konten in den Einstellungen:** Unter „Einstellungen → Konten“ stehen die Konten
+  eines Bankzugangs und die Offline-Konten jetzt in der Reihenfolge der Seitenleiste. Bisher waren
+  Konten aus verschiedenen Gruppen durcheinander, sobald sie in mehreren Gruppen lagen.
+- **Löschen ohne Wartezeit:** „Import rückgängig“, das Löschen eines Kontos und ein Abruf mit vielen
+  vorgemerkten Umsätzen hielten den Server bei vielen Buchungen sekundenlang an. Jetzt geht das
+  sofort.
+- **Gelöste Kreditkarte bleibt Kreditkarte:** Löst du ein Konto von seinem Bankzugang, behält es
+  seine Kontoart. Eine Kreditkarte zeigt also weiter ihre Kartennummer statt nur „Offline-Konto“.
+- **Rahmen des Felds „Wenn“:** Beim Bearbeiten einer Regel zeigte das Feld „Wenn“ beim Tippen
+  einen zweiten Rahmen innerhalb des eigenen. Jetzt hat es wie die Suche nur einen.
+- **Kein Rahmen um den Verlauf:** Ein Klick auf einen Balken im Verlauf rahmte das ganze Diagramm
+  blau ein. Jetzt bleibt es ohne Rahmen.
+
+### Upgrade
+
+- Beim ersten Start räumt MBM die Datenbank auf (Migrationen 0011–0014). Es löscht dabei nichts:
+  Sollte eine Buchung doppelt gespeichert sein, bleiben beide stehen, und nur die jüngere verliert
+  ihren Abgleich mit der Bank. Ein bereits gelöstes Konto mit Kartennummer wird wieder eine
+  Kreditkarte, andere Offline-Konten bekommen die Kontoart „Sonstiges“.
+- Migration 0015 baut die Tabellen der Bankzugänge für PSD2 um. Bestehende FinTS-Zugänge bleiben,
+  wie sie sind.
+- Migration 0016 bereitet die ergänzten PayPal-Buchungen vor. Der erste Abruf eines PayPal-Kontos
+  danach reicht einmal so weit zurück, wie PayPal erlaubt: Schon gespeicherte Umsätze bekommen ihre
+  neue Umsatzart und Kategorie, keiner kommt doppelt. Eine selbst gewählte Kategorie bleibt.
+- Migration 0017 ergänzt die Spalten für gelöschte und geänderte Umsätze. Gespeicherte Umsätze
+  bleiben unverändert.
+- **PayPal:** Eine ergänzte Abbuchung, deren berechneter Betrag oder deren Art sich ändert, behält
+  jetzt ihre ID, statt neu angelegt zu werden.
+- **API:** `PATCH /api/transactions/:id` ändert auch Umsätze der Bank und aus Importen (nur
+  `amount` und `bookingDate`), `DELETE` löscht jeden Umsatz, neu ist
+  `POST /api/transactions/:id/restore`. `Transaction` hat die neuen Felder `original` und
+  `deletedAt`, `GET /api/transactions` den Parameter `deleted`. `POST /api/accounts/:id/transactions`
+  geht bei jedem Konto.
+- **Getrennte Container (`compose.split.yaml`):** Neu ist der Dienst `enablebanking` mit dem Image
+  `mbm-enablebanking` (in der `.env`: `MBM_IMAGE_ENABLEBANKING`). Übernimm die neue
+  `compose.split.yaml`, oder lass den Dienst und `MBM_ENABLEBANKING_SOCKET` weg, wenn du kein PSD2
+  willst.
+- **Enable Banking abschalten:** Im Image `mbm-server-full` ist der Konnektor eingebaut; mit
+  `MBM_ENABLEBANKING_EMBEDDED=0` bietet MBM keine PSD2-Zugänge an und spricht nie mit Enable
+  Banking.
+- **API:** Neu ist `GET /api/system/versions` mit den Versionen aller Module. `ConnectorStatus`
+  (`GET /api/connectors`) hat das neue Feld `embedded`.
+- **API:** Neu ist `GET /api/stats/flows`: Eingänge und Ausgaben je Tag über dieselben Tage wie
+  `GET /api/stats/series`, ohne Umbuchungen.
+- **API:** Die Kontoart `offline` gibt es nicht mehr. Ein Konto ist offline, wenn `connectionId`
+  leer ist. Selbst angelegte Konten haben die neue Art `other`.
+
+### Lizenz
+
+- **FinTS-Produkt-ID ausgenommen:** Die neue Datei `NOTICE` stellt klar, dass die Produkt-ID in den
+  offiziellen Images von `mbm-server-full` nicht unter der MIT-Lizenz steht. Du darfst sie nur mit dem
+  unveränderten offiziellen Image nutzen. Alle Images enthalten jetzt `LICENSE` und `NOTICE` unter `/app/`.
+
+### ⚠ BREAKING CHANGES
+
+* **konten:** Die API kennt die Kontoart „offline“ nicht mehr. Ein
+Konto ist offline, wenn connectionId leer ist; selbst angelegte Konten
+haben die Art „other“.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+### refactor
+
+* **konten:** Kontoart von der Herkunft trennen ([6258822](https://github.com/stefgo/my-banking-manager/commit/6258822ce88beb069da0442fc38c3eb6abaa4b1c))
+
+### Features
+
+* **aufträge:** Dauer- und Terminaufträge im Web-Client anlegen, ändern und löschen ([da7b267](https://github.com/stefgo/my-banking-manager/commit/da7b267d2118ff47f4389cc05179dd5be5f579be))
+* **einstellungen:** eigener Bereich „Versionen“ mit allen Modulen ([7e9047c](https://github.com/stefgo/my-banking-manager/commit/7e9047c8832dccc47aeb946da3aaf47c7363034a))
+* Hinweis, wenn der Server eine neue Oberfläche ausliefert ([0ca2773](https://github.com/stefgo/my-banking-manager/commit/0ca27737350bb074e8722120af9322c07e49d81e))
+* **import:** beim Prüfen nach Datum suchen ([aaae228](https://github.com/stefgo/my-banking-manager/commit/aaae2284363ba3d5530533fd45cd8a701cf22702))
+* **konnektor:** Dauer- und Terminaufträge anlegen, ändern und löschen ([d55d2d7](https://github.com/stefgo/my-banking-manager/commit/d55d2d7d311473f35d5063e98197085c90acc218))
+* PayPal und weitere Banken über PSD2 (Enable Banking) ([573e774](https://github.com/stefgo/my-banking-manager/commit/573e774fd8f72ac60c9cb89a57cf4be136b2c91b))
+* **paypal:** Abbuchungen und „Später bezahlen“ aus dem Saldo ergänzen ([5a929cd](https://github.com/stefgo/my-banking-manager/commit/5a929cd69ba72927549257652aaf26a8cc2f1286))
+* **server:** Dauer- und Terminaufträge über den Zahlungsablauf schreiben ([f06903f](https://github.com/stefgo/my-banking-manager/commit/f06903f32b7807060ae1cc506680eee839e57812))
+* **umsätze:** „Buchung erfassen“ im Kopf der Umsatzliste nur bei Offline-Konten ([83c551f](https://github.com/stefgo/my-banking-manager/commit/83c551f69bbfa0a2317320a809fede585d6ecc0a))
+* **umsätze:** Buchungen bei jedem Konto erfassen, Umsätze löschen, Datum und Betrag ändern ([2ee9760](https://github.com/stefgo/my-banking-manager/commit/2ee9760dcad5ec9e7783ed17483c2560014c1703))
+* **umsätze:** ein Dialog „Bearbeiten“ für Datum, Betrag und Texte ([c42abe5](https://github.com/stefgo/my-banking-manager/commit/c42abe5722ed65693908d9c7a017b76fbc4b10d7))
+* **umsätze:** Eingänge und Ausgaben im Verlauf folgen den Filtern der Liste ([2aecfff](https://github.com/stefgo/my-banking-manager/commit/2aecfff9c32e4de9e0b8aab006a90d3031931607))
+* **umsätze:** gelöschte Umsätze in den Einstellungen statt als Filter der Liste ([ad142d4](https://github.com/stefgo/my-banking-manager/commit/ad142d433f5340e63367e4c338cd344fb0a4d2b1))
+* **umsätze:** Klick im Verlauf scrollt die Umsatzliste zum Zeitraum ([2201c45](https://github.com/stefgo/my-banking-manager/commit/2201c45cc144dc2bfdf568535fe05d8a239e6e79))
+* **umsätze:** Kopf der Umsatzliste bleibt beim Scrollen als schmale Leiste ([2ede60f](https://github.com/stefgo/my-banking-manager/commit/2ede60f783d52087073f5bfff922cc24df3b7cb8))
+* **umsätze:** Verlauf zeigt Eingänge und Ausgaben je Zeitraum ([f3543c6](https://github.com/stefgo/my-banking-manager/commit/f3543c61b2ab212677dffb2788b21d2ac31192c6))
+
+### Bug Fixes
+
+* **einstellungen:** Konten in der Reihenfolge der Seitenleiste zeigen ([54ebf99](https://github.com/stefgo/my-banking-manager/commit/54ebf990f86ebee606c9161002694c445597276f))
+* **regeln:** nur ein Rahmen am Feld „Wenn“ ([4bf6898](https://github.com/stefgo/my-banking-manager/commit/4bf689864ae8545297c3b21a54255eade203b6e0))
+* **server:** aufgeteilte Buchungen überall vertragen, Fingerabdruck eindeutig ([e4c3c33](https://github.com/stefgo/my-banking-manager/commit/e4c3c3317c960d2a35e553c5b25edc6fce6c9283))
+* **umsätze:** kein Rahmen um den Verlauf nach Klick auf einen Balken ([a3f5882](https://github.com/stefgo/my-banking-manager/commit/a3f58825135d802c7c2b5074d2322303f1add01f))
+* **umsätze:** Verlauf so hoch wie die Schalter daneben ([555dc7a](https://github.com/stefgo/my-banking-manager/commit/555dc7a4175aa7bba03313936f5eaa5d504078ed))
+
+### Performance
+
+* **server:** Indizes auf Fremdschlüssel-Spalten ([7125cec](https://github.com/stefgo/my-banking-manager/commit/7125cec5ed09a2be334443a9651d82e86c81f08e))
+
 ## [0.6.0](https://github.com/stefgo/my-banking-manager/compare/v0.5.0...v0.6.0) (2026-11-25)
 
 ### Neu
