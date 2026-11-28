@@ -13,5 +13,5 @@ Nothing inside an HTML comment is published.
 ### Behoben
 
 - **Bank über PSD2:** Beim Einrichten eines weiteren PSD2-Zugangs steht jede eigene
-  Enable-Banking-Anwendung nur noch einmal zur Auswahl („Wie bei PayPal und N26“), statt einmal
-  je bestehendem Zugang.
+  Enable-Banking-Anwendung nur noch einmal zur Auswahl („Anwendung (App ••••de23)“, darunter die
+  Banken, die sie schon nutzen), statt einmal je bestehendem Zugang.

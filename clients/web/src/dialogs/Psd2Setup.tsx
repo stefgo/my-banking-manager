@@ -12,9 +12,6 @@ import { Ic } from "../components/icons";
 
 type Step = "intro" | "credentials" | "bank" | "consent" | "paste";
 
-/** "PayPal", "PayPal und N26", "PayPal, N26 und DKB" */
-const joinNames = (names: string[]): string => (names.length < 2 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} und ${names[names.length - 1]}`);
-
 /**
  * Sets up a bank access over PSD2 through Enable Banking: consent to the third party, the own
  * Enable Banking application (ID and private key, or taken from another own PSD2 access), the bank,
@@ -175,7 +172,12 @@ export function Psd2SetupDialog({ connectionId, mode }: { connectionId?: number;
                                 {ownApps.map((a) => (
                                     <button key={a.hint} type="button" role="radio" aria-checked={source === a.id} className={`bank-item ${source === a.id ? "on" : ""}`} onClick={() => setSource(a.id)}>
                                         <span className="acc-ic">{source === a.id ? <Ic icon={Check} size={16} /> : null}</span>
-                                        <span><b>Wie bei {joinNames(a.names)}</b><small>Dieselbe Anwendung ({a.hint}); eine reicht für alle Banken</small></span>
+                                        <span>
+                                            <b>Anwendung ({a.hint})</b>
+                                            <span className="psd2-app-banks" aria-label="Schon genutzt für">
+                                                {a.names.map((n, i) => <small key={i}>{n}</small>)}
+                                            </span>
+                                        </span>
                                     </button>
                                 ))}
                                 <button type="button" role="radio" aria-checked={source === "typed"} className={`bank-item ${source === "typed" ? "on" : ""}`} onClick={() => setSource("typed")}>
