@@ -8,7 +8,8 @@ import { decodeCsv } from "../lib/decode";
 import { fieldProps, focusFirstError } from "../lib/fields";
 import { plural } from "../lib/format";
 import { formatProblem, NO_CHOICE, useFormatTable, type ReviewChoice } from "../lib/importFormat";
-import { invalidate, useAccounts, useAction, useCategoryIndex, useImportFormats } from "../lib/queries";
+import { invalidate, useAccounts, useAction, useCategoryIndex, useGroups, useImportFormats } from "../lib/queries";
+import { accountsInTreeOrder } from "../lib/tree";
 import { useLeaveGuard } from "../lib/useLeaveGuard";
 import { useOpenTransactions } from "../lib/useOpenTransactions";
 import { ui } from "../lib/ui";
@@ -101,7 +102,9 @@ export function ImportPage() {
     const openTransactions = useOpenTransactions();
     const accountsData = useAccounts().data;
     const accounts = accountsData ?? [];
-    const accountItems = useMemo(() => accountPickItems(accountsData ?? []), [accountsData]);
+    const groupsData = useGroups().data;
+    // Same order as the account tree in the sidebar
+    const accountItems = useMemo(() => accountPickItems(accountsInTreeOrder(groupsData ?? [], accountsData ?? [])), [groupsData, accountsData]);
     const { index } = useCategoryIndex();
     const formats = useImportFormats().data ?? [];
     const [accountId, setAccountId] = useState<number | undefined>(account);

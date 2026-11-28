@@ -87,7 +87,15 @@ const SHOTS: Shot[] = [
             await page.getByRole("button", { name: "Monat", exact: true }).click();
         },
     },
-    { name: "kategorien", route: `/transactions?ctx=cat&cat=${LEBENSMITTEL}`, themes: ["dark"] },
+    {
+        name: "kategorien",
+        route: `/transactions?ctx=cat&cat=${LEBENSMITTEL}&range=365`,
+        themes: ["dark"],
+        prepare: async (page) => {
+            await page.getByRole("button", { name: "Verlauf" }).click();
+            await page.getByRole("button", { name: "Monat", exact: true }).click();
+        },
+    },
     { name: "suche", route: `/transactions`, themes: ["dark"], prepare: (page) => search(page, "gegenseite:Frischemarkt betrag:>50") },
     { name: "bargeld", route: `/transactions?scope=account:${fx.CASH}`, themes: ["dark"] },
     { name: "paypal", route: `/transactions?scope=account:${fx.PAYPAL}`, themes: ["dark"] },

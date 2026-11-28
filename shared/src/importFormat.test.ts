@@ -68,6 +68,35 @@ describe("keywords step", () => {
     });
 });
 
+describe("account and bank of the counterparty", () => {
+    const readLine = (konto: string, bank: string) => {
+        const line = `30.09.2026;30.09.2026;Alle - Interne Umbuchung - Darlehen - Zinsen;Darlehenszins;Umsatzart: Darlehenszinsen;${konto};${bank};-00,01;EUR`;
+        return mapFormatRows(readWithFormat(`${HEADER}\n${line}\n`, MONEY), MONEY)[0]!;
+    };
+
+    it("reads an account number and a bank code as the bank connectors do", () => {
+        expect(readLine("9000926924", "70054306")).toMatchObject({
+            iban: null,
+            counterpartyAccount: "9000926924",
+            counterpartyBankCode: "70054306",
+            counterpartyBic: "",
+            amount: -1,
+            bookingText: "Darlehenszinsen",
+        });
+    });
+
+    it("takes an IBAN and a BIC as such, and no account number beside an IBAN", () => {
+        expect(readLine("DE02 1203 0000 0000 2020 51", "BYLADEM1001")).toMatchObject({ iban: "DE02120300000000202051", counterpartyAccount: "", counterpartyBankCode: "", counterpartyBic: "BYLADEM1001" });
+        expect(readLine("DE02120300000000202051", "70054306")).toMatchObject({ counterpartyAccount: "", counterpartyBankCode: "", counterpartyBic: "" });
+    });
+
+    it("takes a bank code only along with an account number, and no e-mail address as one", () => {
+        expect(readLine("", "70054306")).toMatchObject({ counterpartyAccount: "", counterpartyBankCode: "" });
+        expect(readLine("kunde@example.org", "70054306")).toMatchObject({ iban: null, counterpartyAccount: "", counterpartyBankCode: "" });
+        expect(readLine("0000000000", "")).toMatchObject({ counterpartyAccount: "" });
+    });
+});
+
 describe("several steps", () => {
     it("takes a part of one step apart in the next", () => {
         const def = base(

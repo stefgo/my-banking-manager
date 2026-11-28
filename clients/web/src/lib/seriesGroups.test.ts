@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { addDaysIso } from "@mbm/shared";
-import { axisLayout, groupFlows, groupPointLabel, groupSeries, niceScale, periodLabel, periodOf } from "./seriesGroups";
+import { axisLayout, groupFlows, groupPointLabel, groupSeries, groupSums, niceScale, periodLabel, periodOf } from "./seriesGroups";
 
 /** Daily points from `from` to `to` with the balance given per day (default: day index × 100). */
 function days(from: string, to: string, balance: (i: number, date: string) => number = (i) => i * 100) {
@@ -95,6 +95,20 @@ describe("groupFlows", () => {
         const [, whole, cut] = groupFlows(flows, "month");
         expect(periodLabel(whole!, "month")).toBe("November 2026");
         expect(periodLabel(cut!, "month")).toBe("Dezember 2026 (01.12.–02.12.2026)");
+    });
+});
+
+describe("groupSums", () => {
+    const flows = days("2026-10-30", "2026-12-02").map((p) => ({ date: p.date, income: p.date.endsWith("-01") ? 250000 : 0, expenses: -1000 }));
+
+    it("takes the total of each period as its value", () => {
+        expect(groupSums(flows, "month")).toEqual([
+            { date: "2026-10-01", from: "2026-10-30", to: "2026-10-31", partial: true, balance: -2000 },
+            { date: "2026-11-01", from: "2026-11-01", to: "2026-11-30", partial: false, balance: 220000 },
+            { date: "2026-12-01", from: "2026-12-01", to: "2026-12-02", partial: true, balance: 248000 },
+        ]);
+        expect(groupSums(flows.slice(2, 3), "day")).toEqual([{ date: "2026-11-01", from: "2026-11-01", to: "2026-11-01", partial: false, balance: 249000 }]);
+        expect(groupSums([], "year")).toEqual([]);
     });
 });
 

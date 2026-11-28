@@ -127,7 +127,7 @@ Scrollst du die Liste, bleiben Suchfeld und Filter am oberen Rand stehen.
 
 ## Verlauf
 
-**Verlauf** im Kopf blendet ein Diagramm für das gewählte Konto oder die Gruppe ein. Es deckt den
+**Verlauf** im Kopf blendet ein Diagramm für das gewählte Konto, die Gruppe oder die Kategorie ein. Es deckt den
 Zeitraum des Filters ab, bei einer Datumsbedingung in der Suche deren Tage. Rechts daneben wählst du
 die Darstellung und gruppierst nach **T**ag, **M**onat, **Q**uartal oder **J**ahr:
 
@@ -143,7 +143,13 @@ die Darstellung und gruppierst nach **T**ag, **M**onat, **Q**uartal oder **J**ah
 dieser Kategorie und ihren Unterkategorien, bei einer aufgeteilten Buchung also nur der passende
 Anteil. Eine Kategorie, die du so wählst, zählt auch dann, wenn sie sonst nicht in Auswertungen
 zählt, etwa Umbuchungen. Mit der Richtung siehst du nur die Eingänge oder nur die Ausgaben. Der Suchtext wirkt nicht, nur ein Datum darin. **Balken**
-und **Linie** zeigen immer den Kontostand, ohne Filter.
+und **Linie** zeigen beim Konto und bei der Gruppe immer den Kontostand, ohne Filter.
+
+Bei einer **Kategorie** gibt es keinen Kontostand. **Balken** und **Linie** zeigen dort die
+**Summe** der Kategorie je Zeitraum, samt Unterkategorien: Eingänge plus Ausgaben, eine negative
+Summe als roten Balken. Gezählt wird wie bei **Eingänge und Ausgaben**, mit dem Kontofilter und der
+Richtung der Liste. Der Wert eines Monats, Quartals oder Jahres ist hier die Summe seiner Tage,
+nicht ihr Durchschnitt; deshalb fehlt das Ø.
 
 Ein Zeitraum, den der Filter anschneidet (etwa der laufende Monat), ist blasser. Fährst du über
 einen Wert, zeigt MBM die Beträge.

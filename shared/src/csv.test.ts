@@ -135,6 +135,23 @@ describe("sameCounterparty", () => {
     it("never matches two different IBANs, even with the same purpose", () => {
         expect(sameCounterparty(party(IBAN, "", "Miete"), party("DE89370400440532013000", "", "Miete"))).toBe(false);
     });
+
+    it("compares account numbers when there is no IBAN on both sides", () => {
+        // Loan interest: the bank names its internal account by number only, without name or purpose
+        const bank = { iban: null, counterpartyAccount: "9000926924", name: "", purpose: "" };
+        const file = { iban: null, counterpartyAccount: "9000926924", name: "Darlehenszins", purpose: "" };
+        expect(sameCounterparty({ ...bank, purpose: "Zinsen 3. Quartal" }, file)).toBe(true);
+        expect(sameCounterparty({ ...bank, counterpartyAccount: "0009000926924" }, file)).toBe(true);
+        expect(sameCounterparty({ ...bank, counterpartyAccount: "9000926925" }, file)).toBe(false);
+    });
+
+    it("lets an IBAN on both sides decide before the account number", () => {
+        expect(sameCounterparty({ iban: IBAN, counterpartyAccount: "1", name: "", purpose: "" }, { iban: IBAN, counterpartyAccount: "2", name: "", purpose: "" })).toBe(true);
+    });
+
+    it("falls back to the name with an account number on one side only", () => {
+        expect(sameCounterparty({ iban: null, counterpartyAccount: "", name: "Huber", purpose: "" }, { iban: null, counterpartyAccount: "123", name: "Huber", purpose: "" })).toBe(true);
+    });
 });
 
 describe("parseDate", () => {

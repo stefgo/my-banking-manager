@@ -32,6 +32,7 @@
     "contracts:check": "tsx --conditions=development scripts/contracts.ts --check",
     "blz": "tsx scripts/blz.ts",
     "screenshots": "tsx --conditions=development scripts/screenshots/capture.ts",
+    "diagrams": "tsx scripts/diagrams/build.ts",
     "prepare": "git config core.hooksPath .githooks 2>/dev/null || true"
   },
   "devDependencies": {

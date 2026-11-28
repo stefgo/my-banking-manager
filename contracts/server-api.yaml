@@ -9364,6 +9364,12 @@ paths:
                           type:
                             - string
                             - "null"
+                        counterpartyAccount:
+                          type: string
+                          description: Account of the counterparty when the file names no IBAN; "" if none
+                        counterpartyBankCode:
+                          type: string
+                          description: National bank code that goes with counterpartyAccount; "" if none
                         purpose:
                           type: string
                         shownName:
@@ -9397,7 +9403,7 @@ paths:
                           type: string
                         fillsDetails:
                           type: boolean
-                          description: Duplicate with an empty reference, mandate, creditor id or BIC that takes the one of the file; a reference only if no kind of reference searched for it holds it already
+                          description: Duplicate with an empty reference, mandate, creditor id, BIC, account number or bank code that takes the one of the file; account number and bank code only without an IBAN; a reference only if no kind of reference searched for it holds it already
                         fills:
                           type: array
                           items:
@@ -9410,6 +9416,8 @@ paths:
                               - mandateId
                               - creditorId
                               - counterpartyBic
+                              - counterpartyAccount
+                              - counterpartyBankCode
                           description: "Duplicate: the fields empty in the stored booking that take the value of this row"
                         pending:
                           type: boolean
@@ -9458,6 +9466,8 @@ paths:
                         - amount
                         - name
                         - iban
+                        - counterpartyAccount
+                        - counterpartyBankCode
                         - purpose
                         - shownName
                         - shownPurpose
@@ -14731,7 +14741,7 @@ paths:
                   default: null
                   anyOf:
                     - type: string
-                      pattern: ^[A-Z0-9]{8}([A-Z0-9]{3})?$
+                      pattern: ^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$
                     - type: "null"
                 amount:
                   type: integer
@@ -16674,7 +16684,7 @@ paths:
                   default: null
                   anyOf:
                     - type: string
-                      pattern: ^[A-Z0-9]{8}([A-Z0-9]{3})?$
+                      pattern: ^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$
                     - type: "null"
                 amount:
                   type: integer

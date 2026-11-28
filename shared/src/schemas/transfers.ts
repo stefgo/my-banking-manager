@@ -109,7 +109,7 @@ const paymentFields = {
             const msg = ibanProblem(s);
             if (msg) ctx.addIssue({ code: "custom", message: msg });
         }),
-    payeeBic: z.string().trim().toUpperCase().regex(BIC_PATTERN, "BIC mit 8 oder 11 Zeichen").nullable().default(null),
+    payeeBic: z.string().trim().toUpperCase().regex(BIC_PATTERN, "BIC mit 8 oder 11 Zeichen, die ersten 6 Buchstaben").nullable().default(null),
     amount: Cents.refine((c) => c > 0, "Der Betrag muss größer als 0 sein.").refine((c) => c <= TRANSFER_MAX_CENTS, "Der Betrag ist zu groß."),
     remittance: text(SEPA_REMITTANCE_MAX, "Verwendungszweck").default(""),
 };

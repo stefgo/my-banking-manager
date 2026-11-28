@@ -4,7 +4,7 @@
 
 import { z } from "zod";
 import { Cents, IconKeySchema, IsoDate, Timestamp } from "./common.js";
-import { SEPA_NAME_MAX, SEPA_REMITTANCE_MAX, TRANSFER_MAX_CENTS } from "../sepa.js";
+import { BIC_PATTERN, SEPA_NAME_MAX, SEPA_REMITTANCE_MAX, TRANSFER_MAX_CENTS } from "../sepa.js";
 
 export const Blz = z.string().regex(/^\d{8}$/, "Bankleitzahl mit 8 Ziffern");
 
@@ -328,7 +328,7 @@ export const ScheduledTransfersData = z.object({ orders: z.array(ConnectorSchedu
 export const ConnectorTransfer = z.object({
     payeeName: z.string().trim().min(1).max(SEPA_NAME_MAX),
     payeeIban: z.string().regex(/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/),
-    payeeBic: z.string().regex(/^[A-Z0-9]{8}([A-Z0-9]{3})?$/).nullable(),
+    payeeBic: z.string().regex(BIC_PATTERN).nullable(),
     amount: Cents.refine((c) => c > 0 && c <= TRANSFER_MAX_CENTS, "Betrag außerhalb der Grenzen"),
     remittance: z.string().max(SEPA_REMITTANCE_MAX),
     endToEndId: z.string().regex(/^[A-Za-z0-9/?:().,'+\- ]{1,35}$/),

@@ -5,8 +5,8 @@ import { z } from "zod";
 import { Check, RotateCcw, Scale, Tag } from "lucide-react";
 import { centsToInput, isOffline, isValidIsoDate, parseAmount, routes, todayIso, type Topic, type Transaction, type TxEditField } from "@mbm/shared";
 import { call } from "../lib/api";
-import { useAccounts, useAction, useCategoryIndex, usePayees, useTxById } from "../lib/queries";
-import { categoryPath } from "../lib/tree";
+import { useAccounts, useAction, useCategoryIndex, useGroups, usePayees, useTxById } from "../lib/queries";
+import { accountsInTreeOrder, categoryPath } from "../lib/tree";
 import { dateText, fmt, fmtSigned, partyName, shownParty, shownPurpose } from "../lib/format";
 import { fieldProps, focusFirstError, hasErrors, type FieldErrors } from "../lib/fields";
 import { ui } from "../lib/ui";
@@ -42,8 +42,10 @@ export function BookingDialog({ accountId, txId }: { accountId?: number; txId?: 
 
 function ManualDialog({ accountId, txId }: { accountId?: number; txId?: number }) {
     const accountsData = useAccounts().data;
-    const accounts = accountsData ?? [];
-    const accountItems = useMemo(() => accountPickItems(accountsData ?? []), [accountsData]);
+    const groupsData = useGroups().data;
+    // Same order as the account tree in the sidebar
+    const accounts = useMemo(() => accountsInTreeOrder(groupsData ?? [], accountsData ?? []), [groupsData, accountsData]);
+    const accountItems = useMemo(() => accountPickItems(accounts), [accounts]);
     const { index } = useCategoryIndex();
     const payees = usePayees().data;
     const catItems = useCategoryItems({ none: true });

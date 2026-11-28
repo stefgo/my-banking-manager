@@ -3,12 +3,14 @@ import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Lin
 import type { AccountScope, TxDateBounds, TxRange } from "@mbm/shared";
 import { useFlows, useSeries, type FlowFilter } from "../lib/queries";
 import { dateText, dayLabel, fmt, monthYear, shortDate, shortEuro } from "../lib/format";
-import { axisLayout, groupFlows, groupPointLabel, groupSeries, niceScale, periodLabel, periodOf, type ChartStyle, type FlowGroupPoint, type GroupPoint, type SeriesGroup } from "../lib/seriesGroups";
+import { axisLayout, groupFlows, groupPointLabel, groupSeries, groupSums, niceScale, periodLabel, periodOf, type ChartStyle, type FlowGroupPoint, type GroupPoint, type SeriesGroup } from "../lib/seriesGroups";
 
 type ChartPoint = { date: string; balance?: number; forecast?: number; group?: GroupPoint; income?: number; expenses?: number; net?: number; flow?: FlowGroupPoint };
 /** The days a picked value covers. */
 export type ChartPeriod = { from: string; to: string };
 type PickHandler = (period: ChartPeriod) => void;
+/** What bars and line show: the balance of the accounts, or the sum of the bookings `filter` keeps (a category). */
+export type ChartMeasure = "balance" | "sum";
 
 const AXIS_WIDTH = 64;
 const MARGIN = { top: 8, right: 0, bottom: 0, left: 0 };
@@ -22,6 +24,7 @@ const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").match
  * or averages per month, quarter or year; when they do not fit, the plot scrolls sideways under a fixed amount axis.
  * `chartStyle` "flow" shows instead the income and expenses of each period as bars, their total as a line; only these
  * follow `filter`, the balance stays the account's.
+ * With `measure` "sum" bars and line show instead the total of the bookings `filter` keeps per day, month, quarter or year.
  * `onPick` gets the days of the value clicked, anywhere in its column; a value of the forecast is not picked.
  */
 export function BalanceChart(props: {
@@ -34,9 +37,11 @@ export function BalanceChart(props: {
     forecastDays?: number;
     group?: SeriesGroup;
     chartStyle?: ChartStyle;
+    measure?: ChartMeasure;
     onPick?: PickHandler;
 }) {
-    return props.chartStyle === "flow" ? <FlowChart {...props} group={props.group ?? "day"} /> : <BalanceSeriesChart {...props} />;
+    if (props.chartStyle === "flow") return <FlowChart {...props} group={props.group ?? "day"} />;
+    return props.measure === "sum" ? <SumChart {...props} group={props.group ?? "day"} /> : <BalanceSeriesChart {...props} />;
 }
 
 /** Income and expenses per period as bars up and down, the total of each period as a line; own transfers left out unless `filter` picks them. */
@@ -69,6 +74,39 @@ function FlowChart({
     return (
         <div className={`chart-wrap amt ${onPick ? "pick" : ""}`} style={style}>
             {points.length > 0 && <ScrollingChart id={id} points={points} group={group} chartStyle="flow" hasForecast={false} onPick={onPick} />}
+        </div>
+    );
+}
+
+/** Total of the bookings `filter` keeps per period, as bars or a line; own transfers left out unless `filter` picks them. */
+function SumChart({
+    scope,
+    days = 90,
+    range,
+    span,
+    filter,
+    height = 210,
+    group,
+    chartStyle = "bar",
+    onPick,
+}: {
+    scope: AccountScope;
+    days?: number;
+    range?: TxRange;
+    span?: TxDateBounds;
+    filter?: FlowFilter;
+    height?: number | "fill";
+    group: SeriesGroup;
+    chartStyle?: ChartStyle;
+    onPick?: PickHandler;
+}) {
+    const flows = useFlows(scope, days, range, span, filter);
+    const id = useId().replace(/:/g, "");
+    const points = useMemo<ChartPoint[]>(() => groupSums(flows.data?.points ?? [], group).map((g) => ({ date: g.date, balance: g.balance, group: g })), [flows.data, group]);
+    const style = height === "fill" ? undefined : ({ "--ch": `${height}px` } as React.CSSProperties);
+    return (
+        <div className={`chart-wrap amt ${onPick ? "pick" : ""}`} style={style}>
+            {points.length > 0 && <ScrollingChart id={id} points={points} group={group} chartStyle={chartStyle} measure="sum" hasForecast={false} onPick={onPick} />}
         </div>
     );
 }
@@ -144,6 +182,7 @@ function ScrollingChart({
     points,
     group,
     chartStyle,
+    measure = "balance",
     hasForecast,
     onPick,
 }: {
@@ -151,6 +190,7 @@ function ScrollingChart({
     points: ChartPoint[];
     group: SeriesGroup;
     chartStyle: ChartStyle;
+    measure?: ChartMeasure;
     hasForecast: boolean;
     onPick?: PickHandler;
 }) {
@@ -203,7 +243,7 @@ function ScrollingChart({
                         {xAxis}
                         {yAxis}
                         {grid}
-                        {chartTooltip(group, { stroke: "var(--faint)" })}
+                        {chartTooltip(group, { stroke: "var(--faint)" }, measure)}
                         {zero}
                         {balanceArea(id, group)}
                         {hasForecast && forecastArea()}
@@ -242,11 +282,11 @@ function ScrollingChart({
                         {xAxis}
                         {yAxis}
                         {grid}
-                        {chartTooltip(group, { fill: "var(--hover)" })}
+                        {chartTooltip(group, { fill: "var(--hover)" }, measure)}
                         {zero}
                         <Bar dataKey="balance" stackId="b" radius={radius} isAnimationActive={!reducedMotion()}>
                             {points.map((p) => (
-                                // Negative balances in red; a period cut by the range (the running month) paler
+                                // Negative values in red; a period cut by the range (the running month) paler
                                 <Cell key={p.date} fill={(p.balance ?? 0) < 0 ? "var(--neg)" : `url(#s${id})`} fillOpacity={p.group?.partial ? 0.5 : 1} />
                             ))}
                         </Bar>
@@ -299,14 +339,15 @@ function chartDefs(id: string) {
     );
 }
 
-function chartTooltip(group: SeriesGroup, cursor: React.SVGProps<SVGElement>) {
+/** Tooltip of bars and line: a sum names its period alone, an average with "Ø". */
+function chartTooltip(group: SeriesGroup, cursor: React.SVGProps<SVGElement>, measure: ChartMeasure = "balance") {
     return (
         <Tooltip
             cursor={cursor}
             content={({ active, payload }) => {
                 const p = active ? (payload?.[0]?.payload as ChartPoint | undefined) : undefined;
                 if (!p) return null;
-                const label = p.group && group !== "day" ? groupPointLabel(p.group, group) : p.balance === undefined ? `${dateText(p.date)} · Vorschau` : dayLabel(p.date);
+                const label = p.group && group !== "day" ? (measure === "sum" ? periodLabel(p.group, group) : groupPointLabel(p.group, group)) : p.balance === undefined ? `${dateText(p.date)} · Vorschau` : dayLabel(p.date);
                 return (
                     <div className="chart-tip">
                         <span className="muted">{label}</span>

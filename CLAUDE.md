@@ -45,6 +45,9 @@ npm run screenshots              # Bilder in docs/assets/screenshots/ (scripts/s
 
 - Neue Route: Schema + Eintrag in `shared/src/api.ts` → `handle(...)` im Server → `call(routes.x)` im
   Client → `npm run contracts`.
+- Neue Migration: Tabellen und Spalten in `docs/datenbankmodell.md` nachtragen (prüft
+  `server/src/db/schemaDocs.test.ts`); neue Tabelle oder Fremdschlüssel auch in
+  `scripts/diagrams/figures.ts`, dann `npm run diagrams`.
 - Änderungen meldet der Server per `events.changed(<topics>)`; der Client lädt diese Themen neu.
 - Beträge in Cent, Daten als `JJJJ-MM-TT`. UI-Texte Deutsch, Code und Kommentare Englisch.
 - Commits: Conventional Commits mit deutschem Betreff (`feat: …`, `fix(umsätze): …`), Bruch nur

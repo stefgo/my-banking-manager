@@ -942,8 +942,11 @@ a.mini { text-decoration: none; }
 .bank-item:hover, .bank-item.on { background: var(--surface-2); }
 .bank-item b { display: block; font-weight: 500; }
 .bank-item small { color: var(--faint); font-size: 12px; }
-/* PSD2 setup: the banks an own application already serves, one per line */
+/* PSD2 setup: the banks an own application already serves, one bulleted line each */
+.psd2-app-note { display: block; margin-top: 2px; }
 .psd2-app-banks { display: grid; }
+.psd2-app-banks small { position: relative; padding-left: 14px; }
+.psd2-app-banks small::before { content: "•"; position: absolute; left: 3px; }
 .spin { animation: spin 0.9s linear infinite; }
 
 @keyframes spin { to { transform: rotate(360deg); } }

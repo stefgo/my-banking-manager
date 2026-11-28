@@ -123,6 +123,58 @@ describe("import formats", () => {
         expect(again.counts.filled).toBe(0);
     });
 
+    describe("account number of the counterparty", () => {
+        // Loan interest as a bank delivers it: an internal account by number, no IBAN, no name
+        const LOAN = "30.09.2026;30.09.2026;Alle - Interne Umbuchung - Darlehen - Zinsen;Darlehenszins;Umsatzart: Darlehenszinsen;9000926924;70054306;-00,01;EUR";
+        const loanFile = `${HEADER}\n${LOAN}\n`;
+
+        async function storedInterest(columns: { iban?: string | null; account?: string; bankCode?: string }) {
+            const s = await setUp();
+            await s.api("POST", `/api/accounts/${s.account.id}/transactions`, { bookingDate: "2026-09-30", amount: -1, counterpartyName: "x" });
+            const id = (await s.items())[0]!.id;
+            t.vault.database
+                .prepare("UPDATE transactions SET counterparty_name = '', remittance = 'DARLEHENSZINSEN 3. QUARTAL', counterparty_iban = ?, counterparty_account = ?, counterparty_bank_code = ? WHERE id = ?")
+                .run(columns.iban ?? null, columns.account ?? "", columns.bankCode ?? "", id);
+            return s;
+        }
+
+        it("finds a booking by its account number and fills in the bank code", async () => {
+            const { api, account, items } = await storedInterest({ account: "9000926924" });
+            const preview = (await api<ImportPreview>("POST", `/api/accounts/${account.id}/import/preview`, { fileName: "x.csv", content: loanFile })).body;
+            expect(preview.counts).toMatchObject({ new: 0, duplicate: 1 });
+            expect(preview.rows[0]).toMatchObject({ counterpartyAccount: "9000926924", counterpartyBankCode: "70054306", counterpartyBic: "", fillsDetails: true });
+            expect(preview.rows[0]!.fills).toContain("counterpartyBankCode");
+            expect(preview.rows[0]!.fills).not.toContain("counterpartyAccount");
+
+            const result = (await api<{ imported: number; detailsFilled: number }>("POST", `/api/accounts/${account.id}/import`, { fileName: "x.csv", content: loanFile })).body;
+            expect(result).toMatchObject({ imported: 0, detailsFilled: 1 });
+            expect((await items())[0]).toMatchObject({ counterpartyAccount: "9000926924", counterpartyBankCode: "70054306", counterpartyBic: "", bookingText: "Darlehenszinsen" });
+        });
+
+        it("tells two internal accounts apart by their number", async () => {
+            const { api, account } = await storedInterest({ account: "9000926925" });
+            const preview = (await api<ImportPreview>("POST", `/api/accounts/${account.id}/import/preview`, { fileName: "x.csv", content: loanFile })).body;
+            expect(preview.counts).toMatchObject({ new: 1, duplicate: 0 });
+        });
+
+        it("adds no account number to a booking with an IBAN", async () => {
+            const { api, account } = await storedInterest({ iban: "DE02120300000000202051" });
+            t.vault.database.prepare("UPDATE transactions SET counterparty_name = 'Darlehenszins'").run();
+            const preview = (await api<ImportPreview>("POST", `/api/accounts/${account.id}/import/preview`, { fileName: "x.csv", content: loanFile })).body;
+            expect(preview.rows[0]).toMatchObject({ state: "duplicate" });
+            expect(preview.rows[0]!.fills).not.toEqual(expect.arrayContaining(["counterpartyAccount"]));
+            expect(preview.rows[0]!.fills).not.toEqual(expect.arrayContaining(["counterpartyBankCode"]));
+        });
+
+        it("stores account number and bank code of a new booking", async () => {
+            const { api, account, items } = await setUp();
+            await api("POST", `/api/accounts/${account.id}/import`, { fileName: "x.csv", content: loanFile });
+            expect((await items())[0]).toMatchObject({ counterpartyIban: null, counterpartyAccount: "9000926924", counterpartyBankCode: "70054306", counterpartyBic: "" });
+            const again = (await api<ImportPreview>("POST", `/api/accounts/${account.id}/import/preview`, { fileName: "x.csv", content: loanFile })).body;
+            expect(again.counts).toMatchObject({ new: 0, duplicate: 1, filled: 0 });
+        });
+    });
+
     it("counts bookings that got only a kind of booking or only details once each", async () => {
         const { api, account } = await setUp();
         const add = (day: string, name: string) => api("POST", `/api/accounts/${account.id}/transactions`, { bookingDate: `2026-11-${day}`, amount: -100, counterpartyName: name });

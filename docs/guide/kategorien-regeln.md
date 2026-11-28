@@ -7,11 +7,12 @@ Jeder Umsatz kann eine **Kategorie** haben. Kategorien bilden einen Baum, etwa
 ## Kategorien
 
 Ein Klick auf eine Kategorie im Kategorienbaum zeigt ihre Umsätze mit der Summe, samt
-Unterkategorien.
+Unterkategorien. **Verlauf** im Kopf blendet die Summe je Tag, Monat, Quartal oder Jahr als
+Diagramm ein (siehe [Verlauf](umsaetze.md#verlauf)).
 
-![Die Umsätze der Kategorie Lebensmittel mit Summe](../assets/screenshots/kategorien-dark.png)
+![Die Umsätze der Kategorie Lebensmittel mit Summe und Verlauf je Monat](../assets/screenshots/kategorien-dark.png)
 
-*Die Kategorie „Lebensmittel“ mit ihren Unterkategorien Supermarkt und Bäckerei, über alle Konten.*
+*Die Kategorie „Lebensmittel“ mit ihren Unterkategorien Supermarkt und Bäckerei, über alle Konten; darüber die Summe je Monat der letzten zwölf Monate.*
 
 - **Anlegen, umbenennen, verschieben:** über das Stift-Symbol über dem Baum oder das Menü einer
   Kategorie. Auch „Ohne Kategorie“ lässt sich an einen anderen Platz im Baum ziehen.

@@ -106,3 +106,4 @@ nav:
           - Technische Details: operations.md
     - Mitmachen:
           - Entwicklung: development.md
+          - Datenbankmodell: datenbankmodell.md

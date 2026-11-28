@@ -145,6 +145,10 @@ lädt die betroffenen Abfragen neu (`clients/web/src/lib/socket.ts`).
 
 ## Datenbank
 
+Alle Tabellen, Spalten und Beziehungen mit Diagrammen stehen unter
+[Datenbankmodell](datenbankmodell.md). Eine neue Migration trägst du dort mit ein;
+`server/src/db/schemaDocs.test.ts` meldet, was fehlt.
+
 - Migrationen führt Umzug aus (`server/src/db/database.ts`). Jede steht in einer eigenen Datei in
   `server/src/db/migrations/` (`0001-initial.ts`, …) und ist in `migrations/index.ts` eingetragen.
   Jede läuft genau einmal in einer Transaktion. Eine ausgelieferte Migration wird nie geändert, nur

@@ -39,7 +39,9 @@ erhalten, solange Datei, Format und Konto gleich bleiben.
 ## Doppelte Umsätze
 
 Ein Umsatz gilt als schon vorhanden, wenn Buchungsdatum, Betrag und IBAN der Gegenseite gleich
-sind. Ohne IBAN vergleicht MBM den Namen der Gegenseite, ohne Groß- und Kleinschreibung, Akzente,
+sind. Fehlt die IBAN auf einer Seite, haben aber beide eine **Kontonummer** der Gegenseite, gibt diese
+den Ausschlag; führende Nullen zählen nicht. So nennen Banken etwa ihr internes Konto bei
+Darlehenszinsen. Sonst vergleicht MBM den Namen der Gegenseite, ohne Groß- und Kleinschreibung, Akzente,
 Leer- und Satzzeichen. Fehlt auch der Name, muss der Verwendungszweck aus der Datei im
 Verwendungszweck des Umsatzes in MBM enthalten sein, nach denselben Vergleichsregeln. Sind beide
 Verwendungszwecke leer, gilt das als gleich. So kannst du dieselbe Datei auch zweimal importieren,
@@ -123,11 +125,17 @@ Neben Datum, Betrag und Gegenseite übernimmt MBM die **Umsatzart** (etwa „Las
 [Referenzen](#referenzen), das **Mandat**, die **Gläubiger-ID** und die **BIC**. Sie stehen danach in
 den [Details des Umsatzes](umsaetze.md#details-eines-umsatzes).
 
+Das Feld **IBAN oder Kontonummer der Gegenseite** liest MBM wie beim Abruf von der Bank: Sieht der
+Wert wie eine IBAN aus, ist er die IBAN, sonst die Kontonummer. Ebenso ist das Feld **BIC oder BLZ der
+Gegenseite** eine BIC, wenn es mit sechs Buchstaben beginnt, und eine BLZ, wenn es aus acht Ziffern
+besteht. Eine BLZ übernimmt MBM nur zusammen mit einer Kontonummer. Bei MoneyMoney stehen beide
+Angaben in den Spalten „Konto“ und „Bank“.
+
 Fehlt einem vorhandenen Umsatz eine dieser Angaben, ergänzt MBM sie aus der Datei; die Prüfung zeigt
 dann „ergänzen“, und die Details der Zeile stellen für jede dieser Angaben den leeren Wert in MBM
 neben den aus der Datei. So kannst du sie auch für schon importierte Umsätze nachtragen, indem
 du die Datei noch einmal importierst. Vorhandene Angaben und der Verwendungszweck bleiben dabei
-erhalten.
+erhalten. Kontonummer und BLZ ergänzt MBM nur bei Umsätzen ohne IBAN.
 
 !!! warning "Regeln und gekürzter Verwendungszweck"
     Das Format „MoneyMoney (CSV)“ speichert als Verwendungszweck nur den freien Text. Eine Regel, die
