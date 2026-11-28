@@ -103,6 +103,9 @@ MBM für PayPal ergänzt hat, änderst du Betrag, Datum, Gegenseite und Verwendu
 
 Alles andere bleibt, wie die Bank es geliefert hat.
 
+Den Betrag darfst du unvollständig eingeben: Aus „1“ wird beim Verlassen des Felds „1,00“, aus „1,1“
+„1,10“. Eine neue Buchung braucht einen Betrag über 0, eine bestehende kannst du auf 0,00 setzen.
+
 **Löschen** geht bei jedem Umsatz. Eine Buchung, die du selbst erfasst hast, ist danach weg. Alle
 anderen blendet MBM nur aus: Sie verschwinden aus Liste und Auswertungen, kommen aber auch beim
 nächsten Abruf oder Import nicht wieder. Das gilt auch für einen vorgemerkten Umsatz, sobald die

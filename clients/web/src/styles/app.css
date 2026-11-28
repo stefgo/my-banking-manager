@@ -547,7 +547,7 @@ button.av:hover { box-shadow: inset 0 0 0 1px var(--c); }
 .inp-sm { height: 38px; font-size: 14px; border-radius: 10px; }
 select.inp { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 34px; }
 .amount-wrap { position: relative; }
-.amount-wrap .inp { height: 60px; font-size: 28px; font-weight: 500; letter-spacing: -0.02em; padding-right: 44px; font-variant-numeric: tabular-nums; }
+.amount-wrap .inp { height: 60px; font-size: 28px; font-weight: 500; letter-spacing: -0.02em; padding-right: 44px; text-align: right; font-variant-numeric: tabular-nums; }
 .amount-wrap .cur { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-size: 20px; color: var(--faint); }
 .recent { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .pchip { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 10px 0 4px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 12.5px; font-weight: 500; }
@@ -568,7 +568,7 @@ select.inp { appearance: none; background-image: linear-gradient(45deg, transpar
 .tf-edit .field { gap: 5px; }
 .tf-edit .inp { height: 40px; font-size: 14.5px; border-radius: 10px; }
 .tf-edit .inp.mono { font-size: 14px; }
-.tf-edit .amount-wrap .inp { height: 46px; font-size: 22px; text-align: right; }
+.tf-edit .amount-wrap .inp { height: 46px; font-size: 22px; }
 .tf-edit .amount-wrap .cur { font-size: 17px; }
 .tf-edit .from-opt { padding: 7px 12px; border-radius: 11px; }
 .tf-edit .rem-lines { border-radius: 10px; }

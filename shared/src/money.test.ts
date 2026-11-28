@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatCents, formatSignedCents, parseAmount } from "./money.js";
+import { completeAmountInput, formatCents, formatSignedCents, parseAmount } from "./money.js";
 
 describe("parseAmount", () => {
     it.each([
@@ -20,6 +20,23 @@ describe("parseAmount", () => {
 
     it.each(["", "abc", "1,234,5x", "12,345"])("rejects %s", (input) => {
         expect(parseAmount(input)).toBeNull();
+    });
+});
+
+describe("completeAmountInput", () => {
+    it.each([
+        ["1", "1,00"],
+        ["1,1", "1,10"],
+        ["0", "0,00"],
+        [",5", "0,50"],
+        ["1234,5", "1.234,50"],
+        ["-3", "-3,00"],
+    ])("%s → %s", (input, shown) => {
+        expect(completeAmountInput(input)).toBe(shown);
+    });
+
+    it.each(["", "abc", "1,234"])("leaves %s as typed when it is no amount", (input) => {
+        expect(completeAmountInput(input)).toBe(input);
     });
 });
 

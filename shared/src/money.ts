@@ -74,3 +74,9 @@ export function centsToInput(cents: number): string {
     const s = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(cents) / 100);
     return (cents < 0 ? "-" : "") + s;
 }
+
+/** An amount as typed, completed to whole cents once it reads as one: "1" → "1,00", "1,1" → "1,10". */
+export function completeAmountInput(input: string): string {
+    const cents = parseAmount(input);
+    return cents === null ? input : centsToInput(cents);
+}

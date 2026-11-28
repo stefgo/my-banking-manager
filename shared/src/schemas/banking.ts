@@ -232,7 +232,7 @@ export type TransactionList = z.infer<typeof TransactionList>;
 const ManualTransactionFields = {
     bookingDate: IsoDate,
     valueDate: IsoDate.nullable().optional(),
-    amount: Cents.refine((v) => v !== 0, "Betrag darf nicht 0 sein"),
+    amount: Cents,
     counterpartyName: z.string().trim().max(140),
     counterpartyIban: z.string().trim().max(40).nullable().optional(),
     remittance: z.string().trim().max(400),
@@ -242,12 +242,14 @@ const ManualTransactionFields = {
 };
 export const ManualTransactionRequest = z.object({
     ...ManualTransactionFields,
+    // A new booking moves money; a change may set an amount to 0
+    amount: Cents.refine((v) => v !== 0, "Betrag darf nicht 0 sein"),
     counterpartyName: ManualTransactionFields.counterpartyName.default(""),
     remittance: ManualTransactionFields.remittance.default(""),
     status: ManualTransactionFields.status.default("booked"),
 });
 // Without defaults: a field left out of a change stays as it is. Of a booking from the bank, an
-// import or one MBM added, only amount and booking date can change.
+// import or one MBM added, only amount and booking date can change. The amount may become 0.
 export const UpdateTransactionRequest = z.object(ManualTransactionFields).partial();
 
 export const AssignCategoryRequest = z.object({

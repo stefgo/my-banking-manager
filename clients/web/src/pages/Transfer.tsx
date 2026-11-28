@@ -5,6 +5,7 @@ import { Dialog as RDialog } from "radix-ui";
 import { AlertTriangle, ArrowLeft, CalendarDays, Check, ChevronDown, CircleHelp, Pencil, RefreshCw, Repeat, Send, ShieldCheck, Smartphone, Trash2, X, Zap } from "lucide-react";
 import {
     centsToInput,
+    completeAmountInput,
     cleanIban,
     groupIban,
     ibanLength,
@@ -493,7 +494,10 @@ function Composer({ draft, accounts, onSent, onCancel }: { draft: TransferDraft 
             ) : (
                 <Field id="tr-amount" label="Betrag" error={errors["tr-amount"]}>
                     <div className="amount-wrap tf-amount">
-                        <input ref={amountRef} className="inp" inputMode="decimal" placeholder="0,00" autoComplete="off" value={form.amount} onChange={(e) => set("amount", e.target.value)} {...fieldProps("tr-amount", errors["tr-amount"])} />
+                        <input ref={amountRef} className="inp" inputMode="decimal" placeholder="0,00" autoComplete="off" value={form.amount} onChange={(e) => set("amount", e.target.value)} onBlur={(e) => {
+                                const v = completeAmountInput(e.target.value);
+                                if (v !== form.amount) set("amount", v);
+                            }} {...fieldProps("tr-amount", errors["tr-amount"])} />
                         <span className="cur">€</span>
                     </div>
                 </Field>
