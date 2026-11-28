@@ -11,7 +11,7 @@ import { dateText, fmtSigned, partyName, shownParty, shownPurpose } from "../lib
 import { openRuleForm, openRunRules } from "../lib/rules";
 import { copyText } from "../lib/clipboard";
 import { markTxs } from "../lib/unread";
-import { canPurge, confirmPurge } from "../lib/purge";
+import { canPurge, confirmPurge, restoreTx } from "../lib/purge";
 import { ui, useUi } from "../lib/ui";
 import { INSPECTOR_QUERY, useMedia } from "../lib/media";
 import { Button } from "../components/common";
@@ -327,7 +327,7 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
                                     icon={RotateCcw}
                                     iconSize={16}
                                     busy={action.pending}
-                                    onClick={() => void action.run(() => call(routes.restoreTransaction, { params: { id: tx.id } }), { topics: ["accounts", "transactions", "categories"], ok: "Umsatz wiederhergestellt" })}
+                                    onClick={() => void restoreTx(tx, action)}
                                 >
                                     Wiederherstellen
                                 </Button>

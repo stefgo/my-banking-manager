@@ -30,6 +30,10 @@ Nothing inside an HTML comment is published.
 
 ### Behoben
 
+- **Gelöschte wiederherstellen:** Stellst du einen gelöschten Umsatz wieder her, schließen sich
+  seine Details, auch beim Wiederherstellen aus der Liste unter Einstellungen → Gelöschte. Bisher
+  blieben sie offen.
+
 - **Importe entfernen:** „Entfernen“ und „Rückgängig“ unter Einstellungen → Importe fragen jetzt
   nach, wenn dabei gelöschte Umsätze des Imports endgültig verschwinden. Bisher entfernte
   „Entfernen“ sie ohne Hinweis, und ein erneuter Import brachte sie wieder.
