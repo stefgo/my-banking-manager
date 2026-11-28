@@ -871,6 +871,7 @@ a.mini { text-decoration: none; }
 .d-list > div { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line-soft); font-size: 13.5px; align-items: center; }
 .d-list dt { color: var(--faint); }
 .d-list dd { margin: 0; min-width: 0; overflow-wrap: anywhere; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.d-list dd .link { text-align: left; }
 /* The full category path stays visible: it wraps between levels first, the button grows in height */
 .d-list .picker-btn { min-width: 0; max-width: 100%; height: auto; min-height: 30px; padding-top: 5px; padding-bottom: 5px; border-radius: 15px; text-align: left; }
 .d-list .picker-btn > * { flex: none; }

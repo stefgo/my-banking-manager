@@ -34,6 +34,8 @@ Nothing inside an HTML comment is published.
 
 ### Behoben
 
+- **PayPal-Details:** Der Text bei „Für Zahlung“ steht jetzt linksbündig, auch wenn er
+  umbricht. Bisher stand er mittig.
 - **Gelöschte wiederherstellen:** Stellst du einen gelöschten Umsatz wieder her, schließen sich
   seine Details, auch beim Wiederherstellen aus der Liste unter Einstellungen → Gelöschte. Bisher
   blieben sie offen.
