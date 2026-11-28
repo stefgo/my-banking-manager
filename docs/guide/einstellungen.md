@@ -38,8 +38,11 @@ neuer Umsatz wieder. Am Kontostand ändert das nichts, denn ein gelöschter Umsa
 mehr.
 
 Umsätze von der Bank und solche, die MBM für PayPal ergänzt hat, lassen sich nicht endgültig
-löschen: Der nächste Abruf brächte sie wieder. Bei PayPal-Konten geht es auch für importierte
-Umsätze nicht, denn MBM rechnet die ergänzten Buchungen aus allem, was PayPal geliefert hat.
+löschen: Der nächste Abruf brächte sie wieder. Bei einem PayPal-Konto geht es für einen
+importierten Umsatz, solange die Buchung, die MBM für ihn ergänzt hat, nicht gelöscht ist. Löschst
+du die Zahlung, löscht MBM die ergänzte Buchung mit; hast du diese einzeln wiederhergestellt, lösche
+sie zuerst. Beim nächsten Abruf rechnet MBM die ergänzten Buchungen ohne den endgültig gelöschten
+Umsatz.
 
 ## Profil
 

@@ -212,7 +212,7 @@ describe("deleting bookings from an import for good", () => {
         expect((await purge(paid!.id)).status).toBe(404);
     });
 
-    it("refuses a booking that is not deleted, one of the bank and one in a PayPal account", async () => {
+    it("refuses a booking that is not deleted and one of the bank", async () => {
         await importFile();
         const [paid] = await list();
         const refused = await purge(paid!.id);
@@ -225,16 +225,36 @@ describe("deleting bookings from an import for good", () => {
         const bank = await purge(cup.id);
         expect(bank.status).toBe(409);
         expect(bank.body.error).toBe("not_purgeable");
+        expect(rowCount()).toBe(3);
+    });
 
-        await api("DELETE", `/api/transactions/${paid!.id}`);
+    it("in a PayPal account, refuses a payment only while its added booking is not deleted", async () => {
+        await importFile();
+        const [paid] = await list();
         const db = t.vault.database;
         const conn = db
             .prepare("INSERT INTO bank_connections (name, connector, bank_name, blz, fints_url, icon, color, created_at, aspsp, country) VALUES ('PayPal', 'enablebanking', 'PayPal', '', '', 'wallet', 'blue', '2026-01-01T00:00:00Z', 'PayPal', 'DE')")
             .run().lastInsertRowid;
         db.prepare("UPDATE accounts SET connection_id = ?, external_id = ? WHERE id = ?").run(conn, OWN, accountId);
-        const paypal = await purge(paid!.id);
-        expect(paypal.status).toBe(409);
-        expect(paypal.body.error).toBe("not_purgeable");
-        expect(rowCount()).toBe(3);
+        const added = Number(
+            db
+                .prepare("INSERT INTO transactions (account_id, booking_date, amount, counterparty_name, status, raw, first_seen_at, source, funding_of_id) VALUES (?, '2026-02-01', 500, 'Bankkonto oder Karte', 'booked', '{\"derived\":\"funding\"}', '2026-02-01T00:00:00Z', 'bank', ?)")
+                .run(accountId, paid!.id).lastInsertRowid,
+        );
+
+        // Deleted with its payment: both go for good
+        await api("DELETE", `/api/transactions/${paid!.id}`);
+        const deleted = (await list("&deleted=true")).find((x) => x.id === paid!.id)!;
+        expect(deleted.fundedById).toBeNull();
+
+        // Brought back on its own, the added booking stays and keeps the payment
+        await api("POST", `/api/transactions/${added}/restore`);
+        const refused = await purge(paid!.id);
+        expect(refused.status).toBe(409);
+        expect(refused.body.error).toBe("not_purgeable");
+
+        await api("DELETE", `/api/transactions/${added}`);
+        expect((await purge(paid!.id)).status).toBe(200);
+        expect(rowCount()).toBe(1);
     });
 });

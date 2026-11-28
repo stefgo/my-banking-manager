@@ -6,8 +6,8 @@ import { getUi, ui } from "./ui";
 
 type Action = ReturnType<typeof useAction>;
 
-/** Only a deleted booking from an import can go for good; in a PayPal account the server refuses it. */
-export const canPurge = (tx: Transaction): boolean => tx.deletedAt !== null && tx.source === "import";
+/** Only a deleted booking from an import can go for good, and none with an added booking (PayPal) that is not deleted. */
+export const canPurge = (tx: Transaction): boolean => tx.deletedAt !== null && tx.source === "import" && tx.fundedById === null;
 
 /** Brings a deleted booking back; its details, if open, close, since they showed it as deleted. */
 export async function restoreTx(tx: Transaction, action: Action): Promise<void> {

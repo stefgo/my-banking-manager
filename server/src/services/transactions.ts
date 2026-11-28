@@ -17,7 +17,7 @@ import {
 import type { Db } from "../db/database.js";
 import { nowIso } from "../db/database.js";
 import { badRequest, conflict, notFound } from "../http/errors.js";
-import { accountsInScope, balanceAt, getAccount, isPaypalAccount, keepBankBalance, requireAccount, requireOffline } from "./accounts.js";
+import { accountsInScope, balanceAt, getAccount, keepBankBalance, requireAccount, requireOffline } from "./accounts.js";
 import { descendantIds, getSlot } from "./categories.js";
 import { queryTargets } from "./querytarget.js";
 
@@ -441,15 +441,16 @@ export function deleteTransaction(db: Db, id: number): Transaction {
 /**
  * Removes a deleted booking from an import for good, with all it holds; returns it as it was. Its
  * fingerprint goes too, so a new import of the file or a fetch brings it back as a new booking.
- * Not for bookings of the bank (the next fetch would bring them back at once) nor in a PayPal
- * account (the added bookings are worked out from all PayPal sent, the deleted ones included).
- * The balance stays: a deleted booking no longer counts.
+ * Not for bookings of the bank (the next fetch would bring them back at once) nor for a PayPal
+ * payment whose added booking is not deleted (it would go with it). Deleting a payment deletes its
+ * added booking too, so this is only one brought back on its own. Gone, the booking no longer counts
+ * when the added bookings are next worked out. The balance stays: a deleted booking no longer counts.
  */
 export function purgeTransaction(db: Db, id: number): Transaction {
     const tx = getTransaction(db, id);
     if (!tx.deletedAt) throw conflict("Lösche den Umsatz zuerst.", "not_deleted");
     if (tx.source !== "import") throw conflict("Nur gelöschte Umsätze aus einem Import lassen sich endgültig löschen. Bank-Umsätze brächte der nächste Abruf wieder.", "not_purgeable");
-    if (isPaypalAccount(db, tx.accountId)) throw conflict("Bei PayPal-Konten lassen sich Umsätze nicht endgültig löschen. MBM braucht sie für die ergänzten Buchungen.", "not_purgeable");
+    if (tx.fundedById !== null) throw conflict("An diesem Umsatz hängt eine von MBM ergänzte Buchung, die nicht gelöscht ist. Lösche sie zuerst.", "not_purgeable");
     db.prepare("DELETE FROM transactions WHERE id = ?").run(id);
     return tx;
 }

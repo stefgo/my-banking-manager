@@ -30,7 +30,8 @@ Nothing inside an HTML comment is published.
 - **Gelöschte endgültig löschen:** Einen gelöschten Umsatz aus einem CSV-Import kannst du unter
   Einstellungen → Gelöschte oder in seinen Details jetzt endgültig löschen. Er lässt sich dann nicht
   mehr wiederherstellen, und ein erneuter Import derselben Datei bringt ihn als neuen Umsatz wieder.
-  Bank-Umsätze und Umsätze in PayPal-Konten bleiben ausgenommen.
+  Das geht auch in PayPal-Konten, solange die Buchung, die MBM für die Zahlung ergänzt hat, mit
+  gelöscht ist. Bank-Umsätze bleiben ausgenommen.
 
 ### Behoben
 
