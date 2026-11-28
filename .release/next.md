@@ -9,3 +9,9 @@ dev keeps the text; the stable release from main empties this file again.
 
 Nothing inside an HTML comment is published.
 -->
+
+### Behoben
+
+- **Bank über PSD2:** Beim Einrichten eines weiteren PSD2-Zugangs steht jede eigene
+  Enable-Banking-Anwendung nur noch einmal zur Auswahl („Wie bei PayPal und N26“), statt einmal
+  je bestehendem Zugang.

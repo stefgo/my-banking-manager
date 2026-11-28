@@ -12,6 +12,9 @@ import { Ic } from "../components/icons";
 
 type Step = "intro" | "credentials" | "bank" | "consent" | "paste";
 
+/** "PayPal", "PayPal und N26", "PayPal, N26 und DKB" */
+const joinNames = (names: string[]): string => (names.length < 2 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} und ${names[names.length - 1]}`);
+
 /**
  * Sets up a bank access over PSD2 through Enable Banking: consent to the third party, the own
  * Enable Banking application (ID and private key, or taken from another own PSD2 access), the bank,
@@ -31,10 +34,20 @@ export function Psd2SetupDialog({ connectionId, mode }: { connectionId?: number;
     // Step "intro"
     const [agreed, setAgreed] = useState(false);
     // Step "credentials": typed in, or the id of another own PSD2 access to take them from
-    const ownPsd2 = useMemo(() => (connections ?? []).filter((c) => c.kind === "psd2" && c.id !== connectionId && c.myLogin && c.myLogin.status !== "credentials_lost"), [connections, connectionId]);
-    // Until the user picks: the first other own PSD2 access, if there is one (one application serves all banks)
+    // One choice per application (its hint), not per access: taken from the first access that uses it
+    const ownApps = useMemo(() => {
+        const apps = new Map<string, { id: number; hint: string; names: string[] }>();
+        for (const c of connections ?? []) {
+            if (c.kind !== "psd2" || c.id === connectionId || !c.myLogin || c.myLogin.status === "credentials_lost") continue;
+            const app = apps.get(c.myLogin.loginHint);
+            if (app) app.names.push(c.name);
+            else apps.set(c.myLogin.loginHint, { id: c.id, hint: c.myLogin.loginHint, names: [c.name] });
+        }
+        return [...apps.values()];
+    }, [connections, connectionId]);
+    // Until the user picks: the first own application, if there is one (one application serves all banks)
     const [picked, setSource] = useState<"typed" | number | null>(null);
-    const source = picked ?? ownPsd2[0]?.id ?? "typed";
+    const source = picked ?? ownApps[0]?.id ?? "typed";
     const [applicationId, setApplicationId] = useState("");
     const [privateKey, setPrivateKey] = useState("");
     const [keyName, setKeyName] = useState<string | null>(null);
@@ -157,12 +170,12 @@ export function Psd2SetupDialog({ connectionId, mode }: { connectionId?: number;
 
                 {step === "credentials" && (
                     <form className="form-grid" style={{ maxWidth: "none", gap: 16 }} onSubmit={(e) => (e.preventDefault(), void confirmCredentials())}>
-                        {ownPsd2.length > 0 && (
+                        {ownApps.length > 0 && (
                             <div className="kind-list" role="radiogroup" aria-label="Zugangsdaten">
-                                {ownPsd2.map((c) => (
-                                    <button key={c.id} type="button" role="radio" aria-checked={source === c.id} className={`bank-item ${source === c.id ? "on" : ""}`} onClick={() => setSource(c.id)}>
-                                        <span className="acc-ic">{source === c.id ? <Ic icon={Check} size={16} /> : null}</span>
-                                        <span><b>Wie bei {c.name}</b><small>Dieselbe Anwendung ({c.myLogin!.loginHint}); eine reicht für alle Banken</small></span>
+                                {ownApps.map((a) => (
+                                    <button key={a.hint} type="button" role="radio" aria-checked={source === a.id} className={`bank-item ${source === a.id ? "on" : ""}`} onClick={() => setSource(a.id)}>
+                                        <span className="acc-ic">{source === a.id ? <Ic icon={Check} size={16} /> : null}</span>
+                                        <span><b>Wie bei {joinNames(a.names)}</b><small>Dieselbe Anwendung ({a.hint}); eine reicht für alle Banken</small></span>
                                     </button>
                                 ))}
                                 <button type="button" role="radio" aria-checked={source === "typed"} className={`bank-item ${source === "typed" ? "on" : ""}`} onClick={() => setSource("typed")}>
