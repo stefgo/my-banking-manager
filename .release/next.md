@@ -33,6 +33,9 @@ Nothing inside an HTML comment is published.
 - **Gelöschte wiederherstellen:** Stellst du einen gelöschten Umsatz wieder her, schließen sich
   seine Details, auch beim Wiederherstellen aus der Liste unter Einstellungen → Gelöschte. Bisher
   blieben sie offen.
+- **Gelöschte, Spalten:** Unter Einstellungen → Gelöschte stehen Betrag, „Wiederherstellen“ und
+  „Endgültig löschen“ jetzt über alle Konten hinweg untereinander, auch wenn ein Umsatz nicht
+  endgültig gelöscht werden kann.
 
 - **Importe entfernen:** „Entfernen“ und „Rückgängig“ unter Einstellungen → Importe fragen jetzt
   nach, wenn dabei gelöschte Umsätze des Imports endgültig verschwinden. Bisher entfernte

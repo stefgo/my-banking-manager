@@ -1352,15 +1352,21 @@ body { margin: 0; }
 .row-item b { font-weight: 500; }
 .row-item small { display: block; color: var(--faint); font-size: 12px; }
 .row-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-/* Deleted bookings in the settings: account in the head, amount beside the restore button */
+/* Deleted bookings in the settings: account in the head, amount beside the restore button.
+   Fixed columns keep amount and buttons in line across all accounts. */
 .del-head { display: flex; align-items: center; gap: 8px; }
 .del-main { display: block; }
-.del-actions { align-items: center; gap: 12px; }
+.del-actions { display: grid; grid-template-columns: minmax(13ch, max-content) max-content 32px; align-items: center; gap: 12px; }
+.del-actions .amt { text-align: right; }
+.del-purge { width: 32px; padding: 0; justify-content: center; }
 .row-sub { margin: 0 0 8px 14px; padding-left: 12px; border-left: 2px solid var(--line-soft); }
 .row-sub .row-item { padding: 6px 2px; }
 @media (max-width: 640px) {
     .row-item:has(> .row-actions > :nth-child(3)) { grid-template-columns: minmax(0, 1fr); }
     .row-item:has(> .row-actions > :nth-child(3)) .row-actions { justify-content: flex-start; }
+    /* Below the name: amount on the left, buttons at the right edge, still in line on narrow phones */
+    .del-actions { grid-template-columns: minmax(0, 1fr) max-content 32px; }
+    .del-actions .amt { text-align: left; }
 }
 .form-grid { display: grid; gap: 14px; max-width: 520px; }
 .pal-item[data-selected="true"] { background: var(--surface-2); }
