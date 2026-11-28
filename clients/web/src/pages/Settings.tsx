@@ -12,13 +12,12 @@ import { dateTime, plural } from "../lib/format";
 import { copyName } from "../lib/importFormat";
 import { openImport } from "../lib/importNav";
 import { accountsInTreeOrder } from "../lib/tree";
-import { confirmDeleteAccount } from "../lib/menus";
 import { ui } from "../lib/ui";
-import { useOpenTransactions } from "../lib/useOpenTransactions";
 import { Amt, Empty } from "../components/common";
+import { AccountRow } from "../components/AccountRow";
 import { BankAccessCards, BankDirectoryRow, BankStatusRows } from "../components/BankAccess";
 import { SkeletonRows } from "../components/Skeleton";
-import { Ic, Sym, Tile } from "../components/icons";
+import { Ic, Sym } from "../components/icons";
 import { RulesTab } from "./Rules";
 import { DeletedTab } from "./settings/DeletedTab";
 import { ProfileTab } from "./settings/ProfileTab";
@@ -110,8 +109,6 @@ function CopyVersionsButton() {
 function AccountsTab() {
     const accounts = accountsInTreeOrder(useGroups().data ?? [], useAccounts().data ?? []);
     const offline = accounts.filter((a) => isOffline(a));
-    const open = useOpenTransactions();
-    const action = useAction();
     return (
         <>
             <section className="panel" aria-label="Status der Kontoabfrage">
@@ -149,24 +146,15 @@ function AccountsTab() {
                         </div>
                         <div className="cc-accs">
                             {offline.map((a) => (
-                                <div className="cc-acc" key={a.id}>
-                                    <Tile icon={a.icon} color={a.color} size={15} />
-                                    <button className="cc-link" onClick={() => void open({ kind: "show", search: { scope: `account:${a.id}` } })}>
-                                        <b>{a.name}</b>
+                                <AccountRow
+                                    key={a.id}
+                                    account={a}
+                                    detail={
                                         <small>
                                             Anfangssaldo <Amt cents={a.openingBalance ?? 0} /> · {plural(a.transactionCount, "Buchung", "Buchungen")}
                                         </small>
-                                    </button>
-                                    <Amt cents={a.balance} />
-                                    <span className="cc-acc-actions">
-                                        <button className="mini" aria-label={`Buchungen in „${a.name}“ importieren`} title="Buchungen importieren …" onClick={() => openImport(a.id)}>
-                                            <Ic icon={FileUp} size={15} />
-                                        </button>
-                                        <button className="mini" aria-label={`„${a.name}“ löschen`} title="Konto löschen …" disabled={action.pending} onClick={() => confirmDeleteAccount(a, action)}>
-                                            <Ic icon={Trash2} size={14} />
-                                        </button>
-                                    </span>
-                                </div>
+                                    }
+                                />
                             ))}
                         </div>
                     </section>

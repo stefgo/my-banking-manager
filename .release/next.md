@@ -16,6 +16,10 @@ Nothing inside an HTML comment is published.
   Linie zeigen die Summe der Kategorie je Tag, Monat, Quartal oder Jahr, „Eingänge und Ausgaben“
   beide getrennt. Kontofilter, Richtung und Zeitraum der Liste gelten mit, und ein Klick auf einen
   Wert springt in der Liste zu seinem Zeitraum.
+- **Konten in den Einstellungen:** Unter Einstellungen → Konten hat jedes Konto jetzt das Menü
+  aus der Seitenleiste („…“ oder Rechtsklick): umbenennen direkt in der Zeile, Symbol und Farbe
+  (auch per Klick auf das Symbol), Infos, bei Offline-Konten Anfangssaldo, Saldo abgleichen,
+  Importieren und Löschen.
 - **Kontoauswahl:** Beim Importieren von Umsätzen, in einer Buchung von Hand und in der
   Gegenbuchung stehen die Konten in derselben Reihenfolge wie in der Seitenleiste.
 

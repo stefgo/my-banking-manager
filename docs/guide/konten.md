@@ -221,6 +221,10 @@ Stift-Symbol über dem Baum schaltet in den Bearbeitungsmodus; dort ziehst du Ko
 an ihren Platz. Das Menü eines Kontos (Rechtsklick, am Handy langes Drücken) bietet unter anderem
 Umbenennen, Symbol und Farbe, Infos, Verschieben und Löschen.
 
+Dasselbe Menü hat jedes Konto unter **Einstellungen → Konten**: „…“ am Ende der Zeile oder
+Rechtsklick. Dort benennst du ein Konto direkt in der Zeile um; ein Klick auf sein Symbol wählt
+Symbol und Farbe. Nur verschieben kannst du es dort nicht, das geht im Kontenbaum.
+
 **Infos** sind eigene Merkmale und Notizen zu einem Konto, einer Gruppe oder Kategorie, etwa
 Kontoinhaber oder Ansprechpartner.
 

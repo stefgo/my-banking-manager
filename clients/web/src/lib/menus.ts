@@ -42,14 +42,17 @@ export function orderEntries(order: TreeOrder | undefined): MenuEntry[] {
     ];
 }
 
-/** `unread`: new bookings of the account, for "Alle als gelesen markieren". */
-export function accountMenu(a: Account, action: Action, openStyle: () => void, order?: TreeOrder, unread = 0): MenuEntry[] {
+/**
+ * `unread`: new bookings of the account, for "Alle als gelesen markieren". `rename` renames where
+ * the menu is; by default in the sidebar tree.
+ */
+export function accountMenu(a: Account, action: Action, openStyle: () => void, order?: TreeOrder, unread = 0, rename?: () => void): MenuEntry[] {
     const key = `account:${a.id}`;
     const offline = isOffline(a);
     return [
         { label: "Alle als gelesen markieren", icon: CheckCheck, disabled: unread === 0, run: () => void markAccountsRead(`account:${a.id}`, [a.id]) },
         { separator: true },
-        { label: "Umbenennen", icon: Pencil, run: () => { ui.setEditing("acc", true); ui.setRenaming(key); } },
+        { label: "Umbenennen", icon: Pencil, run: rename ?? (() => { ui.setEditing("acc", true); ui.setRenaming(key); }) },
         { label: "Symbol und Farbe …", icon: Palette, run: openStyle },
         { label: "Infos bearbeiten …", icon: NotebookPen, run: () => ui.open({ kind: "info", target: "account", id: a.id }) },
         ...orderEntries(order),

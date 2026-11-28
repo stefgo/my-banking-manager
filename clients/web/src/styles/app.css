@@ -259,7 +259,7 @@ body.resizing { cursor: col-resize; user-select: none; }
 .tr-txt b { font-weight: 500; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tr-txt small { color: var(--faint); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tr-a .amt { font-size: 12.5px; font-weight: 500; }
-.tr input.rename {
+.tr input.rename, .cc-acc input.rename {
     width: 100%; height: 28px; border-radius: 7px; border: 1px solid var(--iris);
     background: var(--surface); color: var(--fg); padding: 0 8px; outline: none; box-shadow: 0 0 0 3px var(--iris-soft);
 }
@@ -739,6 +739,10 @@ a.mini { text-decoration: none; }
 .ctx-actions .btn[aria-pressed="true"] { background: var(--iris-soft); color: var(--iris); border-color: transparent; }
 .ctx .note { margin-top: 14px; }
 .cc-link { border: 0; background: none; padding: 0; text-align: left; min-width: 0; color: inherit; }
+/* The symbol of an account in Einstellungen → Konten opens symbol and colour */
+.cc-ic { border: 0; background: none; padding: 0; display: grid; justify-items: start; cursor: pointer; border-radius: 9px; }
+.cc-ic .acc-ic { transition: box-shadow 0.15s; }
+.cc-ic:hover .acc-ic, .cc-ic:focus-visible .acc-ic { box-shadow: inset 0 0 0 1.5px var(--c); }
 .cc-link:hover b { text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 600px) {
     .ctx-top { grid-template-columns: 40px minmax(0, 1fr); }
@@ -1419,9 +1423,13 @@ body { margin: 0; }
 
 /* ---------- Phones: the picking bar and the account rows of the bank cards fit the width ---------- */
 @media (max-width: 520px) {
-    /* Rows with text buttons (Übernehmen, Ausblenden, Verknüpfen): the buttons go below the name */
-    .cc-acc:has(.cc-acc-actions .btn) { grid-template-columns: 30px minmax(0, 1fr) auto; }
-    .cc-acc:has(.cc-acc-actions .btn) .cc-acc-actions { grid-column: 2 / -1; justify-content: flex-start; }
+    /*
+     * Rows with text buttons (Übernehmen, Ausblenden, Verknüpfen) or several symbols (Abrufen,
+     * Lösen, „…“): the buttons go below the name
+     */
+    .cc-acc:is(:has(.cc-acc-actions .btn), :has(.cc-acc-actions > :nth-child(2))) { grid-template-columns: 30px minmax(0, 1fr) auto; }
+    .cc-acc:is(:has(.cc-acc-actions .btn), :has(.cc-acc-actions > :nth-child(2))) .cc-acc-actions { grid-column: 2 / -1; justify-content: flex-start; }
+    .cc-acc small { overflow-wrap: anywhere; }
     .bulk { left: 12px; right: 12px; transform: none; justify-content: space-between; gap: 2px; padding-inline: 10px; }
     .bulk > span { white-space: nowrap; font-size: 13px; }
     .bulk button { padding: 0 8px; }

@@ -9,8 +9,8 @@ import { useAccounts, useAction, useGroups } from "../lib/queries";
 import { accountsInTreeOrder } from "../lib/tree";
 import { ui } from "../lib/ui";
 import { dateText, dateTime as formatDateTime, plural } from "../lib/format";
-import { useOpenTransactions } from "../lib/useOpenTransactions";
-import { Amt, Button, Hint, Switch } from "./common";
+import { Button, Hint, Switch } from "./common";
+import { AccountRow } from "./AccountRow";
 import { Approval } from "./Approval";
 import { Ic, Sym, Tile } from "./icons";
 
@@ -120,7 +120,6 @@ function BankCard({ c }: { c: BankConnection }) {
     const accounts = accountsInTreeOrder(useGroups().data ?? [], useAccounts().data ?? []).filter((a) => a.connectionId === c.id);
     const runs = useSyncRuns().data ?? [];
     const active = runs.filter((r) => r.connectionId === c.id && isActive(r));
-    const open = useOpenTransactions();
     const action = useAction();
     const [pinOpen, setPinOpen] = useState(false);
     const login = c.myLogin;
@@ -209,24 +208,27 @@ function BankCard({ c }: { c: BankConnection }) {
             {accounts.length > 0 && (
                 <div className="cc-accs">
                     {accounts.map((a) => (
-                        <div className="cc-acc" key={a.id}>
-                            <Tile icon={a.icon} color={a.color} size={15} />
-                            <button className="cc-link" onClick={() => void open({ kind: "show", search: { scope: `account:${a.id}` } })}>
-                                <b>{a.name}</b>
-                                <small>{a.kind === "credit_card" ? (a.cardNumber ? groupCardNumber(a.cardNumber) : "Kreditkarte") : (a.iban ?? "")}</small>
-                                {unlinked.has(a.id) && <small className="cc-acc-hint">Nicht mit deiner Anmeldung verknüpft: dein Abruf erfasst es nicht</small>}
-                            </button>
-                            <Amt cents={a.balance} />
-                            <span className="cc-acc-actions">
-                                {unlinked.has(a.id) && (
-                                    <button type="button" className="btn btn-sm" disabled={action.pending} onClick={() => link(a.id, a.name)}>Verknüpfen</button>
-                                )}
-                                {canSync && !unlinked.has(a.id) && <AccountSyncButton id={a.id} name={a.name} syncing={active.some((r) => r.accountIds.includes(a.id))} />}
-                                <button type="button" className="mini" aria-label={`„${a.name}“ vom Bankzugang lösen`} title="Vom Bankzugang lösen …" onClick={() => ui.open({ kind: "detachAccount", accountId: a.id })}>
-                                    <Ic icon={Unlink} size={14} />
-                                </button>
-                            </span>
-                        </div>
+                        <AccountRow
+                            key={a.id}
+                            account={a}
+                            detail={
+                                <>
+                                    <small>{a.kind === "credit_card" ? (a.cardNumber ? groupCardNumber(a.cardNumber) : "Kreditkarte") : (a.iban ?? "")}</small>
+                                    {unlinked.has(a.id) && <small className="cc-acc-hint">Nicht mit deiner Anmeldung verknüpft: dein Abruf erfasst es nicht</small>}
+                                </>
+                            }
+                            actions={
+                                <>
+                                    {unlinked.has(a.id) && (
+                                        <button type="button" className="btn btn-sm" disabled={action.pending} onClick={() => link(a.id, a.name)}>Verknüpfen</button>
+                                    )}
+                                    {canSync && !unlinked.has(a.id) && <AccountSyncButton id={a.id} name={a.name} syncing={active.some((r) => r.accountIds.includes(a.id))} />}
+                                    <button type="button" className="mini" aria-label={`„${a.name}“ vom Bankzugang lösen`} title="Vom Bankzugang lösen …" onClick={() => ui.open({ kind: "detachAccount", accountId: a.id })}>
+                                        <Ic icon={Unlink} size={14} />
+                                    </button>
+                                </>
+                            }
+                        />
                     ))}
                 </div>
             )}
