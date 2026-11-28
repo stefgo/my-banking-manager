@@ -174,7 +174,8 @@ export function Psd2SetupDialog({ connectionId, mode }: { connectionId?: number;
                                         <span className="acc-ic">{source === a.id ? <Ic icon={Check} size={16} /> : null}</span>
                                         <span>
                                             <b>Anwendung ({a.hint})</b>
-                                            <span className="psd2-app-banks" aria-label="Schon genutzt für">
+                                            <small className="psd2-app-note">Mit dieser Application-ID verwendete Kontoverbindungen:</small>
+                                            <span className="psd2-app-banks">
                                                 {a.names.map((n, i) => <small key={i}>{n}</small>)}
                                             </span>
                                         </span>
