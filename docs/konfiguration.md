@@ -75,8 +75,8 @@ Programm und steht deshalb nicht im Quellcode.
 Eine eigene Produkt-ID beantragst du kostenlos auf
 [fints.org](https://www.fints.org/de/hersteller/produktregistrierung) und trägst sie als
 `MBM_FINTS_PRODUCT_ID` in die `.env` ein. Sie hat immer Vorrang vor der ID im Image. Ohne
-Produkt-ID nimmt MBM keinen Kontakt zu einer Bank auf; die Einstellungen zeigen dann einen
-Hinweis. Offline-Konten funktionieren trotzdem.
+Produkt-ID nimmt MBM keinen Kontakt zu einer Bank auf; unter
+[Einstellungen → Versionen](guide/einstellungen.md#versionen) steht dann ein Hinweis. Offline-Konten funktionieren trotzdem.
 
 Die Produkt-ID im offiziellen Image steht nicht unter der MIT-Lizenz von MBM. Du darfst sie nur mit
 dem unveränderten offiziellen Image nutzen: nicht herauslösen, nicht in anderen Programmen

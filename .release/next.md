@@ -64,6 +64,12 @@ Nothing inside an HTML comment is published.
 - **Hinweis auf eine neue Oberfläche:** Nach einem Update merkt ein offenes Browserfenster, dass der
   Server eine neue Version der Oberfläche ausliefert, und bietet **Neu laden** an. Vor der Anmeldung
   lädt es von selbst neu.
+- **Einstellungen → Versionen:** Ein eigener Bereich zeigt die Versionen von Server, Web-Client,
+  FinTS- und Enable-Banking-Konnektor, ob ein Konnektor eingebettet ist oder als eigener Dienst
+  läuft, und ob er antwortet. Darunter stehen Node.js, SQLite, die Verschlüsselung und das
+  Datenbankschema. **Versionen kopieren** legt alles als Text in die Zwischenablage. Die Zeile mit
+  den Versionen unten auf jeder Einstellungsseite und die Hinweise auf Konnektor-Probleme über den
+  Bankzugängen gibt es dafür nicht mehr.
 
 ### Behoben
 
@@ -107,6 +113,8 @@ Nothing inside an HTML comment is published.
 - **Enable Banking abschalten:** Im Image `mbm-server-full` ist der Konnektor eingebaut; mit
   `MBM_ENABLEBANKING_EMBEDDED=0` bietet MBM keine PSD2-Zugänge an und spricht nie mit Enable
   Banking.
+- **API:** Neu ist `GET /api/system/versions` mit den Versionen aller Module. `ConnectorStatus`
+  (`GET /api/connectors`) hat das neue Feld `embedded`.
 - **API:** Neu ist `GET /api/stats/flows`: Eingänge und Ausgaben je Tag über dieselben Tage wie
   `GET /api/stats/series`, ohne Umbuchungen.
 - **API:** Die Kontoart `offline` gibt es nicht mehr. Ein Konto ist offline, wenn `connectionId`

@@ -1334,7 +1334,6 @@ body { margin: 0; }
 .card-ph { display: grid; gap: 6px; color: var(--muted); font-size: 13px; }
 .settings-nav { display: flex; gap: 6px; flex-wrap: wrap; }
 /* Versions of server and connector, below every settings tab */
-.app-version { text-align: center; overflow-wrap: anywhere; }
 .settings-nav .chip[aria-current="page"] { background: var(--fg); border-color: var(--fg); color: var(--bg); }
 .row-list { display: grid; }
 .row-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 2px; border-top: 1px solid var(--line-soft); }

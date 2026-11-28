@@ -159,9 +159,18 @@ export const connections: BankConnection[] = [
 ];
 
 export const connectorStatus = [
-    { name: "fints", reachable: true, version: null as string | null, productConfigured: true },
-    { name: "enablebanking", reachable: true, version: null as string | null, productConfigured: true },
+    { name: "fints", embedded: true, reachable: true, version: null as string | null, productConfigured: true },
+    { name: "enablebanking", embedded: true, reachable: true, version: null as string | null, productConfigured: true },
 ];
+
+/** „Einstellungen → Versionen“; server and connectors get the version of the package. */
+export const versions = {
+    webBuild: "3f9a2c71d04b8e65",
+    node: "26.13.1",
+    sqlite: "3.53.4",
+    sqliteCiphers: "2.4.0",
+    schema: "0017-booking-edits",
+};
 
 export const bankDirectory = {
     banks: 3412,

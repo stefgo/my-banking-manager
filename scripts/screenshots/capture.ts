@@ -179,6 +179,7 @@ const SHOTS: Shot[] = [
         },
     },
     { name: "einstellungen-protokoll", route: "/settings?tab=activity", themes: ["dark"] },
+    { name: "einstellungen-versionen", route: "/settings?tab=versions", themes: ["dark"] },
     { name: "handy-uebersicht", route: "/", themes: ["dark"], phone: true },
     { name: "handy-umsaetze", route: `/transactions?scope=account:${fx.GIRO}`, themes: ["dark"], phone: true },
 ];
@@ -231,6 +232,7 @@ const ANSWERS: Partial<Record<keyof typeof routes, Answer>> = {
     listConnections: () => fx.connections,
     lastOfferedAccounts: (r) => (Number(r.params.id) === 2 ? fx.paypalOfferedAccounts : fx.offeredAccounts),
     connectorStatus: () => fx.connectorStatus.map((c) => ({ ...c, version: VERSION })),
+    versions: () => ({ ...fx.versions, server: VERSION, connectors: fx.connectorStatus.map((c) => ({ ...c, version: VERSION })) }),
     bankDirectory: () => fx.bankDirectory,
     searchBanks: (r) => fx.searchBanks(String(r.query.q)),
     listSync: () => [],

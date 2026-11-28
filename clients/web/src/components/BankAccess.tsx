@@ -2,7 +2,7 @@ import { useState } from "react";
 import { EyeOff, Plus, RefreshCw, Unlink } from "lucide-react";
 import { groupCardNumber, routes, type BankConnection, type BankLogin, type OfferedAccount } from "@mbm/shared";
 import { call, errorText } from "../lib/api";
-import { canFetch, isActive, refreshBank, startSync, useBankDirectory, useConnections, useConnectorStatus, useOfferedAccounts, useSyncRuns } from "../lib/bank";
+import { canFetch, isActive, refreshBank, startSync, useBankDirectory, useConnections, useOfferedAccounts, useSyncRuns } from "../lib/bank";
 import { consentText, isPsd2 } from "../lib/psd2";
 import { useBankOperation } from "../lib/bankOperation";
 import { useAccounts, useAction, useGroups } from "../lib/queries";
@@ -101,24 +101,16 @@ export function BankDirectoryRow() {
     );
 }
 
-/** The bank access cards of the settings: own login, other users' logins, accounts. */
-/** „Bankzugänge“ with heading; hidden while there is neither a bank access nor a connector problem to show. */
+/**
+ * The bank access cards of the settings: own login, other users' logins, accounts. „Bankzugänge“
+ * with heading; hidden without a bank access. The state of the connectors is under „Versionen“.
+ */
 export function BankAccessCards() {
     const connections = useConnections().data ?? [];
-    const statuses = useConnectorStatus().data;
-    const status = statuses?.find((s) => s.name === "fints");
-    const unreachable = !!status && !status.reachable;
-    const noProduct = !!status?.reachable && !status.productConfigured;
-    // PSD2 accesses need the Enable Banking connector: missing or silent, they cannot fetch
-    const eb = statuses?.find((s) => s.name === "enablebanking");
-    const ebProblem = !!statuses && connections.some(isPsd2) && (!eb || !eb.reachable);
-    if (connections.length === 0 && !unreachable && !noProduct) return null;
+    if (connections.length === 0) return null;
     return (
         <>
             <h2 className="set-h">Bankzugänge</h2>
-            {unreachable && <Hint tone="bad">Der FinTS-Konnektor antwortet nicht. Abrufe sind erst möglich, wenn er läuft.</Hint>}
-            {ebProblem && <Hint tone="bad">{eb ? "Der Enable-Banking-Konnektor antwortet nicht." : "Der Enable-Banking-Konnektor ist nicht eingerichtet."} PSD2-Zugänge können erst abrufen, wenn er läuft.</Hint>}
-            {noProduct && <Hint tone="bad">Für den FinTS-Konnektor ist keine Produkt-ID eingetragen (MBM_FINTS_PRODUCT_ID).</Hint>}
             {connections.map((c) => <BankCard key={c.id} c={c} />)}
         </>
     );

@@ -135,6 +135,21 @@ export function registerSystemRoutes(app: FastifyInstance, ctx: AppContext): voi
         webTheme: config.profileDefaults.web.theme,
     }));
 
+    handle(app, ctx, routes.versions, async ({ db }) => {
+        await ctx.connectors.refresh();
+        const sql = db.prepare("SELECT sqlite_version() AS sqlite, sqlite3mc_version() AS ciphers").get() as { sqlite: string; ciphers: string };
+        const last = db.prepare("SELECT name FROM migrations ORDER BY name DESC LIMIT 1").get() as { name: string } | undefined;
+        return {
+            server: serverVersion(),
+            webBuild: ctx.webClient?.build ?? null,
+            connectors: ctx.connectors.status(),
+            node: process.versions.node,
+            sqlite: sql.sqlite,
+            sqliteCiphers: sql.ciphers.replace(/^SQLite3 Multiple Ciphers\s*/, ""),
+            schema: last?.name ?? null,
+        };
+    });
+
     handle(app, ctx, routes.setup, async ({ body }) => {
         let userId = 0;
         const seed = { categories: body.defaultCategories, accountGroups: body.defaultAccountGroups };
