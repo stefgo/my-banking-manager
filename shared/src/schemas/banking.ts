@@ -302,7 +302,6 @@ export const SeriesResponse = z.object({
 export const FlowsQuery = SeriesQuery.omit({ forecastDays: true }).extend({
     category: TxCategoryFilter.describe("all, or a comma-separated list of category ids and none: only the shares in these categories, which then count even if left out of figures otherwise"),
     dir: TxDirFilter.describe("in or out: only bookings with a positive or negative amount"),
-    deleted: TxDeletedFilter,
 });
 export const FlowPoint = z.object({ date: IsoDate, income: Cents, expenses: Cents.describe("Negative or zero") });
 export const FlowsResponse = z.object({

@@ -42,7 +42,7 @@ Nothing inside an HTML comment is published.
   ursprünglichen, die Details zeigen diese, und „Ursprüngliche Werte“ nimmt die Änderung zurück.
   Datum und Betrag vorgemerkter Umsätze änderst du, sobald sie gebucht sind. **Löschen** geht bei jedem Umsatz: Umsätze
   der Bank und aus Importen blendet MBM aus, sie kommen bei keinem Abruf und keinem Import wieder.
-  Unter dem neuen Filter **Gelöschte** stellst du sie wieder her. Bei Bankkonten bleibt der
+  Unter **Einstellungen → Gelöschte** stehen sie nach Konto, dort stellst du sie wieder her. Bei Bankkonten bleibt der
   Kontostand der Bank; was du erfasst, änderst oder löschst, verschiebt nur den Saldoverlauf davor.
   Liefert die Bank eine Buchung, die du schon von Hand erfasst hast, übernimmt sie diese, statt sie
   doppelt anzulegen.
@@ -53,8 +53,8 @@ Nothing inside an HTML comment is published.
   Darstellung. Sie zeigt je Tag, Monat, Quartal oder Jahr die Summe der Eingänge als grünen und die
   der Ausgaben als roten Balken, dazu den Saldo des Zeitraums als Linie. Umbuchungen zählen wie bei
   der Karte „Eingänge und Ausgaben“ der Übersicht nicht mit. Die Darstellung folgt den Filtern
-  Kategorie (bei aufgeteilten Buchungen nur der passende Anteil), Richtung und „Gelöschte“, nicht
-  dem Suchtext. Das Diagramm ist jetzt immer so hoch wie die Schalter daneben.
+  Kategorie (bei aufgeteilten Buchungen nur der passende Anteil) und Richtung, nicht dem
+  Suchtext. Das Diagramm ist jetzt immer so hoch wie die Schalter daneben.
 - **Vom Verlauf in die Liste:** Ein Klick auf einen Balken oder Punkt im Verlauf scrollt die
   Umsatzliste zu diesem Tag, Monat, Quartal oder Jahr. Oben steht der jüngste Tag des Zeitraums
   mit Buchungen, darunter folgen die älteren.

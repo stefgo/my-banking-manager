@@ -3,6 +3,7 @@ export const SETTINGS_TABS = [
     { id: "accounts", label: "Konten" },
     { id: "rules", label: "Regeln" },
     { id: "imports", label: "Importe" },
+    { id: "deleted", label: "Gelöschte" },
     { id: "profile", label: "Profil" },
     { id: "users", label: "Benutzer" },
     { id: "system", label: "System" },

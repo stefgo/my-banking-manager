@@ -402,5 +402,5 @@ function Drawer({ id, panel }: { id: number; panel: boolean }) {
 function deleteText(tx: Transaction, amount: string): string {
     if (tx.source === "manual") return `Die Buchung über ${amount} wird gelöscht.${tx.counterTransactionId ? " Die Verknüpfung zur Gegenbuchung wird gelöst." : ""} Das lässt sich nicht rückgängig machen.`;
     const along = [tx.fundedById !== null && "Die von MBM ergänzte Buchung dazu wird mit gelöscht.", tx.counterTransactionId && "Die Gegenbuchung wird entfernt."].filter(Boolean).join(" ");
-    return `Der Umsatz über ${amount} verschwindet aus Liste und Auswertungen und kommt auch beim nächsten Abruf nicht wieder.${along ? ` ${along}` : ""} Unter dem Filter „Gelöschte“ kannst du ihn wiederherstellen.`;
+    return `Der Umsatz über ${amount} verschwindet aus Liste und Auswertungen und kommt auch beim nächsten Abruf nicht wieder.${along ? ` ${along}` : ""} Unter Einstellungen → Gelöschte kannst du ihn wiederherstellen.`;
 }

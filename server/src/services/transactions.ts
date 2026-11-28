@@ -626,7 +626,7 @@ export function balanceSeries(db: Db, scope: AccountScope, days: number, range?:
  * Income and expenses of the bookings of `ids` between `from` and `to` as they count in figures: per share (a split
  * booking counts with each share in its category), without returns and excluded categories such as own transfers.
  * `filter` narrows them like the list: only the shares in the picked categories (which then count even if excluded),
- * only bookings in or out, or only deleted ones. Its arguments follow those of `ids`, `from` and `to`.
+ * or only bookings in or out. Its arguments follow those of `ids`, `from` and `to`.
  */
 function flowQuery(db: Db, ids: number[], select: string, tail = "", filter: FlowFilter = {}): { sql: string; args: number[] } {
     const where: string[] = [];
@@ -650,7 +650,7 @@ function flowQuery(db: Db, ids: number[], select: string, tail = "", filter: Flo
             FROM transactions t
             LEFT JOIN transaction_categories tc ON tc.transaction_id = t.id
             WHERE t.account_id IN (${ids.map(() => "?").join(",")}) AND t.booking_date BETWEEN ? AND ?
-              AND ${filter.deleted ? "t.deleted_at IS NOT NULL" : `t.${LIVE}`}
+              AND t.${LIVE}
               AND ${NOT_RETURNED}
               AND ${where.join(" AND ")}
             ${tail}`;
@@ -661,7 +661,6 @@ function flowQuery(db: Db, ids: number[], select: string, tail = "", filter: Flo
 export interface FlowFilter {
     category?: string;
     dir?: "all" | "in" | "out";
-    deleted?: boolean;
 }
 
 export function cashflow(db: Db, scope: AccountScope, from: string, to: string): { income: number; expenses: number; count: number } {

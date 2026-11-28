@@ -19,6 +19,7 @@ import { BankAccessCards, BankDirectoryRow, BankStatusRows } from "../components
 import { SkeletonRows } from "../components/Skeleton";
 import { Ic, Sym, Tile } from "../components/icons";
 import { RulesTab } from "./Rules";
+import { DeletedTab } from "./settings/DeletedTab";
 import { ProfileTab } from "./settings/ProfileTab";
 import { SystemTab } from "./settings/SystemTab";
 import { NewUserDialog, UsersTab } from "./settings/UsersTab";
@@ -32,7 +33,7 @@ export function SettingsPage() {
             <div className="page-head">
                 <div>
                     <h1>Einstellungen</h1>
-                    <p className="muted">Konten, Regeln, Importe, dein Profil, Benutzer und System</p>
+                    <p className="muted">Konten, Regeln, Importe, gelöschte Umsätze, dein Profil, Benutzer und System</p>
                 </div>
                 {tab === "accounts" && (
                     <div className="head-actions">
@@ -77,6 +78,7 @@ export function SettingsPage() {
             {tab === "accounts" && <AccountsTab />}
             {tab === "rules" && <RulesTab />}
             {tab === "imports" && <ImportsTab />}
+            {tab === "deleted" && <DeletedTab />}
             {tab === "profile" && <ProfileTab />}
             {tab === "users" && <UsersTab />}
             {tab === "system" && <SystemTab />}

@@ -1158,14 +1158,12 @@ describe("transaction search", () => {
         expect(await day("&dir=in")).toMatchObject({ income: 250000, expenses: 0 });
         expect(await day("&dir=out")).toMatchObject({ income: 0, expenses: -5500 });
         expect(await day("&category=none&dir=out")).toMatchObject({ income: 0, expenses: -1500 });
-        expect(await day("&deleted=true")).toMatchObject({ income: 0, expenses: 0 });
-        // Only deleted bookings; one entered by hand goes for good, an imported one stays as deleted
+        // A deleted booking no longer counts
         await api("POST", `/api/accounts/${cash.id}/import`, { fileName: "a.csv", content: "Datum;Betrag;Name\n02.03.2026;-7,00;Kiosk\n" });
         const imported = (await api<TransactionList>("GET", `/api/transactions?scope=account:${cash.id}&q=Kiosk&range=all`)).body.items[0]!;
         expect(await day("")).toMatchObject({ expenses: -6200 });
         await api("DELETE", `/api/transactions/${imported.id}`);
         expect(await day("")).toMatchObject({ expenses: -5500 });
-        expect(await day("&deleted=true")).toMatchObject({ income: 0, expenses: -700 });
         // The cashflow of the overview stays unfiltered
         const flow = (await api<{ income: number; expenses: number }>("GET", `/api/stats/cashflow?scope=account:${cash.id}&from=2026-03-02&to=2026-03-02`)).body;
         expect(flow).toMatchObject({ income: 250000, expenses: -5500 });

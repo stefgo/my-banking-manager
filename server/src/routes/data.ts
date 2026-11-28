@@ -219,7 +219,7 @@ export function registerDataRoutes(app: FastifyInstance, ctx: AppContext): void 
     });
 
     handle(app, ctx, routes.flows, ({ db, query }) => ({
-        points: tx.flowSeries(db, query.scope, query.days, query.range, todayIso(), { from: query.from, to: query.to }, { category: query.category, dir: query.dir, deleted: query.deleted }),
+        points: tx.flowSeries(db, query.scope, query.days, query.range, todayIso(), { from: query.from, to: query.to }, { category: query.category, dir: query.dir }),
     }));
 
     handle(app, ctx, routes.cashflow, ({ db, query }) => tx.cashflow(db, query.scope, query.from, query.to));

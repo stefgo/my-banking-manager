@@ -6958,15 +6958,6 @@ paths:
               - all
               - in
               - out
-        - name: deleted
-          in: query
-          required: false
-          schema:
-            description: "true: only deleted bookings, which are left out otherwise"
-            type: string
-            enum:
-              - "true"
-              - "false"
       responses:
         "200":
           description: OK

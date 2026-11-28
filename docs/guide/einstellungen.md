@@ -1,6 +1,6 @@
 # Einstellungen
 
-Die Einstellungen (++g++ dann ++e++) haben sieben Bereiche. Unten auf jeder Seite stehen die
+Die Einstellungen (++g++ dann ++e++) haben acht Bereiche. Unten auf jeder Seite stehen die
 Versionen von MBM und vom FinTS-Konnektor.
 
 | Bereich | Inhalt |
@@ -8,10 +8,24 @@ Versionen von MBM und vom FinTS-Konnektor.
 | **Konten** | Status der Kontoabfrage, Bankzugänge mit den Anmeldungen, Offline-Konten, BLZ-Verzeichnis. Siehe [Konten](konten.md). |
 | **Regeln** | Die Regeln für Kategorien. Siehe [Kategorien und Regeln](kategorien-regeln.md#regeln). |
 | **Importe** | Importformate anlegen und bearbeiten, alle CSV-Importe mit Rückgängig und **CSV importieren** für einen neuen Import. Siehe [CSV-Import](import.md). |
+| **Gelöschte** | Alle gelöschten Umsätze nach Konto, mit **Wiederherstellen** |
 | **Profil** | Was nur dich betrifft: Passwort, Authenticator, deine Geräte, Darstellung |
 | **Benutzer** | Was andere betrifft: Benutzer anlegen und entfernen, ihnen beim Zugang helfen, ihre Geräte abmelden |
 | **System** | Was alle betrifft: Wiederherstellungsschlüssel, MBM für alle sperren |
 | **Protokoll** | Wer wann was getan hat |
+
+## Gelöschte
+
+![Einstellungen, Gelöschte](../assets/screenshots/einstellungen-geloeschte-dark.png)
+
+*Die gelöschten Umsätze, je Konto in der Reihenfolge der Seitenleiste.*
+
+Löschst du einen Umsatz der Bank, eines Imports oder eine Buchung, die MBM für PayPal ergänzt hat,
+blendet MBM ihn nur aus (siehe [Buchungen erfassen, ändern und löschen](umsaetze.md#buchungen-erfassen-ändern-und-löschen)). Hier stehen alle diese
+Umsätze, gruppiert nach Konto und je Konto der jüngste zuerst, mit Buchungstag, Zeitpunkt des
+Löschens und Betrag. Ein Klick auf einen Umsatz öffnet seine Details, **Wiederherstellen** holt ihn
+in Liste und Auswertungen zurück. Eine Buchung, die du selbst erfasst hast, ist nach dem Löschen
+weg und steht hier nicht.
 
 ## Profil
 
