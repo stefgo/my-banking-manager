@@ -48,4 +48,10 @@ describe("BIC", () => {
         expect(BIC_PATTERN.test("UBSWCHZH80A")).toBe(true);
         expect(BIC_PATTERN.test("UBSWCHZH8")).toBe(false);
     });
+
+    it("takes no bank code for a BIC", () => {
+        expect(BIC_PATTERN.test("70054306")).toBe(false);
+        expect(BIC_PATTERN.test("12030000XXX")).toBe(false);
+        expect(BIC_PATTERN.test("BYLADEM1001")).toBe(true);
+    });
 });

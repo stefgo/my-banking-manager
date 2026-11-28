@@ -663,7 +663,7 @@ export const DetectedImportFormat = z.object({
     formatKey: z.string().nullable().describe("The stored format chosen by the header; null for the automatic column assignment"),
 });
 
-export const ImportFillField = z.enum(["bookingText", "reference", "customerReference", "bankReference", "mandateId", "creditorId", "counterpartyBic"]);
+export const ImportFillField = z.enum(["bookingText", "reference", "customerReference", "bankReference", "mandateId", "creditorId", "counterpartyBic", "counterpartyAccount", "counterpartyBankCode"]);
 export type ImportFillField = z.infer<typeof ImportFillField>;
 
 export const ImportPreviewRow = z.object({
@@ -672,6 +672,8 @@ export const ImportPreviewRow = z.object({
     amount: Cents.nullable(),
     name: z.string(),
     iban: z.string().nullable(),
+    counterpartyAccount: z.string().describe("Account of the counterparty when the file names no IBAN; \"\" if none"),
+    counterpartyBankCode: z.string().describe("National bank code that goes with counterpartyAccount; \"\" if none"),
     purpose: z.string(),
     shownName: z.string().nullable().describe("New row: the counterparty after the rules; null: as in the file"),
     shownPurpose: z.string().nullable().describe("New row: the purpose after the rules; null: as in the file"),
@@ -683,7 +685,7 @@ export const ImportPreviewRow = z.object({
     mandateId: z.string(),
     creditorId: z.string(),
     counterpartyBic: z.string(),
-    fillsDetails: z.boolean().describe("Duplicate with an empty reference, mandate, creditor id or BIC that takes the one of the file; a reference only if no kind of reference searched for it holds it already"),
+    fillsDetails: z.boolean().describe("Duplicate with an empty reference, mandate, creditor id, BIC, account number or bank code that takes the one of the file; account number and bank code only without an IBAN; a reference only if no kind of reference searched for it holds it already"),
     fills: z.array(ImportFillField).describe("Duplicate: the fields empty in the stored booking that take the value of this row"),
     pending: z.boolean(),
     categoryId: Id.nullable().describe("Category the row gets; for a duplicate the category the file names"),

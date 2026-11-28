@@ -894,6 +894,8 @@ const previewRow = (line: number, date: string | null, amount: number | null, na
     amount,
     name,
     iban: SAMPLE_IBAN,
+    counterpartyAccount: "",
+    counterpartyBankCode: "",
     purpose,
     shownName: null,
     shownPurpose: null,

@@ -96,5 +96,8 @@ const NON_EEA_SEPA = new Set(["AD", "AL", "CH", "GB", "GI", "MC", "MD", "ME", "M
 /** Whether the form offers the BIC for this IBAN: its country is in SEPA but not in the EEA. */
 export const needsBic = (iban: string): boolean => NON_EEA_SEPA.has(iban.replace(/\s/g, "").slice(0, 2).toUpperCase());
 
-/** Form of a BIC: 8 or 11 letters and digits. */
-export const BIC_PATTERN = /^[A-Z0-9]{8}([A-Z0-9]{3})?$/;
+/**
+ * Form of a BIC: bank and country code as six letters, then location and optional branch: 8 or
+ * 11 characters. A German bank code (8 digits) is no BIC.
+ */
+export const BIC_PATTERN = /^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/;

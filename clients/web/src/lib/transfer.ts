@@ -312,7 +312,7 @@ export function checkTransfer(f: TransferForm, pinRequired: boolean, rules?: Con
         "tr-acc": f.accountId ? undefined : "Bitte ein Konto wählen.",
         "tr-name": !name ? "Bitte den Empfänger eingeben." : name.length > SEPA_NAME_MAX ? `Höchstens ${SEPA_NAME_MAX} Zeichen.` : (sepaCharsMessage(name) ?? undefined),
         "tr-iban": !iban ? "Bitte die IBAN eingeben." : (ibanProblem(iban) ?? undefined),
-        "tr-bic": bicToSend(f) !== null && !BIC_PATTERN.test(bicToSend(f)!) ? "Die BIC hat 8 oder 11 Buchstaben und Ziffern." : undefined,
+        "tr-bic": bicToSend(f) !== null && !BIC_PATTERN.test(bicToSend(f)!) ? "Die BIC hat 8 oder 11 Zeichen, die ersten 6 sind Buchstaben." : undefined,
         "tr-amount": cents === null || cents <= 0 ? "Bitte einen Betrag größer als 0 eingeben." : cents > TRANSFER_MAX_CENTS ? "Der Betrag ist zu groß." : undefined,
         "tr-purpose": remittanceProblem(f.remittance),
         "tr-pin": pinRequired && !f.pin ? "Bitte die PIN eingeben." : undefined,

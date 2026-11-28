@@ -14,7 +14,7 @@ export const IMPORT_FIELD_LABELS: Record<ImportField, string> = {
     valueDate: "Wertstellung",
     amount: "Betrag",
     name: "Gegenseite",
-    iban: "IBAN der Gegenseite",
+    iban: "IBAN oder Kontonummer der Gegenseite",
     purpose: "Verwendungszweck",
     bookingText: "Umsatzart",
     reference: "End-to-End-Referenz",
@@ -22,7 +22,7 @@ export const IMPORT_FIELD_LABELS: Record<ImportField, string> = {
     bankReference: "Bankreferenz",
     mandateId: "Mandat",
     creditorId: "Gläubiger-ID",
-    counterpartyBic: "BIC der Gegenseite",
+    counterpartyBic: "BIC oder BLZ der Gegenseite",
     status: "Status (vorgemerkt)",
     category: "Kategorie",
 };
@@ -171,7 +171,7 @@ const HINTS: Record<ImportField, string[]> = {
     bankReference: ["bankreferenz", "bankreference"],
     mandateId: ["mandatsreferenz", "mandat", "mandatereference", "mandateid"],
     creditorId: ["glaubigerid", "glaubigeridentifikation", "creditorid"],
-    counterpartyBic: ["bicswiftcode", "bic", "swift", "bicgegenkonto"],
+    counterpartyBic: ["bicswiftcode", "bic", "swift", "bicgegenkonto", "blz", "bankleitzahl"],
     status: ["info", "status"],
     category: ["kategorie", "category"],
 };
@@ -222,6 +222,10 @@ export interface ImportRow {
     amount: number | null;
     name: string;
     iban: string | null;
+    /** Account of the counterparty when the file names no IBAN there; "" if none. */
+    counterpartyAccount: string;
+    /** National bank code that goes with `counterpartyAccount`; "" if none. */
+    counterpartyBankCode: string;
     purpose: string;
     bookingText: string;
     /** The end-to-end reference; the customer and bank reference as their own fields. */
@@ -250,7 +254,11 @@ const USUAL_PENDING = (status: string): boolean => status.includes("vorgemerkt")
 export function toImportRow(line: number, value: (f: ImportField) => string, mapped: boolean, options: RowValueOptions = {}): ImportRow {
     const date = parseDate(value("date"), options.dateOrder);
     const amount = parseAmount(value("amount"), options.decimalSeparator);
+    // As the bank connectors read them: an IBAN or else an account number, a BIC or else a bank
+    // code, the bank code only along with an account number
     const ibanRaw = cleanIban(value("iban"));
+    const iban = IBAN_FORM.test(ibanRaw) ? ibanRaw : null;
+    const account = iban ? "" : accountNumber(value("iban"));
     const bic = value("counterpartyBic").toUpperCase().replace(/\s/g, "");
     const statusText = value("status").toLowerCase();
     const words = (options.pendingWords ?? []).map((w) => w.toLowerCase()).filter(Boolean);
@@ -264,7 +272,9 @@ export function toImportRow(line: number, value: (f: ImportField) => string, map
         valueDate: parseDate(value("valueDate"), options.dateOrder),
         amount,
         name: collapse(value("name")),
-        iban: /^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(ibanRaw) ? ibanRaw : null,
+        iban,
+        counterpartyAccount: account,
+        counterpartyBankCode: account && BANK_CODE.test(bic) ? bic : "",
         purpose: collapse(value("purpose")),
         bookingText: collapse(value("bookingText")),
         reference,
@@ -294,6 +304,21 @@ export function mapRows(table: CsvTable, map: ColumnMap): ImportRow[] {
 
 const collapse = (s: string): string => s.replace(/\s+/g, " ").trim();
 
+const IBAN_FORM = /^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/;
+const BANK_CODE = /^\d{8}$/;
+
+/**
+ * An account number as banks write it: letters and digits with at least one digit, spaces left
+ * out; "" for anything else (an e-mail address, a name) and for one of zeros only.
+ */
+function accountNumber(text: string): string {
+    const account = text.replace(/\s/g, "");
+    return /^[A-Za-z0-9]{1,34}$/.test(account) && /\d/.test(account) && !/^0+$/.test(account) ? account : "";
+}
+
+/** An account number to compare: leading zeros, case and anything but letters and digits do not count. */
+const accountKey = (s: string | null | undefined): string => normalizeText(s).replace(/^0+/, "");
+
 /** Two references are the same regardless of case and spaces at their ends. */
 export const sameReference = (a: string, b: string): boolean => !!a.trim() && a.trim().toLowerCase() === b.trim().toLowerCase();
 
@@ -317,20 +342,27 @@ export const duplicateKey = (date: string, amount: number): string => `${date}|$
 /** The parts of a booking that identify its counterparty. */
 export interface BookingParty {
     iban: string | null;
+    /** Account number of the counterparty when there is no IBAN; "" if none. */
+    counterpartyAccount?: string;
     name: string;
     purpose: string | null;
 }
 
 /**
- * Same counterparty: by IBAN when both bookings have one, else by name. With a name missing
- * (bank fees, for instance, often come without a counterparty from the bank but with one in
- * exports), the purpose of the file must be contained in the purpose of the other booking.
+ * Same counterparty: by IBAN when both bookings have one, else by account number when both have
+ * one (banks name internal accounts, the one of loan interest for instance, by number only), else
+ * by name. With a name missing (bank fees, for instance, often come without a counterparty from
+ * the bank but with one in exports), the purpose of the file must be contained in the purpose of
+ * the other booking.
  * Two empty purposes count as equal, so that importing a file again adds nothing.
  */
 export function sameCounterparty(booking: BookingParty, file: BookingParty): boolean {
     const ibanA = normalizeText(booking.iban);
     const ibanB = normalizeText(file.iban);
     if (ibanA && ibanB) return ibanA === ibanB;
+    const accountA = accountKey(booking.counterpartyAccount);
+    const accountB = accountKey(file.counterpartyAccount);
+    if (accountA && accountB) return accountA === accountB;
     const nameA = normalizeText(booking.name);
     const nameB = normalizeText(file.name);
     if (nameA && nameB) return nameA === nameB;

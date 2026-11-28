@@ -50,6 +50,8 @@ const FILL_LABEL: Record<ImportFillField, string> = {
     mandateId: "Mandat",
     creditorId: "Gläubiger-ID",
     counterpartyBic: "BIC",
+    counterpartyAccount: "Kontonummer",
+    counterpartyBankCode: "BLZ",
 };
 
 /** One value before and after the import. */
@@ -117,6 +119,8 @@ function RowDetails({ r, index, choice, onPart }: { r: Row; index: CategoryIndex
         ["Verwendungszweck", r.purpose],
         ["Kategorie", rowDiffers(r) || rowFillsCategory(r) ? "" : fileCategory(r, index)],
         ["IBAN", r.iban ?? ""],
+        [FILL_LABEL.counterpartyAccount, detail("counterpartyAccount")],
+        [FILL_LABEL.counterpartyBankCode, detail("counterpartyBankCode")],
         [FILL_LABEL.counterpartyBic, detail("counterpartyBic")],
         [FILL_LABEL.reference, detail("reference")],
         [FILL_LABEL.customerReference, detail("customerReference")],
