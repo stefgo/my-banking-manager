@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 990 460" width="990" height="460" role="img" aria-labelledby="title">
+<title id="title">Zustände in transfers.status: submitting, die Wartezustände awaiting_vop_confirm und awaiting_tan, dann executed, rejected, unknown, cancelled oder failed. unknown wird executed, sobald ein Abruf die Buchung findet.</title>
+<style>
+svg { --bg: #FFFFFF; --frame: #E2E2EA; --box: #F6F6FA; --box-line: #E2E2EA; --fg: #14151A; --muted: #646878; --faint: #9A9DAB;
+    --iris: #2F55D4; --iris-soft: #E9EDFA; --pos: #0F9D63; --warn: #B7791F; --neg: #D63A4A;
+    --d-user: #5B47F0; --d-bank: #0B85AE; --d-acc: #2F6FD6; --d-tx: #0F9D63; --d-cat: #B7791F; --d-ord: #C2417B; --d-misc: #7A7F90; }
+@media (prefers-color-scheme: dark) {
+    svg { --bg: #12141C; --frame: #262A37; --box: #181B26; --box-line: #2C3040; --fg: #ECEDF2; --muted: #8B90A3; --faint: #5D6276;
+        --iris: #4F7BFF; --iris-soft: #1C2440; --pos: #3DDC97; --warn: #F5B54A; --neg: #FF6B7A;
+        --d-user: #A497FF; --d-bank: #67D4F5; --d-acc: #7CB7FF; --d-tx: #3DDC97; --d-cat: #F5B54A; --d-ord: #F38BB8; --d-misc: #A0A5B8; }
+}
+.bg { fill: var(--bg); stroke: var(--frame); }
+text { font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+.box { fill: var(--box); stroke: var(--box-line); }
+.d-user { --d: var(--d-user); } .d-bank { --d: var(--d-bank); } .d-acc { --d: var(--d-acc); } .d-tx { --d: var(--d-tx); }
+.d-cat { --d: var(--d-cat); } .d-ord { --d: var(--d-ord); } .d-misc { --d: var(--d-misc); }
+.stripe { fill: var(--d); }
+.name { fill: var(--fg); font-size: 12.5px; font-weight: 600; }
+.sub { fill: var(--muted); font-size: 10.5px; }
+.edge { fill: none; stroke: var(--muted); stroke-width: 1.3; }
+.edge.setnull { stroke-dasharray: 5 4; }
+.edge.logical { stroke-dasharray: 1.5 3.5; stroke-width: 1.6; }
+.edge.restrict { stroke: var(--warn); stroke-width: 1.6; }
+.edge.accent { stroke: var(--iris); }
+.head { fill: var(--muted); } .head.restrict { fill: var(--warn); } .head.accent { fill: var(--iris); }
+.label { fill: var(--muted); font-size: 10.5px; paint-order: stroke; stroke: var(--bg); stroke-width: 4px; stroke-linejoin: round; }
+.divider { stroke: var(--frame); stroke-dasharray: 2 4; }
+.group { fill: none; stroke: var(--faint); stroke-dasharray: 5 4; }
+.glabel { fill: var(--muted); font-size: 11px; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.k-secret { fill: var(--box); stroke: var(--muted); stroke-dasharray: 4 3; }
+.k-file { fill: var(--box); stroke: var(--box-line); }
+.k-key { fill: var(--iris-soft); stroke: var(--iris); }
+.k-field { fill: var(--box); stroke: var(--box-line); }
+.k-plain { fill: none; stroke: var(--faint); stroke-dasharray: 2 3; }
+.s-run { fill: var(--iris-soft); stroke: var(--iris); }
+.s-wait { fill: var(--box); stroke: var(--box-line); }
+.s-ok { fill: var(--box); stroke: var(--pos); stroke-width: 1.6; }
+.s-bad { fill: var(--box); stroke: var(--neg); stroke-width: 1.6; }
+.s-warn { fill: var(--box); stroke: var(--warn); stroke-width: 1.6; }
+.s-end { fill: var(--box); stroke: var(--muted); }
+</style>
+<defs><marker id="head-plain" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" class="head plain"/></marker><marker id="head-restrict" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" class="head restrict"/></marker><marker id="head-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" class="head accent"/></marker></defs>
+<rect class="bg" x="0.5" y="0.5" width="989" height="459" rx="14"/>
+<rect class="group" x="273" y="42" width="214" height="236" rx="12"/>
+<text class="glabel" x="285" y="60">wartet auf den Benutzer</text>
+<path class="edge flow" d="M141,223 L349,109" marker-end="url(#head-plain)"/>
+<path class="edge flow" d="M194,237.5 L287,234.8" marker-end="url(#head-plain)"/>
+<path class="edge flow" d="M380,109 L380,215" marker-end="url(#head-plain)"/>
+<path class="edge flow" d="M110,223 L110,34 L690,34 L690,53" marker-end="url(#head-plain)"/>
+<path class="edge flow" d="M412.5,215 L657.5,87" marker-end="url(#head-plain)"/>
+<path class="edge flow" d="M453.2,215 L616.8,177" marker-end="url(#head-plain)"/>
+<path class="edge flow" d="M473,237.4 L606,245.1" marker-end="url(#head-plain)"/>
+<path class="edge flow" d="M380,278 L380,328" marker-end="url(#head-plain)"/>
+<path class="edge flow" d="M110,257 L110,430 L606,430" marker-end="url(#head-plain)"/>
+<path class="edge logical accent" d="M774,250 L820,250 L820,70 L774,70" marker-end="url(#head-accent)"/>
+<g class="s-run">
+<rect class="s-run" x="26" y="223" width="168" height="34" rx="7"/>
+<text class="name" x="110" y="243.5" text-anchor="middle">submitting</text>
+</g>
+<g class="s-wait">
+<rect class="s-wait" x="287" y="75" width="186" height="34" rx="7"/>
+<text class="name" x="380" y="95.5" text-anchor="middle">awaiting_vop_confirm</text>
+</g>
+<g class="s-wait">
+<rect class="s-wait" x="287" y="215" width="186" height="34" rx="7"/>
+<text class="name" x="380" y="235.5" text-anchor="middle">awaiting_tan</text>
+</g>
+<g class="s-ok">
+<rect class="s-ok" x="606" y="53" width="168" height="34" rx="7"/>
+<text class="name" x="690" y="73.5" text-anchor="middle">executed</text>
+</g>
+<g class="s-bad">
+<rect class="s-bad" x="606" y="143" width="168" height="34" rx="7"/>
+<text class="name" x="690" y="163.5" text-anchor="middle">rejected</text>
+</g>
+<g class="s-warn">
+<rect class="s-warn" x="606" y="233" width="168" height="34" rx="7"/>
+<text class="name" x="690" y="253.5" text-anchor="middle">unknown</text>
+</g>
+<g class="s-end">
+<rect class="s-end" x="296" y="328" width="168" height="34" rx="7"/>
+<text class="name" x="380" y="348.5" text-anchor="middle">cancelled</text>
+</g>
+<g class="s-bad">
+<rect class="s-bad" x="606" y="413" width="168" height="34" rx="7"/>
+<text class="name" x="690" y="433.5" text-anchor="middle">failed</text>
+</g>
+<text class="label" x="193" y="166" text-anchor="middle"><tspan x="193" dy="0">Name weicht ab</tspan></text>
+<text class="label" x="240.5" y="252.1" text-anchor="middle"><tspan x="240.5" dy="0">TAN nötig</tspan></text>
+<text class="label" x="414" y="166" text-anchor="middle"><tspan x="414" dy="0">bestätigt</tspan></text>
+<text class="label" x="400" y="28" text-anchor="middle"><tspan x="400" dy="0">ausgeführt ohne TAN</tspan></text>
+<text class="label" x="541" y="145" text-anchor="middle"><tspan x="541" dy="0">freigegeben</tspan></text>
+<text class="label" x="543" y="210" text-anchor="middle"><tspan x="543" dy="0">abgelehnt</tspan></text>
+<text class="label" x="539.5" y="259.3" text-anchor="middle"><tspan x="539.5" dy="0">Antwort verloren</tspan></text>
+<text class="label" x="422" y="307" text-anchor="middle"><tspan x="422" dy="0">abgebrochen</tspan></text>
+<text class="label" x="358" y="424" text-anchor="middle"><tspan x="358" dy="0">Fehler</tspan></text>
+<text class="label" x="830" y="157.5" text-anchor="start"><tspan x="830" dy="0">Abruf findet die</tspan><tspan x="830" dy="13">Buchung (E2E-ID)</tspan></text>
+</svg>
