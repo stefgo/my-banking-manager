@@ -10,6 +10,11 @@ dev keeps the text; the stable release from main empties this file again.
 Nothing inside an HTML comment is published.
 -->
 
+### Verbessert
+
+- **Kontoauswahl:** Beim Importieren von Umsätzen, in einer Buchung von Hand und in der
+  Gegenbuchung stehen die Konten in derselben Reihenfolge wie in der Seitenleiste.
+
 ### Behoben
 
 - **Bank über PSD2:** Beim Einrichten eines weiteren PSD2-Zugangs steht jede eigene
