@@ -127,6 +127,7 @@ export const connections: BankConnection[] = [
             lastSyncAt: LAST_SYNC,
             lastError: null,
             consentUntil: null,
+            accountConsents: [],
         },
         otherLogins: [{ userName: "Sam", status: "ready" }],
         accountCount: 3,
@@ -152,6 +153,7 @@ export const connections: BankConnection[] = [
             lastSyncAt: LAST_SYNC,
             lastError: null,
             consentUntil: "2027-05-14T09:31:00.000Z",
+            accountConsents: [{ accountId: PAYPAL, until: "2027-05-14T09:31:00.000Z" }],
         },
         otherLogins: [],
         accountCount: 1,
@@ -169,7 +171,7 @@ export const versions = {
     node: "26.13.1",
     sqlite: "3.53.4",
     sqliteCiphers: "2.4.0",
-    schema: "0017-booking-edits",
+    schema: "0018-psd2-account-consents",
 };
 
 export const bankDirectory = {

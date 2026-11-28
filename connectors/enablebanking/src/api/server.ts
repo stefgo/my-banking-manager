@@ -8,8 +8,8 @@ import { z } from "zod";
 import { connectorRoutes, type ConnectorError, type ConnectorRouteDef, type ConnectorRoutes, type Psd2Credentials, type Psd2Login } from "@mbm/shared";
 import { createClient, EnableBankingError, type Client, type ClientOptions } from "../client.js";
 import { readPrivateKey } from "../jwt.js";
-import { connectorAccount, connectorBalance, connectorTransactions, storedAccount, VOID_REFUND_DAYS, type EbAccount, type EbBalance, type EbTransaction } from "../mapping.js";
-import { parseState, serializeState, type State } from "../state.js";
+import { connectorAccount, connectorBalance, connectorTransactions, distinctNames, storedAccount, VOID_REFUND_DAYS, type EbAccount, type EbBalance, type EbTransaction } from "../mapping.js";
+import { addSession, allAccounts, latestEnd, parseState, serializeState, sessionEnd, type State, type StoredSession } from "../state.js";
 
 export interface ApiOptions {
     version: string;
@@ -135,6 +135,23 @@ export function buildApi(o: ApiOptions): { app: FastifyInstance } {
         return { url: res.url };
     });
 
+    /** The session as Enable Banking sees it now: account ids of this session, or ended. */
+    const refreshSession = async (api: Client, s: StoredSession): Promise<StoredSession> => {
+        if (s.ended) return s;
+        if (Date.parse(s.validUntil) <= now()) return { ...s, ended: s.validUntil, accounts: s.accounts.map((a) => ({ ...a, uid: null })) };
+        let session: { status?: string; accounts_data?: { uid?: string; identification_hash?: string }[] };
+        try {
+            session = await api.get(`/sessions/${encodeURIComponent(s.sessionId)}`);
+        } catch (e) {
+            if (!(e instanceof EnableBankingError && (SESSION_GONE.has(e.code) || e.status === 404))) throw e;
+            session = { status: "CLOSED" };
+        }
+        if (session.status !== "AUTHORIZED") return { ...s, ended: new Date(now()).toISOString(), accounts: s.accounts.map((a) => ({ ...a, uid: null })) };
+        // Ids of the accounts in this session, linked over the hash that stays across sessions
+        const uids = new Map((session.accounts_data ?? []).filter((a) => a.uid && a.identification_hash).map((a) => [a.identification_hash!, a.uid!]));
+        return { ...s, accounts: s.accounts.map((a) => ({ ...a, uid: uids.get(a.hash) ?? (uids.size === 0 ? a.uid : null) })) };
+    };
+
     route("psd2Session", async ({ body }) => {
         const api = client(body.login);
         const aspsp = await findAspsp(api, body.bank);
@@ -142,36 +159,56 @@ export function buildApi(o: ApiOptions): { app: FastifyInstance } {
         if (!session.session_id) throw new EnableBankingError(200, "INVALID_ANSWER", "No session in the answer.");
         const accounts = (session.accounts ?? []).filter((a) => typeof a.identification_hash === "string");
         const validUntil = session.access?.valid_until && !Number.isNaN(Date.parse(session.access.valid_until)) ? new Date(session.access.valid_until).toISOString() : new Date(now()).toISOString();
-        const state: State = {
-            v: 1,
-            sessionId: session.session_id,
-            validUntil,
-            psuHeaders: aspsp.required_psu_headers ?? [],
-            accounts: accounts.map((a) => storedAccount(a, aspsp.name, accounts.length === 1)),
+        const added: StoredSession = { sessionId: session.session_id, validUntil, accounts: accounts.map((a) => storedAccount(a, aspsp.name, accounts.length === 1)) };
+        // The new approval joins the earlier ones; one that approved the same account again replaces them
+        const { state, replaced } = addSession(parseState(body.login.state), added, aspsp.required_psu_headers ?? []);
+        for (const id of replaced) {
+            try {
+                await api.delete(`/sessions/${encodeURIComponent(id)}`);
+            } catch {
+                // Ending the replaced approval is a courtesy: it runs out on its own
+            }
+        }
+        const named = distinctNames(allAccounts(state));
+        return {
+            state: serializeState(state),
+            validUntil: latestEnd(state) ?? validUntil,
+            accounts: named.filter((a) => added.accounts.some((b) => b.hash === a.hash)).map((a) => connectorAccount(a, validUntil)),
         };
-        return { state: serializeState(state), validUntil };
     });
 
     route("psd2CloseSession", async ({ body }) => {
         const state = parseState(body.login.state);
         if (!state) return { ok: true };
-        try {
-            await client(body.login).delete(`/sessions/${encodeURIComponent(state.sessionId)}`);
-        } catch (e) {
-            // Already over at Enable Banking: nothing left to end.
-            if (!(e instanceof EnableBankingError && (SESSION_GONE.has(e.code) || e.status === 404))) throw e;
+        let failure: unknown = null;
+        for (const s of state.sessions) {
+            try {
+                await client(body.login).delete(`/sessions/${encodeURIComponent(s.sessionId)}`);
+            } catch (e) {
+                // Already over at Enable Banking: nothing left to end
+                if (!(e instanceof EnableBankingError && (SESSION_GONE.has(e.code) || e.status === 404))) failure ??= e;
+            }
         }
+        if (failure) throw failure;
         return { ok: true };
     });
 
     route("psd2Accounts", async ({ body }) => {
         const state = requireState(body.login);
-        const session = await client(body.login).get<{ status?: string; accounts_data?: { uid?: string; identification_hash?: string }[] }>(`/sessions/${encodeURIComponent(state.sessionId)}`);
-        if (session.status !== "AUTHORIZED") throw consentExpired();
-        // Ids of the accounts in this session, linked over the hash that stays across sessions.
-        const uids = new Map((session.accounts_data ?? []).filter((a) => a.uid && a.identification_hash).map((a) => [a.identification_hash!, a.uid!]));
-        const next: State = { ...state, accounts: state.accounts.map((a) => ({ ...a, uid: uids.get(a.hash) ?? (uids.size === 0 ? a.uid : null) })) };
-        return { status: "done", data: { accounts: next.accounts.filter((a) => a.uid !== null).map(connectorAccount) }, state: serializeState(next) };
+        const api = client(body.login);
+        const sessions: StoredSession[] = [];
+        for (const s of state.sessions) sessions.push(await refreshSession(api, s));
+        // Only when no approval holds any more is the whole login over
+        if (sessions.every((s) => s.ended)) throw consentExpired();
+        const next: State = { ...state, sessions };
+        const named = new Map(distinctNames(allAccounts(next)).map((a) => [a.hash, a]));
+        const accounts = sessions.flatMap((s) =>
+            s.accounts
+                // An account a holding session no longer reaches is gone at the bank; one of an ended session waits for a new approval
+                .filter((a) => s.ended !== undefined || a.uid !== null)
+                .map((a) => connectorAccount(named.get(a.hash) ?? a, sessionEnd(s))),
+        );
+        return { status: "done", data: { accounts }, state: serializeState(next) };
     });
 
     route("psd2Balances", async ({ body }) => {
@@ -180,7 +217,7 @@ export function buildApi(o: ApiOptions): { app: FastifyInstance } {
         const headers = psuHeaders(state, body.psu);
         const balances = [];
         for (const ref of body.accounts) {
-            const account = state.accounts.find((a) => a.accountNumber === ref.accountNumber);
+            const account = allAccounts(state).find((a) => a.accountNumber === ref.accountNumber);
             if (!account?.uid) continue;
             const res = await api.get<{ balances?: EbBalance[] }>(`/accounts/${encodeURIComponent(account.uid)}/balances`, undefined, headers);
             const balance = connectorBalance(account, res.balances ?? [], today());
@@ -191,8 +228,12 @@ export function buildApi(o: ApiOptions): { app: FastifyInstance } {
 
     route("psd2Transactions", async ({ body }) => {
         const state = requireState(body.login);
-        const account = state.accounts.find((a) => a.accountNumber === body.account.accountNumber);
-        if (!account?.uid) throw new ApiError(422, { error: "not_supported", message: "Die Freigabe umfasst dieses Konto nicht mehr. Bitte die Freigabe erneuern." });
+        const session = state.sessions.find((x) => x.accounts.some((a) => a.accountNumber === body.account.accountNumber));
+        const account = session?.accounts.find((a) => a.accountNumber === body.account.accountNumber);
+        if (!account?.uid) {
+            const message = session?.ended ? "Die Freigabe für dieses Konto ist abgelaufen. Bitte die Freigabe erneuern und dich dabei mit diesem Konto anmelden." : "Die Freigabe umfasst dieses Konto nicht mehr. Bitte die Freigabe erneuern.";
+            throw new ApiError(422, { error: "not_supported", message });
+        }
         const api = client(body.login);
         const headers = psuHeaders(state, body.psu);
         const raw: EbTransaction[] = [];

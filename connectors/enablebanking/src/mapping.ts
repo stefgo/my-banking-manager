@@ -112,7 +112,23 @@ export function storedAccount(a: EbAccount, aspsp: string, single: boolean): Sto
     };
 }
 
-export function connectorAccount(s: StoredAccount): ConnectorAccount {
+/**
+ * Names that tell the accounts apart: several approvals at one bank each name their only account
+ * after the bank (two PayPal accounts are both "PayPal"). Equal names get the holder, or, for the
+ * same holder, the end of the account number.
+ */
+export function distinctNames(accounts: StoredAccount[]): StoredAccount[] {
+    const same = (a: StoredAccount) => accounts.filter((b) => b.name === a.name);
+    return accounts.map((a) => {
+        const twins = same(a);
+        if (twins.length < 2) return a;
+        const byOwner = a.owner !== "" && twins.filter((b) => b.owner === a.owner).length === 1;
+        return { ...a, name: byOwner ? `${a.name} · ${a.owner}` : `${a.name} ••${a.accountNumber.slice(-4)}` };
+    });
+}
+
+/** The account in the connector API; `consentUntil`: when the approval that reaches it ends. */
+export function connectorAccount(s: StoredAccount, consentUntil?: string): ConnectorAccount {
     return {
         accountNumber: s.accountNumber,
         subAccount: "",
@@ -143,6 +159,7 @@ export function connectorAccount(s: StoredAccount): ConnectorAccount {
             orderRules: null,
         },
         ...(s.icon ? { icon: s.icon } : {}),
+        ...(consentUntil ? { consentUntil } : {}),
     };
 }
 

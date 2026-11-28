@@ -3,7 +3,7 @@ import { EyeOff, Plus, RefreshCw, Unlink } from "lucide-react";
 import { groupCardNumber, routes, type BankConnection, type BankLogin, type OfferedAccount } from "@mbm/shared";
 import { call, errorText } from "../lib/api";
 import { canFetch, isActive, refreshBank, startSync, useBankDirectory, useConnections, useOfferedAccounts, useSyncRuns } from "../lib/bank";
-import { consentText, isPsd2 } from "../lib/psd2";
+import { consentText, hasSeveralConsents, isPsd2, loginConsentText } from "../lib/psd2";
 import { useBankOperation } from "../lib/bankOperation";
 import { useAccounts, useAction, useGroups } from "../lib/queries";
 import { accountsInTreeOrder } from "../lib/tree";
@@ -35,6 +35,7 @@ const dotClass = (s: BankLogin["status"] | null) => (s === "ready" ? "dot" : s =
 export function BankStatusRows() {
     const connections = useConnections().data ?? [];
     const runs = useSyncRuns().data ?? [];
+    const names = new Map((useAccounts().data ?? []).map((a) => [a.id, a.name]));
     if (connections.length === 0) {
         return (
             <div className="fs-row">
@@ -55,7 +56,7 @@ export function BankStatusRows() {
                     <span className={dotClass(c.myLogin?.status ?? null)} />
                     <span className="fs-main">
                         <b>{c.name}</b>
-                        <small>{c.myLogin ? [statusText(c.myLogin.status, c.kind), consentText(c.myLogin.consentUntil)?.attn ? consentText(c.myLogin.consentUntil)!.text : null, c.myLogin.lastSyncAt ? `zuletzt abgerufen ${formatDateTime(c.myLogin.lastSyncAt)}` : null].filter(Boolean).join(" · ") : "Keine eigene Anmeldung"}</small>
+                        <small>{c.myLogin ? [statusText(c.myLogin.status, c.kind), loginConsentText(c.myLogin, names)?.attn ? loginConsentText(c.myLogin, names)!.text : null, c.myLogin.lastSyncAt ? `zuletzt abgerufen ${formatDateTime(c.myLogin.lastSyncAt)}` : null].filter(Boolean).join(" · ") : "Keine eigene Anmeldung"}</small>
                     </span>
                     <span className="fs-state">{plural(c.accountCount, "Konto", "Konten")}</span>
                     <ConnectionSyncButton c={c} syncing={runs.some((r) => r.connectionId === c.id && isActive(r))} />
@@ -117,7 +118,8 @@ export function BankAccessCards() {
 }
 
 function BankCard({ c }: { c: BankConnection }) {
-    const accounts = accountsInTreeOrder(useGroups().data ?? [], useAccounts().data ?? []).filter((a) => a.connectionId === c.id);
+    const allAccounts = useAccounts().data ?? [];
+    const accounts = accountsInTreeOrder(useGroups().data ?? [], allAccounts).filter((a) => a.connectionId === c.id);
     const runs = useSyncRuns().data ?? [];
     const active = runs.filter((r) => r.connectionId === c.id && isActive(r));
     const action = useAction();
@@ -125,7 +127,9 @@ function BankCard({ c }: { c: BankConnection }) {
     const login = c.myLogin;
     const psd2 = isPsd2(c);
     const canSync = canFetch(c);
-    const consent = psd2 ? consentText(login?.consentUntil ?? null) : null;
+    const consent = psd2 && login ? loginConsentText(login, new Map(allAccounts.map((a) => [a.id, a.name]))) : null;
+    // Several approvals (PayPal: one per account): each account shows when its own ends
+    const ownConsent = (accountId: number) => (psd2 && hasSeveralConsents(login) ? consentText(login!.accountConsents.find((e) => e.accountId === accountId)?.until ?? null) : null);
     const atBank = useAccountsAtBank(c.id, canSync, login?.savePin ?? true);
     // Accounts in MBM the own login does not reach yet (known from the last account list): account id → bank id
     const unlinked = new Map((atBank.list?.accounts ?? []).filter((x) => x.accountId !== null && x.supported && !x.linked).map((x) => [x.accountId!, x.externalId]));
@@ -214,6 +218,7 @@ function BankCard({ c }: { c: BankConnection }) {
                             detail={
                                 <>
                                     <small>{a.kind === "credit_card" ? (a.cardNumber ? groupCardNumber(a.cardNumber) : "Kreditkarte") : (a.iban ?? "")}</small>
+                                    {ownConsent(a.id) && <small className={`cc-acc-consent${ownConsent(a.id)!.attn ? " attn" : ""}`}>{ownConsent(a.id)!.text}</small>}
                                     {unlinked.has(a.id) && <small className="cc-acc-hint">Nicht mit deiner Anmeldung verknüpft: dein Abruf erfasst es nicht</small>}
                                 </>
                             }
@@ -262,6 +267,7 @@ function Psd2LoginActions({ c, atBank, attn }: { c: BankConnection; atBank: Retu
     return (
         <>
             {atBank && <Button className="btn-sm btn-ghost" busy={atBank.busy} disabled={atBank.pending} onClick={atBank.start}>Konten abrufen</Button>}
+            <button className="btn btn-sm btn-ghost" title="Ein weiteres Konto bei dieser Bank freigeben, z. B. ein zweites PayPal-Konto" onClick={() => ui.open({ kind: "psd2Setup", connectionId: c.id, mode: "add" })}>Weiteres Konto freigeben</button>
             <button className={`btn btn-sm ${renew ? "" : "btn-ghost"}`} onClick={() => ui.open({ kind: "psd2Setup", connectionId: c.id, mode: "consent" })}>Freigabe erneuern</button>
             <button className="btn btn-sm btn-ghost" onClick={() => ui.open({ kind: "psd2Setup", connectionId: c.id, mode: "credentials" })}>Zugangsdaten ändern</button>
         </>

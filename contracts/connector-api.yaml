@@ -894,6 +894,9 @@ paths:
                                     - tag
                                     - star
                                     - heart
+                                consentUntil:
+                                  type: string
+                                  description: ISO 8601 date and time
                               required:
                                 - accountNumber
                                 - subAccount
@@ -5105,6 +5108,9 @@ paths:
                       type: string
                       minLength: 100
                       maxLength: 20000
+                    state:
+                      type: string
+                      maxLength: 200000
                   required:
                     - applicationId
                     - privateKey
@@ -5129,9 +5135,376 @@ paths:
                   validUntil:
                     type: string
                     description: ISO 8601 date and time
+                  accounts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        accountNumber:
+                          type: string
+                          minLength: 1
+                          maxLength: 35
+                        subAccount:
+                          default: ""
+                          type: string
+                          maxLength: 30
+                        iban:
+                          default: null
+                          anyOf:
+                            - type: string
+                              maxLength: 34
+                            - type: "null"
+                        bic:
+                          default: null
+                          anyOf:
+                            - type: string
+                              maxLength: 11
+                            - type: "null"
+                        externalId:
+                          type: string
+                        name:
+                          type: string
+                        owner:
+                          type: string
+                        currency:
+                          type: string
+                        kind:
+                          type: string
+                          enum:
+                            - giro
+                            - savings
+                            - credit_card
+                            - loan
+                            - depot
+                            - other
+                        capabilities:
+                          type: object
+                          properties:
+                            balance:
+                              type: boolean
+                            transactions:
+                              type: boolean
+                            cardTransactions:
+                              type: boolean
+                            transfer:
+                              type: boolean
+                            instantTransfer:
+                              type: boolean
+                            standingOrders:
+                              type: boolean
+                            scheduledTransfers:
+                              type: boolean
+                            standingOrdersTan:
+                              default: false
+                              type: boolean
+                            scheduledTransfersTan:
+                              default: false
+                              type: boolean
+                            payeeVerification:
+                              default: false
+                              type: boolean
+                            createScheduledTransfer:
+                              default: false
+                              type: boolean
+                            changeScheduledTransfer:
+                              default: false
+                              type: boolean
+                            deleteScheduledTransfer:
+                              default: false
+                              type: boolean
+                            createStandingOrder:
+                              default: false
+                              type: boolean
+                            changeStandingOrder:
+                              default: false
+                              type: boolean
+                            deleteStandingOrder:
+                              default: false
+                              type: boolean
+                            orderRules:
+                              default: null
+                              anyOf:
+                                - type: object
+                                  properties:
+                                    scheduled:
+                                      anyOf:
+                                        - type: object
+                                          properties:
+                                            minDays:
+                                              type: integer
+                                              minimum: 0
+                                              maximum: 9007199254740991
+                                            maxDays:
+                                              type: integer
+                                              minimum: 0
+                                              maximum: 9007199254740991
+                                          required:
+                                            - minDays
+                                            - maxDays
+                                          additionalProperties: false
+                                        - type: "null"
+                                    scheduledChange:
+                                      anyOf:
+                                        - type: object
+                                          properties:
+                                            minDays:
+                                              type: integer
+                                              minimum: 0
+                                              maximum: 9007199254740991
+                                            maxDays:
+                                              type: integer
+                                              minimum: 0
+                                              maximum: 9007199254740991
+                                          required:
+                                            - minDays
+                                            - maxDays
+                                          additionalProperties: false
+                                        - type: "null"
+                                    standing:
+                                      anyOf:
+                                        - type: object
+                                          properties:
+                                            minDays:
+                                              type: integer
+                                              minimum: 0
+                                              maximum: 9007199254740991
+                                            maxDays:
+                                              type: integer
+                                              minimum: 0
+                                              maximum: 9007199254740991
+                                            months:
+                                              type: array
+                                              items:
+                                                type: integer
+                                                minimum: -9007199254740991
+                                                maximum: 9007199254740991
+                                            monthDays:
+                                              type: array
+                                              items:
+                                                type: integer
+                                                minimum: -9007199254740991
+                                                maximum: 9007199254740991
+                                            weeks:
+                                              type: array
+                                              items:
+                                                type: integer
+                                                minimum: -9007199254740991
+                                                maximum: 9007199254740991
+                                            weekDays:
+                                              type: array
+                                              items:
+                                                type: integer
+                                                minimum: -9007199254740991
+                                                maximum: 9007199254740991
+                                          required:
+                                            - minDays
+                                            - maxDays
+                                            - months
+                                            - monthDays
+                                            - weeks
+                                            - weekDays
+                                          additionalProperties: false
+                                        - type: "null"
+                                    standingChange:
+                                      anyOf:
+                                        - type: object
+                                          properties:
+                                            minDays:
+                                              type: integer
+                                              minimum: 0
+                                              maximum: 9007199254740991
+                                            maxDays:
+                                              type: integer
+                                              minimum: 0
+                                              maximum: 9007199254740991
+                                            months:
+                                              type: array
+                                              items:
+                                                type: integer
+                                                minimum: -9007199254740991
+                                                maximum: 9007199254740991
+                                            monthDays:
+                                              type: array
+                                              items:
+                                                type: integer
+                                                minimum: -9007199254740991
+                                                maximum: 9007199254740991
+                                            weeks:
+                                              type: array
+                                              items:
+                                                type: integer
+                                                minimum: -9007199254740991
+                                                maximum: 9007199254740991
+                                            weekDays:
+                                              type: array
+                                              items:
+                                                type: integer
+                                                minimum: -9007199254740991
+                                                maximum: 9007199254740991
+                                            changeable:
+                                              type: object
+                                              properties:
+                                                payeeAccount:
+                                                  type: boolean
+                                                payeeName:
+                                                  type: boolean
+                                                amount:
+                                                  type: boolean
+                                                remittance:
+                                                  type: boolean
+                                                firstDate:
+                                                  type: boolean
+                                                unit:
+                                                  type: boolean
+                                                every:
+                                                  type: boolean
+                                                executionDay:
+                                                  type: boolean
+                                                lastDate:
+                                                  type: boolean
+                                              required:
+                                                - payeeAccount
+                                                - payeeName
+                                                - amount
+                                                - remittance
+                                                - firstDate
+                                                - unit
+                                                - every
+                                                - executionDay
+                                                - lastDate
+                                              additionalProperties: false
+                                          required:
+                                            - minDays
+                                            - maxDays
+                                            - months
+                                            - monthDays
+                                            - weeks
+                                            - weekDays
+                                            - changeable
+                                          additionalProperties: false
+                                        - type: "null"
+                                  required:
+                                    - scheduled
+                                    - scheduledChange
+                                    - standing
+                                    - standingChange
+                                  additionalProperties: false
+                                - type: "null"
+                          required:
+                            - balance
+                            - transactions
+                            - cardTransactions
+                            - transfer
+                            - instantTransfer
+                            - standingOrders
+                            - scheduledTransfers
+                            - standingOrdersTan
+                            - scheduledTransfersTan
+                            - payeeVerification
+                            - createScheduledTransfer
+                            - changeScheduledTransfer
+                            - deleteScheduledTransfer
+                            - createStandingOrder
+                            - changeStandingOrder
+                            - deleteStandingOrder
+                            - orderRules
+                          additionalProperties: false
+                        icon:
+                          type: string
+                          enum:
+                            - wallet
+                            - wallet-cards
+                            - credit-card
+                            - banknote
+                            - coins
+                            - piggy-bank
+                            - landmark
+                            - hand-coins
+                            - percent
+                            - receipt
+                            - briefcase
+                            - euro
+                            - chart-line
+                            - arrow-left-right
+                            - undo-2
+                            - house
+                            - key-round
+                            - zap
+                            - flame
+                            - droplets
+                            - sofa
+                            - lamp
+                            - wrench
+                            - shield-check
+                            - wifi
+                            - smartphone
+                            - tv
+                            - shopping-cart
+                            - shopping-basket
+                            - croissant
+                            - utensils
+                            - coffee
+                            - pizza
+                            - wine
+                            - apple
+                            - car
+                            - car-front
+                            - fuel
+                            - train-front
+                            - bus
+                            - bike
+                            - plane
+                            - square-parking
+                            - ticket
+                            - circle-play
+                            - music
+                            - tree-palm
+                            - gift
+                            - dumbbell
+                            - book-open
+                            - gamepad-2
+                            - camera
+                            - party-popper
+                            - shopping-bag
+                            - package
+                            - shirt
+                            - pill-bottle
+                            - scissors
+                            - calendar-clock
+                            - store
+                            - heart-pulse
+                            - stethoscope
+                            - pill
+                            - users
+                            - user
+                            - baby
+                            - dog
+                            - cat
+                            - graduation-cap
+                            - folder
+                            - layers
+                            - tag
+                            - star
+                            - heart
+                        consentUntil:
+                          type: string
+                          description: ISO 8601 date and time
+                      required:
+                        - accountNumber
+                        - subAccount
+                        - iban
+                        - bic
+                        - externalId
+                        - name
+                        - owner
+                        - currency
+                        - kind
+                        - capabilities
+                      additionalProperties: false
                 required:
                   - state
                   - validUntil
+                  - accounts
                 additionalProperties: false
         default:
           description: Error
@@ -5609,6 +5982,9 @@ paths:
                                     - tag
                                     - star
                                     - heart
+                                consentUntil:
+                                  type: string
+                                  description: ISO 8601 date and time
                               required:
                                 - accountNumber
                                 - subAccount

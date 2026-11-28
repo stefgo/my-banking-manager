@@ -92,7 +92,7 @@ export class SyncManager {
             const run: Run = {
                 api: {
                     id: randomUUID(), connectionId: conn.id, connectionName: conn.name, status: "running", challenge: null, accountIds,
-                    newTransactions: 0, newAccounts: [], missingAccounts: [], ordersOnly: req.ordersOnly === true, ordersMessage: null, foreignCurrency: 0, error: null, message: null, startedAt: new Date().toISOString(), finishedAt: null,
+                    newTransactions: 0, newAccounts: [], missingAccounts: [], consentEndedAccounts: [], ordersOnly: req.ordersOnly === true, ordersMessage: null, foreignCurrency: 0, error: null, message: null, startedAt: new Date().toISOString(), finishedAt: null,
                 },
                 userId: user.id,
                 userName: user.name,
@@ -279,12 +279,19 @@ export class SyncManager {
         const targets = run.api.accountIds
             .filter((id) => !run.api.missingAccounts.includes(id))
             .map((id) => {
-                const row = db().prepare("SELECT a.kind, a.external_id, bla.account_ref, bla.allowed_operations FROM accounts a JOIN bank_login_accounts bla ON bla.account_id = a.id WHERE a.id = ? AND bla.login_id = ?").get(id, run.loginId) as
-                    | { kind: string; external_id: string; account_ref: string; allowed_operations: string }
+                const row = db().prepare("SELECT a.kind, a.external_id, bla.account_ref, bla.allowed_operations, bla.consent_until FROM accounts a JOIN bank_login_accounts bla ON bla.account_id = a.id WHERE a.id = ? AND bla.login_id = ?").get(id, run.loginId) as
+                    | { kind: string; external_id: string; account_ref: string; allowed_operations: string; consent_until: string | null }
                     | undefined;
-                return row ? { id, kind: row.kind, ref: JSON.parse(row.account_ref) as ConnectorAccountRef, caps: JSON.parse(row.allowed_operations) as ConnectorAccount["capabilities"] } : null;
+                if (!row) return null;
+                // PSD2: the approval of this account has ended, while another one of the access holds
+                if (psd2 && row.consent_until && Date.parse(row.consent_until) <= Date.now()) {
+                    run.api.consentEndedAccounts.push(id);
+                    return null;
+                }
+                return { id, kind: row.kind, ref: JSON.parse(row.account_ref) as ConnectorAccountRef, caps: JSON.parse(row.allowed_operations) as ConnectorAccount["capabilities"] };
             })
             .filter((t): t is NonNullable<typeof t> => t !== null);
+        if (run.api.consentEndedAccounts.length) this.emit(run);
 
         // Balances of all accounts in one call
         // A credit card whose bookings come with their own balance (FinTS card transactions) needs no call here

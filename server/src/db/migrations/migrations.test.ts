@@ -17,6 +17,7 @@ import { transferChecks } from "./0014-transfer-checks.js";
 import { psd2Connections } from "./0015-psd2-connections.js";
 import { paypalFunding } from "./0016-paypal-funding.js";
 import { bookingEdits } from "./0017-booking-edits.js";
+import { psd2AccountConsents } from "./0018-psd2-account-consents.js";
 import { applyMigration, migrations, type Migration } from "./index.js";
 
 const columns = (db: Database.Database, table: string) => (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
@@ -657,5 +658,26 @@ describe("0017-booking-edits", () => {
 
     it("leaves stored bookings unchanged and undeleted", () => {
         expect(db.prepare("SELECT amount, booking_date AS d, deleted_at AS del, original_amount AS oa, original_booking_date AS od FROM transactions").get()).toEqual({ amount: -1999, d: "2026-10-01", del: null, oa: null, od: null });
+    });
+});
+
+describe("0018-psd2-account-consents", () => {
+    let db: Database.Database;
+
+    beforeEach(() => {
+        db = before(psd2AccountConsents);
+        db.exec(`
+            INSERT INTO users (id, name, created_at) VALUES (1, 'Alex', '${T0}');
+            INSERT INTO bank_connections (id, name, connector, bank_name, blz, fints_url, icon, color, created_at, aspsp, country) VALUES (1, 'PayPal', 'enablebanking', 'PayPal', '', '', 'wallet', 'blue', '${T0}', 'PayPal', 'DE');
+            INSERT INTO bank_logins (id, connection_id, user_id, login_hint, created_at, consent_until) VALUES (1, 1, 1, 'App ••••0001', '${T0}', '2027-05-01T00:00:00.000Z');
+            INSERT INTO accounts (id, connection_id, external_id, name, kind, icon, color, position, created_at) VALUES (1, 1, 'PP1', 'PayPal', 'giro', 'wallet', 'blue', 0, '${T0}');
+            INSERT INTO bank_login_accounts (login_id, account_id, account_ref, allowed_operations) VALUES (1, 1, '{}', '{}');
+        `);
+        applyMigration(db, psd2AccountConsents);
+    });
+    afterEach(() => db.close());
+
+    it("keeps the links, with no end per account yet", () => {
+        expect(db.prepare("SELECT login_id, account_id, consent_until FROM bank_login_accounts").all()).toEqual([{ login_id: 1, account_id: 1, consent_until: null }]);
     });
 });

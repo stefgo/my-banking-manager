@@ -93,6 +93,19 @@ Einmalig, für alle Banken zusammen:
 Application-ID und Schlüssel speichert MBM verschlüsselt wie eine PIN. Jeder Benutzer richtet seine
 eigene Anwendung und Freigabe ein.
 
+### Mehrere Konten bei einer Bank
+
+Eine Freigabe umfasst die Konten, die du bei der Anmeldung freigibst. Bei PayPal ist das genau das
+Konto, mit dem du dich anmeldest. Für ein **zweites PayPal-Konto** verknüpfst du es zuerst in deiner
+Anwendung bei Enable Banking („Activate by linking accounts“) und wählst dann in MBM beim Bankzugang
+**Weiteres Konto freigeben**. Auf der Freigabeseite meldest du dich mit dem zweiten Konto an; danach
+übernimmst du es. Wählst du unter „Konto hinzufügen → Bank über PSD2“ eine Bank, die du schon
+eingerichtet hast, führt MBM dich ebenso zur weiteren Freigabe.
+
+Beide Konten stehen dann unter dem einen Bankzugang. Jede Freigabe läuft für sich ab: Bei jedem
+Konto steht, bis wann seine gilt. Ist die Freigabe eines Kontos abgelaufen, überspringt der Abruf
+dieses Konto, sagt es dir und holt die übrigen trotzdem.
+
 ### Freigabe erneuern
 
 Eine Freigabe gilt höchstens so lange, wie die Bank erlaubt, bei PayPal **180 Tage**. Unter
@@ -101,7 +114,11 @@ darauf hin. Ist die Freigabe abgelaufen oder hast du sie bei der Bank widerrufen
 „Freigabe bei der Bank nötig“. **Freigabe erneuern** (beim Bankzugang oder im Abruf) wiederholt nur
 Schritt 4; Konten und Umsätze bleiben.
 
-Entfernst du deine Anmeldung oder den Bankzugang, beendet MBM die Freigabe auch bei Enable Banking.
+Hast du mehrere Konten bei der Bank freigegeben, meldest du dich beim Erneuern mit dem Konto an,
+dessen Freigabe abläuft; MBM nennt es beim Hinweis. Die neue Freigabe ersetzt nur die alte dieses
+Kontos, die anderen bleiben.
+
+Entfernst du deine Anmeldung oder den Bankzugang, beendet MBM alle Freigaben auch bei Enable Banking.
 Bei der Bank (etwa unter PayPal → Einstellungen → Datenschutz) kannst du sie jederzeit selbst
 widerrufen.
 

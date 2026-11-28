@@ -4,7 +4,7 @@
 import { generateKeyPairSync, randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createEmbeddedConnector } from "@mbm/connector-enablebanking/embedded";
-import { fakeEnableBanking, PAYPAL, type FakeEnableBanking } from "@mbm/connector-enablebanking/testing";
+import { fakeEnableBanking, PAYPAL, paypalAccount, secondPaypalAccount, type FakeEnableBanking } from "@mbm/connector-enablebanking/testing";
 import type { BankConnection, OfferedAccount, SyncRun } from "@mbm/shared";
 import { confirmCode, createTestApp, setUpSignedIn, signInCreatedUser, type TestApp } from "./testing/testApp.js";
 
@@ -27,23 +27,32 @@ beforeEach(async () => {
 });
 afterEach(() => t.close());
 
-/** PayPal access with the own login, approved; answers with the connection id. */
-async function approvedAccess(who: Api = api): Promise<number> {
+/** PayPal access with the own login, approved (`only`: the accounts approved at the bank); answers with the connection id. */
+async function approvedAccess(who: Api = api, only?: number[]): Promise<number> {
     const conn = await who<BankConnection>("POST", "/api/psd2/connections", { aspsp: "PayPal", country: "DE" });
     expect(conn.status, JSON.stringify(conn.body)).toBe(200);
     const id = conn.body.id;
     expect((await who("PUT", `/api/bank-connections/${id}/psd2-login`, { credentials })).status).toBe(200);
     const started = await who<{ url: string }>("POST", `/api/bank-connections/${id}/consent`, { redirectUrl: CALLBACK });
     expect(started.status, JSON.stringify(started.body)).toBe(200);
-    const done = await who<BankConnection>("POST", "/api/psd2/consent", eb.approve());
+    const done = await who<BankConnection>("POST", "/api/psd2/consent", eb.approve(only));
     expect(done.status, JSON.stringify(done.body)).toBe(200);
     return id;
 }
 
-async function takeOver(id: number): Promise<number> {
+/** A further approval at the access (`only`: the accounts approved at the bank). */
+async function approveMore(id: number, only: number[]): Promise<BankConnection & { newAccounts: number }> {
+    expect((await api("POST", `/api/bank-connections/${id}/consent`, { redirectUrl: CALLBACK })).status).toBe(200);
+    const done = await api<BankConnection & { newAccounts: number }>("POST", "/api/psd2/consent", eb.approve(only));
+    expect(done.status, JSON.stringify(done.body)).toBe(200);
+    return done.body;
+}
+
+/** Takes over the account of the offered list at `index` that is not taken over yet. */
+async function takeOver(id: number, index = 0): Promise<number> {
     const offered = await api<{ status: string; data: { accounts: OfferedAccount[] } }>("POST", `/api/bank-connections/${id}/login/accounts`);
     expect(offered.status, JSON.stringify(offered.body)).toBe(200);
-    const taken = await api<{ created: number[] }>("POST", `/api/bank-connections/${id}/accounts`, { accounts: [{ externalId: offered.body.data.accounts[0]!.externalId }] });
+    const taken = await api<{ created: number[] }>("POST", `/api/bank-connections/${id}/accounts`, { accounts: [{ externalId: offered.body.data.accounts[index]!.externalId }] });
     expect(taken.status).toBe(200);
     return taken.body.created[0]!;
 }
@@ -190,5 +199,80 @@ describe("PSD2 bank access", () => {
         const again = await api<{ status: string; consentUntil: string | null }>("PUT", `/api/bank-connections/${id}/psd2-login`, { credentials });
         expect(again.body).toMatchObject({ status: "setup", consentUntil: null });
         expect(eb.sessionStatus(sid)).toBe("CLOSED");
+    });
+});
+
+describe("several approvals at one PSD2 access", () => {
+    beforeEach(async () => {
+        t.close();
+        eb = fakeEnableBanking({ applicationId: APP_ID, publicKey, aspsps: [PAYPAL], accounts: [paypalAccount(), secondPaypalAccount()], redirectUrls: [CALLBACK] });
+        t = await createTestApp({ connectors: { enablebanking: { embedded: true } } }, { loadEmbeddedConnectors: { enablebanking: () => createEmbeddedConnector({}, { client: { fetch: eb.fetch } }) } });
+        ({ api, secret } = await setUpSignedIn(t));
+    });
+
+    const sessions = () => eb.sessionIds();
+
+    it("adds a second PayPal account to the access and keeps fetching the first", async () => {
+        const id = await approvedAccess(api, [0]);
+        const first = await takeOver(id);
+        const more = await approveMore(id, [1]);
+        // The first approval stays; the new account waits to be taken over
+        expect(more.newAccounts).toBe(1);
+        expect(more.myLogin).toMatchObject({ status: "ready" });
+        expect(eb.sessionStatus(sessions()[0]!)).toBe("AUTHORIZED");
+
+        const offered = await api<{ data: { accounts: OfferedAccount[] } }>("POST", `/api/bank-connections/${id}/login/accounts`);
+        expect(offered.body.data.accounts.map((a) => [a.externalId, a.linked])).toEqual([
+            ["PAYPALACCOUNT00000000000001", true],
+            ["PAYPALACCOUNT00000000000002", false],
+        ]);
+        const second = await takeOver(id, 1);
+        expect(t.vault.database.prepare("SELECT name FROM accounts WHERE id = ?").get(second)).toEqual({ name: "PayPal · Kim Beispiel" });
+
+        const run = await syncDone({ connectionId: id });
+        expect(run).toMatchObject({ status: "done", consentEndedAccounts: [], error: null });
+        expect(t.vault.database.prepare("SELECT account_id AS id, amount FROM balances ORDER BY account_id").all()).toEqual([{ id: first, amount: 12345 }, { id: second, amount: 5000 }]);
+        const conn = (await api<BankConnection[]>("GET", "/api/bank-connections")).body[0]!;
+        expect(conn.myLogin!.accountConsents.map((c) => c.accountId)).toEqual([first, second]);
+    });
+
+    it("renews the approval of one account without touching the other", async () => {
+        const id = await approvedAccess(api, [0]);
+        await takeOver(id);
+        await approveMore(id, [1]);
+        await takeOver(id, 1);
+        const [s1, s2] = sessions();
+        const renewed = await approveMore(id, [0]);
+        expect(renewed.newAccounts).toBe(0);
+        expect(eb.sessionStatus(s1!)).toBe("CLOSED");
+        expect(eb.sessionStatus(s2!)).toBe("AUTHORIZED");
+        expect((await syncDone({ connectionId: id })).status).toBe("done");
+    });
+
+    it("skips the account whose approval has ended and fetches the other", async () => {
+        const id = await approvedAccess(api, [0]);
+        const first = await takeOver(id);
+        await approveMore(id, [1]);
+        const second = await takeOver(id, 1);
+        eb.setSessionStatus(sessions()[0]!, "REVOKED");
+
+        const run = await syncDone({ connectionId: id });
+        expect(run).toMatchObject({ status: "done", consentEndedAccounts: [first], missingAccounts: [], error: null });
+        expect(t.vault.database.prepare("SELECT account_id AS id FROM balances").all()).toEqual([{ id: second }]);
+        const login = (await api<BankConnection[]>("GET", "/api/bank-connections")).body[0]!.myLogin!;
+        expect(login.status).toBe("ready");
+        const ended = login.accountConsents.find((c) => c.accountId === first)!;
+        expect(Date.parse(ended.until)).toBeLessThanOrEqual(Date.now());
+
+        // Approved again with the first account: both are fetched again
+        await approveMore(id, [0]);
+        expect((await syncDone({ connectionId: id })).consentEndedAccounts).toEqual([]);
+    });
+
+    it("ends all approvals when the login goes", async () => {
+        const id = await approvedAccess(api, [0]);
+        await approveMore(id, [1]);
+        expect((await api("DELETE", `/api/bank-connections/${id}/login`)).status).toBe(200);
+        expect(sessions().map((s) => eb.sessionStatus(s))).toEqual(["CLOSED", "CLOSED"]);
     });
 });

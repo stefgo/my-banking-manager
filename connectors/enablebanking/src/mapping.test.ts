@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { accountCurrency, bookingText, connectorBalance, connectorTransaction, connectorTransactions, decimalToCents, storedAccount, type EbTransaction } from "./mapping.js";
-import { paypalAccount } from "./testing/index.js";
+import { accountCurrency, bookingText, connectorBalance, connectorTransaction, connectorTransactions, decimalToCents, distinctNames, storedAccount, type EbTransaction } from "./mapping.js";
+import { paypalAccount, secondPaypalAccount } from "./testing/index.js";
 
 const TODAY = "2026-11-26";
 
@@ -14,6 +14,21 @@ describe("decimalToCents", () => {
         expect(decimalToCents("12,50")).toBeNull();
         expect(decimalToCents("")).toBeNull();
         expect(decimalToCents(null)).toBeNull();
+    });
+});
+
+describe("distinctNames", () => {
+    const one = storedAccount(paypalAccount().account, "PayPal", true);
+    const two = storedAccount(secondPaypalAccount().account, "PayPal", true);
+
+    it("leaves names that differ alone", () => {
+        expect(distinctNames([one]).map((a) => a.name)).toEqual(["PayPal"]);
+        expect(distinctNames([one, { ...two, name: "PayPal Geschäft" }]).map((a) => a.name)).toEqual(["PayPal", "PayPal Geschäft"]);
+    });
+
+    it("tells equal names apart by holder, or by the end of the account number for the same holder", () => {
+        expect(distinctNames([one, two]).map((a) => a.name)).toEqual(["PayPal · Alex Beispiel", "PayPal · Kim Beispiel"]);
+        expect(distinctNames([one, { ...two, owner: one.owner }]).map((a) => a.name)).toEqual(["PayPal ••0001", "PayPal ••0002"]);
     });
 });
 

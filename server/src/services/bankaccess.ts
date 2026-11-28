@@ -55,7 +55,7 @@ const stateAad = (loginId: number) => `bank_logins:${loginId}:state`;
 
 export const loginHint = (name: string): string => (name.length > 4 ? `••••${name.slice(-4)}` : "••••");
 
-const toLogin = (r: LoginRow): BankLogin => ({
+const toLogin = (db: Db, r: LoginRow): BankLogin => ({
     id: r.id,
     loginHint: r.login_hint,
     status: r.status,
@@ -65,6 +65,7 @@ const toLogin = (r: LoginRow): BankLogin => ({
     lastSyncAt: r.last_sync_at,
     lastError: r.last_error,
     consentUntil: r.consent_until,
+    accountConsents: db.prepare("SELECT account_id AS accountId, consent_until AS until FROM bank_login_accounts WHERE login_id = ? AND consent_until IS NOT NULL ORDER BY account_id").all(r.id) as BankLogin["accountConsents"],
 });
 
 export function requireConnection(db: Db, id: number): ConnectionRow {
@@ -89,7 +90,7 @@ export function getConnection(db: Db, id: number, userId: number): BankConnectio
         psd2: isPsd2(c) ? psd2Bank(c) : null,
         icon: c.icon,
         color: c.color,
-        myLogin: mine ? toLogin(mine) : null,
+        myLogin: mine ? toLogin(db, mine) : null,
         otherLogins: logins.filter((l) => l.user_id !== userId).map((l) => ({ userName: l.user_name, status: l.status })),
         accountCount,
     };
@@ -171,10 +172,31 @@ export function psd2Login(row: LoginRow, userKey: Buffer): Psd2Login {
     return { ...readPsd2Credentials(row, userKey), ...(state === undefined ? {} : { state }) };
 }
 
-/** Stores a new approval: its state, when it ends; ready if the login already reaches accounts. */
-export function setConsent(db: Db, loginId: number, userKey: Buffer, state: string, validUntil: string): void {
-    const linked = db.prepare("SELECT 1 FROM bank_login_accounts WHERE login_id = ? LIMIT 1").get(loginId) !== undefined;
-    db.prepare("UPDATE bank_logins SET sealed_connector_state = ?, consent_until = ?, status = ?, last_error = NULL WHERE id = ?").run(sealForUser(userKey, state, stateAad(loginId)), validUntil, linked ? "ready" : "setup", loginId);
+/**
+ * Stores a new approval: the state of all approvals, when the last one ends, and the end for the
+ * accounts of the new one the login already reaches; ready if the login already reaches accounts.
+ */
+export function setConsent(db: Db, loginId: number, userKey: Buffer, out: { state: string; validUntil: string; accounts: ConnectorAccount[] }): void {
+    const row = loginById(db, loginId);
+    db.transaction(() => {
+        for (const acc of out.accounts) {
+            const accountId = accountIdOf(db, row.connection_id, acc.externalId);
+            if (accountId === null || !acc.consentUntil) continue;
+            db.prepare("UPDATE bank_login_accounts SET consent_until = ?, missing_since = NULL WHERE login_id = ? AND account_id = ?").run(acc.consentUntil, loginId, accountId);
+        }
+        const linked = db.prepare("SELECT 1 FROM bank_login_accounts WHERE login_id = ? LIMIT 1").get(loginId) !== undefined;
+        db.prepare("UPDATE bank_logins SET sealed_connector_state = ?, consent_until = ?, status = ?, last_error = NULL WHERE id = ?").run(sealForUser(userKey, out.state, stateAad(loginId)), out.validUntil, linked ? "ready" : "setup", loginId);
+    })();
+}
+
+/** Accounts of the list the login does not reach yet and that are neither hidden nor beyond MBM. */
+export function newAccountCount(db: Db, loginId: number, accounts: ConnectorAccount[]): number {
+    const row = loginById(db, loginId);
+    return accounts.filter((a) => {
+        if (!isSupportedKind(a.kind) || isIgnored(db, row.connection_id, a.externalId)) return false;
+        const accountId = accountIdOf(db, row.connection_id, a.externalId);
+        return accountId === null || !isLinked(db, loginId, accountId);
+    }).length;
 }
 
 /** Removes the connection; its accounts become offline accounts (balance kept) or are deleted. */
@@ -229,7 +251,7 @@ export function requireLogin(db: Db, connectionId: number, userId: number): Logi
 }
 
 export const loginById = (db: Db, id: number): LoginRow => db.prepare("SELECT * FROM bank_logins WHERE id = ?").get(id) as LoginRow;
-export const loginToApi = (db: Db, id: number): BankLogin => toLogin(loginById(db, id));
+export const loginToApi = (db: Db, id: number): BankLogin => toLogin(db, loginById(db, id));
 
 /** Sets (or replaces) the user's login; the TAN method is chosen afresh afterwards. */
 export function setLogin(db: Db, connectionId: number, userId: number, userKey: Buffer, creds: Credentials, savePin: boolean): LoginRow {
@@ -359,8 +381,8 @@ export function takeOverAccount(
     db.prepare("DELETE FROM bank_ignored_accounts WHERE connection_id = ? AND external_id = ?").run(connectionId, acc.externalId);
     const ref = JSON.stringify({ accountNumber: acc.accountNumber, subAccount: acc.subAccount, iban: acc.iban, bic: acc.bic });
     db.prepare(
-        `INSERT INTO bank_login_accounts (login_id, account_id, account_ref, allowed_operations, last_seen_at) VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT (login_id, account_id) DO UPDATE SET account_ref = excluded.account_ref, allowed_operations = excluded.allowed_operations, last_seen_at = excluded.last_seen_at, missing_since = NULL`,
-    ).run(loginId, accountId, ref, JSON.stringify(acc.capabilities), nowIso());
+        `INSERT INTO bank_login_accounts (login_id, account_id, account_ref, allowed_operations, last_seen_at, consent_until) VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT (login_id, account_id) DO UPDATE SET account_ref = excluded.account_ref, allowed_operations = excluded.allowed_operations, last_seen_at = excluded.last_seen_at, missing_since = NULL, consent_until = excluded.consent_until`,
+    ).run(loginId, accountId, ref, JSON.stringify(acc.capabilities), nowIso(), acc.consentUntil ?? null);
     return { accountId, created };
 }

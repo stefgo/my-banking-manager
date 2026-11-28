@@ -10547,6 +10547,22 @@ paths:
                                 - type: string
                                   description: ISO 8601 date and time
                                 - type: "null"
+                            accountConsents:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  accountId:
+                                    type: integer
+                                    exclusiveMinimum: 0
+                                    maximum: 9007199254740991
+                                  until:
+                                    type: string
+                                    description: ISO 8601 date and time
+                                required:
+                                  - accountId
+                                  - until
+                                additionalProperties: false
                           required:
                             - id
                             - loginHint
@@ -10557,6 +10573,7 @@ paths:
                             - lastSyncAt
                             - lastError
                             - consentUntil
+                            - accountConsents
                           additionalProperties: false
                         - type: "null"
                     otherLogins:
@@ -10917,6 +10934,22 @@ paths:
                               - type: string
                                 description: ISO 8601 date and time
                               - type: "null"
+                          accountConsents:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                accountId:
+                                  type: integer
+                                  exclusiveMinimum: 0
+                                  maximum: 9007199254740991
+                                until:
+                                  type: string
+                                  description: ISO 8601 date and time
+                              required:
+                                - accountId
+                                - until
+                              additionalProperties: false
                         required:
                           - id
                           - loginHint
@@ -10927,6 +10960,7 @@ paths:
                           - lastSyncAt
                           - lastError
                           - consentUntil
+                          - accountConsents
                         additionalProperties: false
                       - type: "null"
                   otherLogins:
@@ -11119,6 +11153,22 @@ paths:
                           - type: string
                             description: ISO 8601 date and time
                           - type: "null"
+                      accountConsents:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            accountId:
+                              type: integer
+                              exclusiveMinimum: 0
+                              maximum: 9007199254740991
+                            until:
+                              type: string
+                              description: ISO 8601 date and time
+                          required:
+                            - accountId
+                            - until
+                          additionalProperties: false
                     required:
                       - id
                       - loginHint
@@ -11129,6 +11179,7 @@ paths:
                       - lastSyncAt
                       - lastError
                       - consentUntil
+                      - accountConsents
                     additionalProperties: false
                   tanMethods:
                     type: array
@@ -11246,6 +11297,22 @@ paths:
                       - type: string
                         description: ISO 8601 date and time
                       - type: "null"
+                  accountConsents:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        accountId:
+                          type: integer
+                          exclusiveMinimum: 0
+                          maximum: 9007199254740991
+                        until:
+                          type: string
+                          description: ISO 8601 date and time
+                      required:
+                        - accountId
+                        - until
+                      additionalProperties: false
                 required:
                   - id
                   - loginHint
@@ -11256,6 +11323,7 @@ paths:
                   - lastSyncAt
                   - lastError
                   - consentUntil
+                  - accountConsents
                 additionalProperties: false
         default:
           description: Error
@@ -11387,6 +11455,22 @@ paths:
                       - type: string
                         description: ISO 8601 date and time
                       - type: "null"
+                  accountConsents:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        accountId:
+                          type: integer
+                          exclusiveMinimum: 0
+                          maximum: 9007199254740991
+                        until:
+                          type: string
+                          description: ISO 8601 date and time
+                      required:
+                        - accountId
+                        - until
+                      additionalProperties: false
                 required:
                   - id
                   - loginHint
@@ -11397,6 +11481,7 @@ paths:
                   - lastSyncAt
                   - lastError
                   - consentUntil
+                  - accountConsents
                 additionalProperties: false
         default:
           description: Error
@@ -12737,6 +12822,12 @@ paths:
                         type: integer
                         exclusiveMinimum: 0
                         maximum: 9007199254740991
+                    consentEndedAccounts:
+                      type: array
+                      items:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
                     ordersOnly:
                       type: boolean
                     ordersMessage:
@@ -12773,6 +12864,7 @@ paths:
                     - newTransactions
                     - newAccounts
                     - missingAccounts
+                    - consentEndedAccounts
                     - ordersOnly
                     - ordersMessage
                     - foreignCurrency
@@ -12862,6 +12954,12 @@ paths:
                         type: integer
                         exclusiveMinimum: 0
                         maximum: 9007199254740991
+                    consentEndedAccounts:
+                      type: array
+                      items:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
                     ordersOnly:
                       type: boolean
                     ordersMessage:
@@ -12898,6 +12996,7 @@ paths:
                     - newTransactions
                     - newAccounts
                     - missingAccounts
+                    - consentEndedAccounts
                     - ordersOnly
                     - ordersMessage
                     - foreignCurrency
@@ -13007,6 +13106,12 @@ paths:
                       type: integer
                       exclusiveMinimum: 0
                       maximum: 9007199254740991
+                  consentEndedAccounts:
+                    type: array
+                    items:
+                      type: integer
+                      exclusiveMinimum: 0
+                      maximum: 9007199254740991
                   ordersOnly:
                     type: boolean
                   ordersMessage:
@@ -13043,6 +13148,7 @@ paths:
                   - newTransactions
                   - newAccounts
                   - missingAccounts
+                  - consentEndedAccounts
                   - ordersOnly
                   - ordersMessage
                   - foreignCurrency
@@ -13538,6 +13644,12 @@ paths:
                         type: integer
                         exclusiveMinimum: 0
                         maximum: 9007199254740991
+                    consentEndedAccounts:
+                      type: array
+                      items:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
                     ordersOnly:
                       type: boolean
                     ordersMessage:
@@ -13574,6 +13686,7 @@ paths:
                     - newTransactions
                     - newAccounts
                     - missingAccounts
+                    - consentEndedAccounts
                     - ordersOnly
                     - ordersMessage
                     - foreignCurrency
@@ -13985,6 +14098,22 @@ paths:
                               - type: string
                                 description: ISO 8601 date and time
                               - type: "null"
+                          accountConsents:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                accountId:
+                                  type: integer
+                                  exclusiveMinimum: 0
+                                  maximum: 9007199254740991
+                                until:
+                                  type: string
+                                  description: ISO 8601 date and time
+                              required:
+                                - accountId
+                                - until
+                              additionalProperties: false
                         required:
                           - id
                           - loginHint
@@ -13995,6 +14124,7 @@ paths:
                           - lastSyncAt
                           - lastError
                           - consentUntil
+                          - accountConsents
                         additionalProperties: false
                       - type: "null"
                   otherLogins:
@@ -14139,6 +14269,22 @@ paths:
                       - type: string
                         description: ISO 8601 date and time
                       - type: "null"
+                  accountConsents:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        accountId:
+                          type: integer
+                          exclusiveMinimum: 0
+                          maximum: 9007199254740991
+                        until:
+                          type: string
+                          description: ISO 8601 date and time
+                      required:
+                        - accountId
+                        - until
+                      additionalProperties: false
                 required:
                   - id
                   - loginHint
@@ -14149,6 +14295,7 @@ paths:
                   - lastSyncAt
                   - lastError
                   - consentUntil
+                  - accountConsents
                 additionalProperties: false
         default:
           description: Error
@@ -14421,6 +14568,22 @@ paths:
                               - type: string
                                 description: ISO 8601 date and time
                               - type: "null"
+                          accountConsents:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                accountId:
+                                  type: integer
+                                  exclusiveMinimum: 0
+                                  maximum: 9007199254740991
+                                until:
+                                  type: string
+                                  description: ISO 8601 date and time
+                              required:
+                                - accountId
+                                - until
+                              additionalProperties: false
                         required:
                           - id
                           - loginHint
@@ -14431,6 +14594,7 @@ paths:
                           - lastSyncAt
                           - lastError
                           - consentUntil
+                          - accountConsents
                         additionalProperties: false
                       - type: "null"
                   otherLogins:
@@ -14457,6 +14621,10 @@ paths:
                     type: integer
                     minimum: -9007199254740991
                     maximum: 9007199254740991
+                  newAccounts:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
                 required:
                   - id
                   - kind
@@ -14471,6 +14639,7 @@ paths:
                   - myLogin
                   - otherLogins
                   - accountCount
+                  - newAccounts
                 additionalProperties: false
         default:
           description: Error

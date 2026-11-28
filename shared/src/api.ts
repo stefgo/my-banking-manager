@@ -165,7 +165,7 @@ export const routes = {
     createPsd2Connection: r({ method: "POST", path: "/api/psd2/connections", summary: "PSD2: add a bank access through Enable Banking; an existing one for the same bank is returned", tag: "Banks", access: "user", body: K.CreatePsd2ConnectionRequest, response: K.BankConnection }),
     setPsd2Login: r({ method: "PUT", path: "/api/bank-connections/:id/psd2-login", summary: "PSD2: set the own Enable Banking application (typed in or from another own PSD2 login) and check it", tag: "Banks", access: "user", params: IdParam, body: K.SetPsd2LoginRequest, response: K.BankLogin }),
     startConsent: r({ method: "POST", path: "/api/bank-connections/:id/consent", summary: "PSD2: start the approval at the bank for the own login; answers with the address to open", tag: "Banks", access: "user", params: IdParam, body: K.StartConsentRequest, response: K.StartConsentResponse }),
-    completeConsent: r({ method: "POST", path: "/api/psd2/consent", summary: "PSD2: finish an approval of the signed-in user with what the bank's redirect brought back", tag: "Banks", access: "user", body: K.CompleteConsentRequest, response: K.BankConnection }),
+    completeConsent: r({ method: "POST", path: "/api/psd2/consent", summary: "PSD2: finish an approval of the signed-in user with what the bank's redirect brought back", tag: "Banks", access: "user", body: K.CompleteConsentRequest, response: K.CompleteConsentResponse }),
     cancelBankOperation: r({ method: "DELETE", path: "/api/bank-operations/:id", summary: "Cancel a bank operation", tag: "Banks", access: "user", params: K.BankOperationParam, response: Ok }),
 
     // ---------- Transfers ----------

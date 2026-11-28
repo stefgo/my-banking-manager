@@ -25,6 +25,13 @@ Nothing inside an HTML comment is published.
 
 ### Behoben
 
+- **Mehrere PayPal-Konten:** Ein PSD2-Zugang hält jetzt mehrere Freigaben, bei PayPal eine je
+  Konto. „Weiteres Konto freigeben“ beim Bankzugang fügt ein zweites PayPal-Konto hinzu, ohne die
+  Freigabe des ersten zu beenden. Bisher ersetzte eine neue Freigabe die alte, und das erste Konto
+  ließ sich nicht mehr abrufen. Jedes Konto zeigt, bis wann seine Freigabe gilt; ist sie
+  abgelaufen, überspringt der Abruf nur dieses Konto. Hast du ein zweites PayPal-Konto schon so
+  eingerichtet, gib nach dem Update einmal „Weiteres Konto freigeben“ und melde dich mit dem
+  ersten Konto an.
 - **Bank über PSD2:** Beim Einrichten eines weiteren PSD2-Zugangs steht jede eigene
   Enable-Banking-Anwendung nur noch einmal zur Auswahl („Anwendung (App ••••de23)“, darunter die
   Banken, die sie schon nutzen), statt einmal je bestehendem Zugang.

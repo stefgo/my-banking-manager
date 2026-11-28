@@ -126,6 +126,8 @@ export const ConnectorAccount = ConnectorAccountRef.extend({
     capabilities: ConnectorAccountCapabilities,
     /** Symbol the connector suggests for a new account (e.g. "wallet" for PayPal); else the symbol of its kind. */
     icon: IconKeySchema.optional(),
+    /** PSD2: when the approval that reaches the account ends (in the past: it has ended); FinTS leaves it out. */
+    consentUntil: Timestamp.optional(),
 });
 export type ConnectorAccount = z.infer<typeof ConnectorAccount>;
 
@@ -472,12 +474,15 @@ export const Psd2ConsentData = z.object({
     url: z.string().url().startsWith("https://"),
 });
 
-export const Psd2SessionRequest = z.object({ bank: Psd2Bank, login: Psd2Credentials, code: z.string().min(1).max(2_000) });
+/** The login carries the state of the approvals so far: the new one joins them. */
+export const Psd2SessionRequest = z.object({ bank: Psd2Bank, login: Psd2Login, code: z.string().min(1).max(2_000) });
 export const Psd2SessionData = z.object({
-    /** Opaque state for all later calls of this approval. */
+    /** Opaque state for all later calls: the approvals so far and the new one. */
     state: z.string(),
-    /** When the approval ends; then the user approves again. */
+    /** When the last of the approvals ends; then the user approves again. */
     validUntil: Timestamp,
+    /** The accounts of the new approval. */
+    accounts: z.array(ConnectorAccount),
 });
 
 export const Psd2CloseRequest = z.object({ login: Psd2Login });

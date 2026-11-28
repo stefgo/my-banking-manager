@@ -1,7 +1,7 @@
 # Datenbankmodell
 
 Alle Tabellen, Spalten und Beziehungen der Server-Datenbank und die Schlüssel, die sie schützen.
-Stand: Schema nach Migration `0017-booking-edits`. Maßgeblich bleibt der Code in
+Stand: Schema nach Migration `0018-psd2-account-consents`. Maßgeblich bleibt der Code in
 `server/src/db/migrations/`. Wie du die Seite nach einer neuen Migration nachziehst, steht unter
 [Diese Seite pflegen](#diese-seite-pflegen).
 
@@ -209,7 +209,7 @@ Die Anmeldung eines Benutzers an einem Bankzugang: Zugangsdaten, TAN-Verfahren u
 | `last_sync_at` | TEXT |  | Letzter erfolgreicher Abruf. |
 | `last_error` | TEXT |  | Letzte Fehlermeldung. |
 | `created_at` | TEXT | `NOT NULL` |  |
-| `consent_until` | TEXT |  | PSD2: wann die Zustimmung bei der Bank endet; NULL bei FinTS und vor der ersten Zustimmung. *Seit 0015.* |
+| `consent_until` | TEXT |  | PSD2: wann die letzte Zustimmung bei der Bank endet (ein Zugang kann mehrere halten); NULL bei FinTS und vor der ersten Zustimmung. *Seit 0015.* |
 
 **Bedingungen:**
 
@@ -227,6 +227,7 @@ Welche Anmeldung welches Konto erreicht, wie der Konnektor es anspricht und welc
 | `allowed_operations` | TEXT | `NOT NULL` | JSON: was die Bank dieser Anmeldung für das Konto erlaubt (Umsätze, Überweisung, Daueraufträge …). |
 | `last_seen_at` | TEXT |  | Zuletzt von der Bank gemeldet. |
 | `missing_since` | TEXT |  | Seit wann die Bank das Konto nicht mehr meldet. |
+| `consent_until` | TEXT |  | PSD2: wann die Zustimmung endet, die das Konto erreicht (bei PayPal eine je Konto); NULL bei FinTS. *Seit 0018.* |
 
 **Indizes:**
 
@@ -741,6 +742,7 @@ kann Spalten nicht ändern), läuft die Migration mit abgeschalteten Fremdschlü
 | `0015-psd2-connections` | PSD2 über Enable Banking: aspsp, country, consent_until, Status consent_needed. |
 | `0016-paypal-funding` | transactions.funding_of_id und accounts.refetch_all für PayPal. |
 | `0017-booking-edits` | Weiches Löschen (deleted_at) und geänderte Beträge und Daten mit Originalwert. |
+| `0018-psd2-account-consents` | bank_login_accounts.consent_until: mehrere Zustimmungen je PSD2-Zugang, jede mit eigenem Ende. |
 
 ## Diese Seite pflegen
 

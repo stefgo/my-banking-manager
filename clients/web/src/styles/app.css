@@ -1223,6 +1223,8 @@ button.ctx-ic:hover, button.ctx-ic:focus-visible { box-shadow: inset 0 0 0 1.5px
 .cc-acc-actions { display: flex; gap: 4px; justify-content: flex-end; }
 .cc-acc-main { min-width: 0; }
 .cc-acc small.cc-acc-hint { display: block; font-family: inherit; }
+.cc-acc small.cc-acc-consent { display: block; font-family: inherit; }
+.cc-acc small.cc-acc-consent.attn { color: var(--warn); }
 .cc-bank { display: grid; gap: 8px; }
 .cc-bank-head { display: flex; align-items: baseline; gap: 10px; justify-content: space-between; }
 .cc-bank-head b { font-size: 13px; font-weight: 600; }

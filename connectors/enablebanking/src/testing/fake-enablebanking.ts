@@ -98,6 +98,21 @@ export const paypalAccount = (): FakeAccount => ({
     ],
 });
 
+/** A second PayPal account of another holder: a second approval at the same access. */
+export function secondPaypalAccount(): FakeAccount {
+    const b = paypalAccount();
+    b.account = {
+        ...b.account,
+        account_id: { iban: null, other: { identification: "PAYPALACCOUNT00000000000002", scheme_name: "OTHI" } },
+        all_account_ids: [{ identification: "PAYPALACCOUNT00000000000002", scheme_name: "OTHI" }],
+        name: "Kim Beispiel",
+        identification_hash: "hash-paypal-2",
+    };
+    b.balances = [{ balance_amount: { currency: "EUR", amount: "50.00" }, balance_type: "XPCD", reference_date: null }];
+    b.transactions = b.transactions.slice(0, 1).map((t) => ({ ...t, entry_reference: "9ZZ23456CD789012Z" }));
+    return b;
+}
+
 interface Session {
     id: string;
     status: "AUTHORIZED" | "EXPIRED" | "CLOSED" | "REVOKED";
@@ -111,7 +126,7 @@ export function fakeEnableBanking(o: FakeOptions) {
     const pageSize = o.pageSize ?? 100;
     const now = o.now ?? Date.now;
     const calls: RecordedCall[] = [];
-    const auths = new Map<string, { state: string; validUntil: string; aspsp: FakeAspsp }>(); // code → auth
+    const auths = new Map<string, { state: string; validUntil: string; aspsp: FakeAspsp; accounts?: number[] }>(); // code → auth
     const sessions = new Map<string, Session>();
     let lastAuth: { state: string; code: string; body: Record<string, unknown> } | null = null;
 
@@ -180,7 +195,10 @@ export function fakeEnableBanking(o: FakeOptions) {
             if (!auth) return error(400, "WRONG_AUTHORIZATION_CODE", "Wrong authorization code");
             auths.delete(String(body?.code));
             const session: Session = { id: randomUUID(), status: "AUTHORIZED", uids: new Map() };
-            accounts.forEach((_, i) => session.uids.set(randomUUID(), i));
+            // The accounts the user approved at the bank (PayPal: the one signed in with); all by default
+            accounts.forEach((_, i) => {
+                if (!auth.accounts || auth.accounts.includes(i)) session.uids.set(randomUUID(), i);
+            });
             sessions.set(session.id, session);
             return json(200, {
                 session_id: session.id,
@@ -221,9 +239,14 @@ export function fakeEnableBanking(o: FakeOptions) {
     return {
         fetch,
         calls,
-        /** The code the bank's redirect would bring back for the last approval started, with its state. */
-        approve(): { code: string; state: string } {
+        /**
+         * The code the bank's redirect would bring back for the last approval started, with its state;
+         * `only`: the accounts (indexes) the user approves, as PayPal approves the one signed in with.
+         */
+        approve(only?: number[]): { code: string; state: string } {
             if (!lastAuth) throw new Error("No approval started");
+            const auth = auths.get(lastAuth.code);
+            if (auth && only) auth.accounts = only;
             return { code: lastAuth.code, state: lastAuth.state };
         },
         lastAuthBody: () => lastAuth?.body ?? null,
@@ -233,6 +256,7 @@ export function fakeEnableBanking(o: FakeOptions) {
             s.status = status;
         },
         sessionStatus: (id: string) => sessions.get(id)?.status ?? null,
+        sessionIds: () => [...sessions.keys()],
         accounts,
     };
 }
